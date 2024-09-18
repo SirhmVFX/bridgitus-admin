@@ -2,7 +2,7 @@
 
 import ModalPortal from "@/components/ModalPortal";
 
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useMemo } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
 import { paginate } from "@/lib/pagination";
@@ -51,8 +51,14 @@ import {
   MdCheckCircle,
   MdCancel,
   MdReplay,
+  MdFolder,
+  MdFolderOpen,
+  MdExpandMore,
+  MdExpandLess,
+  MdBarChart,
 } from "react-icons/md";
 import { STUDENT_GRADES, formatGradeLabel } from "@/lib/grades";
+import StudentResultsModal from "@/components/StudentResultsModal";
 
 const GRADES = [...STUDENT_GRADES];
 
@@ -74,6 +80,7 @@ const EMPTY: Omit<Assignment, "id"> = {
   linkedMaterialId: "",
   targetGrades: ["1"],
   targetStudentIds: [],
+  folder: "",
   published: false,
   questions: [],
   totalPoints: 0,
@@ -93,8 +100,10 @@ export default function AssignmentsPage() {
   const [saving, setSaving] = useState(false);
   const [fileUploading, setFileUploading] = useState(false);
   const [gradeFilter, setGradeFilter] = useState("all");
+  const [subjectFilter, setSubjectFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [openFolders, setOpenFolders] = useState<Record<string, boolean>>({});
   const [subModal, setSubModal] = useState<{
     a: Assignment;
     subs: AssignmentSubmission[];
@@ -107,6 +116,11 @@ export default function AssignmentsPage() {
   const [libMode, setLibMode] = useState<"worksheet" | "quiz">("quiz");
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [libLoading, setLibLoading] = useState(false);
+  const [resultModal, setResultModal] = useState<{
+    studentName: string;
+    submission: AssignmentSubmission;
+    assignment: Assignment;
+  } | null>(null);
 
   async function load() {
     try {
@@ -156,6 +170,7 @@ export default function AssignmentsPage() {
       linkedMaterialId: a.linkedMaterialId ?? "",
       targetGrades: a.targetGrades,
       targetStudentIds: a.targetStudentIds ?? [],
+      folder: a.folder ?? "",
       published: a.published,
       questions: a.questions ?? [],
       totalPoints: a.totalPoints ?? 0,
@@ -322,7 +337,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
     if (targets.length && set.year && !setYearMatchesTarget(set.year, targets)) {
       alert(
         `This question set is for ${set.year}, but this assignment targets Grade(s) ${targets.join(", ")}. ` +
-          `Import only matching year sets so diagrams stay with the right grade.`
+        `Import only matching year sets so diagrams stay with the right grade.`
       );
       return;
     }
@@ -442,19 +457,24 @@ ${data.description ? `\n\n${data.description}` : ""}`,
     setForm({ ...form, targetGrades: grades, grade: grades[0] ?? "1" });
   }
 
+  const allSubjects = useMemo(
+    () => [...new Set(assignments.map((a) => a.subject).filter(Boolean))].sort(),
+    [assignments]
+  );
+
   const filtered = assignments.filter((a) => {
     const gMatch =
       gradeFilter === "all" || a.targetGrades.includes(gradeFilter);
     const sMatch =
+      subjectFilter === "all" || a.subject === subjectFilter;
+    const qMatch =
       !search || a.title.toLowerCase().includes(search.toLowerCase());
-    return gMatch && sMatch;
+    return gMatch && sMatch && qMatch;
   });
 
   useEffect(() => {
     setPage(1);
-  }, [search, gradeFilter]);
-
-  const pageSlice = paginate(filtered, page);
+  }, [search, gradeFilter, subjectFilter]);
 
   const studentName = (id: string, denormName?: string) =>
     personDisplayName({
@@ -517,1032 +537,1151 @@ ${data.description ? `\n\n${data.description}` : ""}`,
               </option>
             ))}
           </select>
+          <select
+            value={subjectFilter}
+            onChange={(e) => setSubjectFilter(e.target.value)}
+            className="admin-input w-auto"
+          >
+            <option value="all">All Subjects</option>
+            {allSubjects.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
           <span className="text-xs text-gray-400">
             {filtered.length} item{filtered.length !== 1 ? "s" : ""}
           </span>
         </div>
 
-        <div className="admin-card !p-0 overflow-hidden">
+        <div className="space-y-3">
           {loading ? (
-            <div className="p-8 text-center text-gray-400 text-sm">
+            <div className="admin-card p-8 text-center text-gray-400 text-sm">
               Loading…
             </div>
           ) : filtered.length === 0 ? (
-            <div className="p-12 text-center text-gray-400">
+            <div className="admin-card p-12 text-center text-gray-400">
               No assignments yet.
             </div>
           ) : (
-            <>
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Type</th>
-                    <th>Subject</th>
-                    <th>Grades</th>
-                    <th>Opens</th>
-                    <th>Due</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pageSlice.items.map((a) => (
-                    <tr key={a.id}>
-                      <td>
-                        <p className="font-medium text-gray-800">{a.title}</p>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge text-white ${a.type === "ixl" ? "bg-orange-500" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}
+            (() => {
+              // Group into folders — key is folder name, "" = ungrouped
+              const folderMap = new Map<string, typeof filtered>();
+              for (const a of filtered) {
+                const key = (a.folder ?? "").trim() || a.subject || "General";
+                if (!folderMap.has(key)) folderMap.set(key, []);
+                folderMap.get(key)!.push(a);
+              }
+              const folderEntries = [...folderMap.entries()].sort(([a], [b]) =>
+                a.localeCompare(b)
+              );
+
+              // Flatten for pagination — preserve folder order
+              const allFiltered = folderEntries.flatMap(([, items]) => items);
+              const pageSlice = paginate(allFiltered, page);
+              const pagedSet = new Set(pageSlice.items.map((a) => a.id));
+
+              return (
+                <>
+                  {folderEntries.map(([folderName, items]) => {
+                    const visibleItems = items.filter((a) => pagedSet.has(a.id));
+                    if (visibleItems.length === 0) return null;
+                    const isOpen = openFolders[folderName] !== false; // default open
+
+                    return (
+                      <div key={folderName} className="admin-card !p-0 overflow-hidden">
+                        {/* Folder header */}
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setOpenFolders((prev) => ({
+                              ...prev,
+                              [folderName]: !isOpen,
+                            }))
+                          }
+                          className="w-full flex items-center justify-between px-5 py-3 bg-gray-50 border-b border-gray-200 hover:bg-gray-100 transition-colors"
                         >
-                          {a.type === "ixl"
-                            ? "Edpuzzle"
-                            : a.type === "deltamath"
-                              ? "DeltaMath"
-                              : a.type === "quiz"
-                                ? "Quiz"
-                                : a.type}
-                        </span>
-                      </td>
-                      <td className="text-gray-600">{a.subject}</td>
-                      <td className="text-gray-500 text-xs">
-                        {a.targetGrades.map(formatGradeLabel).join(", ")}
-                      </td>
-                      <td className="text-gray-500 text-xs">
-                        {a.startAt ? formatSchedule(a.startAt) : "—"}
-                      </td>
-                      <td className="text-gray-500 text-xs">
-                        {formatSchedule(a.dueAt || a.dueDate)}
-                      </td>
-                      <td>
-                        <span
-                          className={`badge ${a.published ? "badge-green" : "badge-yellow"}`}
-                        >
-                          {a.published ? "Live" : "Draft"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          {a.platformUrl && (
-                            <a
-                              href={a.platformUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                            >
-                              <MdOpenInNew size={16} />
-                            </a>
+                          <div className="flex items-center gap-2.5">
+                            {isOpen ? (
+                              <MdFolderOpen size={19} className="text-amber-500" />
+                            ) : (
+                              <MdFolder size={19} className="text-amber-500" />
+                            )}
+                            <span className="font-semibold text-gray-800 text-sm">
+                              {folderName}
+                            </span>
+                            <span className="text-xs text-gray-400 bg-gray-200 rounded-full px-2 py-0.5">
+                              {items.length}
+                            </span>
+                          </div>
+                          {isOpen ? (
+                            <MdExpandLess size={18} className="text-gray-400" />
+                          ) : (
+                            <MdExpandMore size={18} className="text-gray-400" />
                           )}
-                          <button
-                            onClick={() => openSubmissions(a)}
-                            className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                            title="View submissions & student files"
-                          >
-                            <MdVisibility size={16} />
-                          </button>
-                          <a
-                            href={`/admin/analytics/assignment/${a.id}`}
-                            className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex"
-                            title="Analytics"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="w-4 h-4"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <line x1="18" y1="20" x2="18" y2="10" />
-                              <line x1="12" y1="20" x2="12" y2="4" />
-                              <line x1="6" y1="20" x2="6" y2="14" />
-                            </svg>
-                          </a>
-                          <button
-                            onClick={() => openEdit(a)}
-                            className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                          >
-                            <MdEdit size={16} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(a.id!)}
-                            className="p-1.5 text-gray-400 hover:text-red-500"
-                          >
-                            <MdDelete size={16} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <Pagination slice={pageSlice} onPageChange={setPage} />
-            </>
+                        </button>
+
+                        {/* Folder contents */}
+                        {isOpen && (
+                          <table className="admin-table">
+                            <thead>
+                              <tr>
+                                <th>Title</th>
+                                <th>Type</th>
+                                <th>Subject</th>
+                                <th>Grades</th>
+                                <th>Opens</th>
+                                <th>Due</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {visibleItems.map((a) => (
+                                <tr key={a.id}>
+                                  <td>
+                                    <p className="font-medium text-gray-800">{a.title}</p>
+                                  </td>
+                                  <td>
+                                    <span
+                                      className={`badge text-white ${a.type === "ixl" ? "bg-orange-500" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}
+                                    >
+                                      {a.type === "ixl"
+                                        ? "Edpuzzle"
+                                        : a.type === "deltamath"
+                                          ? "DeltaMath"
+                                          : a.type === "quiz"
+                                            ? "Quiz"
+                                            : a.type}
+                                    </span>
+                                  </td>
+                                  <td className="text-gray-600">{a.subject}</td>
+                                  <td className="text-gray-500 text-xs">
+                                    {a.targetGrades.map(formatGradeLabel).join(", ")}
+                                  </td>
+                                  <td className="text-gray-500 text-xs">
+                                    {a.startAt ? formatSchedule(a.startAt) : "—"}
+                                  </td>
+                                  <td className="text-gray-500 text-xs">
+                                    {formatSchedule(a.dueAt || a.dueDate)}
+                                  </td>
+                                  <td>
+                                    <span
+                                      className={`badge ${a.published ? "badge-green" : "badge-yellow"}`}
+                                    >
+                                      {a.published ? "Live" : "Draft"}
+                                    </span>
+                                  </td>
+                                  <td>
+                                    <div className="flex items-center gap-2">
+                                      {a.platformUrl && (
+                                        <a
+                                          href={a.platformUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                                        >
+                                          <MdOpenInNew size={16} />
+                                        </a>
+                                      )}
+                                      <button
+                                        onClick={() => openSubmissions(a)}
+                                        className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                                        title="View submissions & student files"
+                                      >
+                                        <MdVisibility size={16} />
+                                      </button>
+                                      <a
+                                        href={`/admin/analytics/assignment/${a.id}`}
+                                        className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex"
+                                        title="Analytics"
+                                      >
+                                        <svg
+                                          xmlns="http://www.w3.org/2000/svg"
+                                          className="w-4 h-4"
+                                          viewBox="0 0 24 24"
+                                          fill="none"
+                                          stroke="currentColor"
+                                          strokeWidth="2"
+                                        >
+                                          <line x1="18" y1="20" x2="18" y2="10" />
+                                          <line x1="12" y1="20" x2="12" y2="4" />
+                                          <line x1="6" y1="20" x2="6" y2="14" />
+                                        </svg>
+                                      </a>
+                                      <button
+                                        onClick={() => openEdit(a)}
+                                        className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                                      >
+                                        <MdEdit size={16} />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(a.id!)}
+                                        className="p-1.5 text-gray-400 hover:text-red-500"
+                                      >
+                                        <MdDelete size={16} />
+                                      </button>
+                                    </div>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        )}
+                      </div>
+                    );
+                  })}
+                  <Pagination slice={pageSlice} onPageChange={setPage} />
+                </>
+              );
+            })()
           )}
         </div>
 
         {/* Submissions modal */}
         {subModal && (
           <ModalPortal>
-<div
-            className="modal-overlay"
-            onClick={(e) => e.target === e.currentTarget && setSubModal(null)}
-          >
-            <div className="modal-box">
-              <div className="modal-header">
-                <h2 className="font-semibold">
-                  Submissions — {subModal.a.title}
-                </h2>
-                <button
-                  onClick={() => setSubModal(null)}
-                  className="text-gray-400 hover:text-gray-600"
+            <div
+              className="modal-overlay"
+              onClick={(e) => e.target === e.currentTarget && setSubModal(null)}
+            >
+              <div className="modal-box">
+                <div className="modal-header">
+                  <h2 className="font-semibold">
+                    Submissions — {subModal.a.title}
+                  </h2>
+                  <button
+                    onClick={() => setSubModal(null)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <MdClose size={20} />
+                  </button>
+                </div>
+                <div
+                  className="p-6 overflow-y-auto"
+                  style={{ maxHeight: "65vh" }}
                 >
-                  <MdClose size={20} />
-                </button>
-              </div>
-              <div
-                className="p-6 overflow-y-auto"
-                style={{ maxHeight: "65vh" }}
-              >
-                {subModal.subs.length === 0 ? (
-                  <p className="text-gray-400 text-sm text-center py-8">
-                    No submissions yet.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {subModal.subs.map((sub) => (
-                      <div
-                        key={sub.id}
-                        className="border border-gray-200 rounded-xl p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-gray-800">
-                              {studentName(sub.studentId, sub.studentName)}
-                            </p>
-                            <span
-                              className={`badge text-xs ${sub.status === "graded" ? "badge-green" : sub.status === "submitted" ? "badge-blue" : "badge-yellow"}`}
-                            >
-                              {sub.status}
-                            </span>
-                          </div>
-                          <div className="text-right space-y-2">
-                            {sub.score !== undefined && (
-                              <p className="font-bold text-[#00369b]">
-                                {sub.score}/{subModal.a.maxScore}
+                  {subModal.subs.length === 0 ? (
+                    <p className="text-gray-400 text-sm text-center py-8">
+                      No submissions yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {subModal.subs.map((sub) => (
+                        <div
+                          key={sub.id}
+                          className="border border-gray-200 rounded-xl p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {studentName(sub.studentId, sub.studentName)}
                               </p>
-                            )}
-                            <SubmittedFileButton
-                              url={sub.attachmentUrl}
-                              name={sub.attachmentName}
-                              emptyLabel=""
-                            />
-                            {sub.status === "submitted" &&
-                              gradingId !== sub.id && (
-                                <button
-                                  onClick={() => {
-                                    setGradingId(sub.id!);
-                                    setGradeScore("");
-                                    setGradeFeedback("");
-                                  }}
-                                  className="btn-primary text-xs py-1 px-2 mt-1 flex items-center gap-1 ml-auto"
-                                >
-                                  <MdGrade size={12} /> Grade
-                                </button>
+                              <span
+                                className={`badge text-xs ${sub.status === "graded" ? "badge-green" : sub.status === "submitted" ? "badge-blue" : "badge-yellow"}`}
+                              >
+                                {sub.status}
+                              </span>
+                            </div>
+                            <div className="text-right space-y-2">
+                              {sub.score !== undefined && (
+                                <p className="font-bold text-[#00369b]">
+                                  {sub.score}/{subModal.a.maxScore}
+                                </p>
                               )}
-                          </div>
-                        </div>
-                        {sub.feedback && (
-                          <p className="text-xs text-gray-500 mt-2 italic">
-                            {sub.feedback}
-                          </p>
-                        )}
-                        {(sub.status === "submitted" ||
-                          sub.status === "graded" ||
-                          sub.status === "in_progress") && (
-                          <button
-                            type="button"
-                            onClick={() => handleAssignmentRetake(sub)}
-                            className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium inline-flex items-center gap-1"
-                            title="Allow retake"
-                          >
-                            <MdReplay size={12} /> Allow retake
-                          </button>
-                        )}
-                        {gradingId === sub.id && (
-                          <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                            <div className="flex gap-2">
-                              <div className="flex-1">
-                                <label className="admin-label">Score</label>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  max={subModal.a.maxScore}
-                                  value={gradeScore}
-                                  onChange={(e) =>
-                                    setGradeScore(e.target.value)
-                                  }
-                                  className="admin-input"
-                                  placeholder={`0–${subModal.a.maxScore}`}
-                                />
-                              </div>
-                              <div className="flex-2">
-                                <label className="admin-label">Feedback</label>
-                                <input
-                                  value={gradeFeedback}
-                                  onChange={(e) =>
-                                    setGradeFeedback(e.target.value)
-                                  }
-                                  className="admin-input"
-                                  placeholder="Optional comment…"
-                                />
-                              </div>
+                              <SubmittedFileButton
+                                url={sub.attachmentUrl}
+                                name={sub.attachmentName}
+                                emptyLabel=""
+                              />
+                              {sub.status === "submitted" &&
+                                gradingId !== sub.id && (
+                                  <button
+                                    onClick={() => {
+                                      setGradingId(sub.id!);
+                                      setGradeScore("");
+                                      setGradeFeedback("");
+                                    }}
+                                    className="btn-primary text-xs py-1 px-2 mt-1 flex items-center gap-1 ml-auto"
+                                  >
+                                    <MdGrade size={12} /> Grade
+                                  </button>
+                                )}
                             </div>
-                            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                              Student will see this grade and feedback in their portal
+                          </div>
+                          {sub.feedback && (
+                            <p className="text-xs text-gray-500 mt-2 italic">
+                              {sub.feedback}
                             </p>
-                            <div className="flex gap-2">
+                          )}
+                          {(sub.status === "submitted" ||
+                            sub.status === "graded" ||
+                            sub.status === "in_progress") && (
                               <button
-                                onClick={() => handleGrade(sub.id!)}
-                                className="btn-primary text-xs py-1.5 px-3"
+                                type="button"
+                                onClick={() => handleAssignmentRetake(sub)}
+                                className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium inline-flex items-center gap-1"
+                                title="Allow retake"
                               >
-                                Save Grade
+                                <MdReplay size={12} /> Allow retake
                               </button>
+                            )}
+                          {/* View Results — only for quiz assignments with answers */}
+                          {subModal.a.type === "quiz" &&
+                            (subModal.a.questions?.length ?? 0) > 0 &&
+                            (sub.status === "graded" || sub.status === "submitted") &&
+                            sub.answers &&
+                            Object.keys(sub.answers).length > 0 && (
                               <button
-                                onClick={() => setGradingId(null)}
-                                className="btn-secondary text-xs py-1.5 px-3"
+                                type="button"
+                                onClick={() =>
+                                  setResultModal({
+                                    studentName: studentName(sub.studentId, sub.studentName),
+                                    submission: sub,
+                                    assignment: subModal.a,
+                                  })
+                                }
+                                className="mt-2 flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition-colors"
                               >
-                                Cancel
+                                <MdBarChart size={13} /> View Results
                               </button>
+                            )}
+                          {gradingId === sub.id && (
+                            <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                              <div className="flex gap-2">
+                                <div className="flex-1">
+                                  <label className="admin-label">Score</label>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    max={subModal.a.maxScore}
+                                    value={gradeScore}
+                                    onChange={(e) =>
+                                      setGradeScore(e.target.value)
+                                    }
+                                    className="admin-input"
+                                    placeholder={`0–${subModal.a.maxScore}`}
+                                  />
+                                </div>
+                                <div className="flex-2">
+                                  <label className="admin-label">Feedback</label>
+                                  <input
+                                    value={gradeFeedback}
+                                    onChange={(e) =>
+                                      setGradeFeedback(e.target.value)
+                                    }
+                                    className="admin-input"
+                                    placeholder="Optional comment…"
+                                  />
+                                </div>
+                              </div>
+                              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                                Student will see this grade and feedback in their portal
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleGrade(sub.id!)}
+                                  className="btn-primary text-xs py-1.5 px-3"
+                                >
+                                  Save Grade
+                                </button>
+                                <button
+                                  onClick={() => setGradingId(null)}
+                                  className="btn-secondary text-xs py-1.5 px-3"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
                             </div>
-                          </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-</ModalPortal>
+          </ModalPortal>
         )}
 
         {/* Create/Edit modal */}
         {modalOpen && (
           <ModalPortal>
-<div
-            className="modal-overlay "
-            onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}
-          >
-            <div className="modal-box" style={{ maxWidth: 760 }}>
-              <div className="modal-header">
-                <h2 className="font-semibold">
-                  {editing ? "Edit Assignment" : "Add Assignment"}
-                </h2>
-                <button
-                  onClick={() => setModalOpen(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <MdClose size={20} />
-                </button>
-              </div>
-              <form
-                onSubmit={handleSave}
-                className="p-6 space-y-5 overflow-y-auto"
-                style={{ maxHeight: "75vh" }}
-              >
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="admin-label">Title *</label>
-                    <input
-                      required
-                      value={form.title}
-                      onChange={(e) =>
-                        setForm({ ...form, title: e.target.value })
-                      }
-                      className="admin-input"
-                      placeholder="Assignment title"
-                    />
-                  </div>
-                  <div>
-                    <label className="admin-label">Type *</label>
-                    <select
-                      value={form.type}
-                      onChange={(e) => {
-                        const nextType = e.target.value as Assignment["type"];
-                        if (
-                          nextType === "quiz" &&
-                          !(form.questions?.length ?? 0)
-                        ) {
-                          const initial = newQuestion();
-                          setForm({
-                            ...form,
-                            type: nextType,
-                            questions: [initial],
-                            totalPoints: initial.points,
-                            maxScore: initial.points,
-                          });
-                        } else {
-                          setForm({ ...form, type: nextType });
-                        }
-                      }}
-                      className="admin-input"
-                    >
-                      <option value="">Select Type</option>
-                      <option value="quiz">Quiz</option>
-                      <option value="ixl">Edpuzzle</option>
-                      <option value="deltamath">DeltaMath</option>
-
-                      <option value="document">Document</option>
-                    </select>
-                  </div>
-                  <div>
-                    <label className="admin-label">Subject *</label>
-                    <input
-                      required
-                      value={form.subject}
-                      onChange={(e) =>
-                        setForm({ ...form, subject: e.target.value })
-                      }
-                      className="admin-input"
-                      placeholder="e.g. Mathematics"
-                    />
-                  </div>
-                  <div>
-                    <label className="admin-label">Opens at</label>
-                    <input
-                      type="datetime-local"
-                      value={form.startAt ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, startAt: e.target.value })
-                      }
-                      className="admin-input"
-                    />
-                    <p className="text-[11px] text-slate-400 mt-1">
-                      Students cannot start before this date/time. Leave blank to open immediately.
-                    </p>
-                  </div>
-                  <div>
-                    <label className="admin-label">Due at</label>
-                    <input
-                      type="datetime-local"
-                      value={form.dueAt ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, dueAt: e.target.value })
-                      }
-                      className="admin-input"
-                    />
-                  </div>
-                  <div>
-                    <label className="admin-label">Max Score</label>
-                    <input
-                      type="number"
-                      min={0}
-                      value={form.maxScore ?? 100}
-                      onChange={(e) =>
-                        setForm({ ...form, maxScore: Number(e.target.value) })
-                      }
-                      className="admin-input"
-                    />
-                  </div>
+            <div
+              className="modal-overlay "
+              onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}
+            >
+              <div className="modal-box" style={{ maxWidth: 760 }}>
+                <div className="modal-header">
+                  <h2 className="font-semibold">
+                    {editing ? "Edit Assignment" : "Add Assignment"}
+                  </h2>
+                  <button
+                    onClick={() => setModalOpen(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <MdClose size={20} />
+                  </button>
                 </div>
-
-                {/* Platform URL */}
-                {(form.type === "ixl" || form.type === "deltamath") && (
-                  <div>
-                    <label className="admin-label">
-                      {form.type === "ixl" ? "Edpuzzle" : "DeltaMath"} Activity URL *
-                    </label>
-                    <input
-                      type="url"
-                      required
-                      value={form.platformUrl ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, platformUrl: e.target.value })
-                      }
-                      className="admin-input"
-                      placeholder="https://www.edpuzzle.com/…"
-                    />
-                  </div>
-                )}
-
-                {form.type === "quiz" && (
-                  <div className="space-y-4">
-                    <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                      <div>
-                        <p className="text-sm font-semibold text-gray-900">
-                          Questions
-                        </p>
-                        <p className="text-xs text-gray-500">
-                          {form.questions?.length ?? 0} ·{" "}
-                          {form.totalPoints ?? 0} pts total
-                        </p>
-                      </div>
-                      <div className="flex flex-wrap gap-2 items-center">
-                        <button
-                          type="button"
-                          onClick={() => openLibrary("quiz")}
-                          className="btn-secondary text-sm"
-                        >
-                          Import from Library
-                        </button>
-                        <PdfMcqImport onImported={importMcqFromPdf} />
-                        <button
-                          type="button"
-                          onClick={() => addQuestion("multiple_choice")}
-                          className="btn-secondary text-sm"
-                        >
-                          + multiple choice
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addQuestion("true_false")}
-                          className="btn-secondary text-sm"
-                        >
-                          + true false
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => addQuestion("short_answer")}
-                          className="btn-secondary text-sm"
-                        >
-                          + short answer
-                        </button>
-                      </div>
+                <form
+                  onSubmit={handleSave}
+                  className="p-6 space-y-5 overflow-y-auto"
+                  style={{ maxHeight: "75vh" }}
+                >
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <label className="admin-label">Title *</label>
+                      <input
+                        required
+                        value={form.title}
+                        onChange={(e) =>
+                          setForm({ ...form, title: e.target.value })
+                        }
+                        className="admin-input"
+                        placeholder="Assignment title"
+                      />
                     </div>
+                    <div>
+                      <label className="admin-label">Type *</label>
+                      <select
+                        value={form.type}
+                        onChange={(e) => {
+                          const nextType = e.target.value as Assignment["type"];
+                          if (
+                            nextType === "quiz" &&
+                            !(form.questions?.length ?? 0)
+                          ) {
+                            const initial = newQuestion();
+                            setForm({
+                              ...form,
+                              type: nextType,
+                              questions: [initial],
+                              totalPoints: initial.points,
+                              maxScore: initial.points,
+                            });
+                          } else {
+                            setForm({ ...form, type: nextType });
+                          }
+                        }}
+                        className="admin-input"
+                      >
+                        <option value="">Select Type</option>
+                        <option value="quiz">Quiz</option>
+                        <option value="ixl">Edpuzzle</option>
+                        <option value="deltamath">DeltaMath</option>
 
-                    <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
-                      <div className="grid sm:grid-cols-3 gap-4">
+                        <option value="document">Document</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="admin-label">Subject *</label>
+                      <input
+                        required
+                        value={form.subject}
+                        onChange={(e) =>
+                          setForm({ ...form, subject: e.target.value })
+                        }
+                        className="admin-input"
+                        placeholder="e.g. Mathematics"
+                      />
+                    </div>
+                    <div className="sm:col-span-2">
+                      <label className="admin-label">Folder (optional)</label>
+                      <input
+                        value={form.folder ?? ""}
+                        onChange={(e) =>
+                          setForm({ ...form, folder: e.target.value })
+                        }
+                        className="admin-input"
+                        placeholder="e.g. Term 3 · Week 2 (leave blank to auto-group by subject)"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Assignments are grouped by this folder in the list. Leave blank to group by subject automatically.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="admin-label">Opens at</label>
+                      <input
+                        type="datetime-local"
+                        value={form.startAt ?? ""}
+                        onChange={(e) =>
+                          setForm({ ...form, startAt: e.target.value })
+                        }
+                        className="admin-input"
+                      />
+                      <p className="text-[11px] text-slate-400 mt-1">
+                        Students cannot start before this date/time. Leave blank to open immediately.
+                      </p>
+                    </div>
+                    <div>
+                      <label className="admin-label">Due at</label>
+                      <input
+                        type="datetime-local"
+                        value={form.dueAt ?? ""}
+                        onChange={(e) =>
+                          setForm({ ...form, dueAt: e.target.value })
+                        }
+                        className="admin-input"
+                      />
+                    </div>
+                    <div>
+                      <label className="admin-label">Max Score</label>
+                      <input
+                        type="number"
+                        min={0}
+                        value={form.maxScore ?? 100}
+                        onChange={(e) =>
+                          setForm({ ...form, maxScore: Number(e.target.value) })
+                        }
+                        className="admin-input"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Platform URL */}
+                  {(form.type === "ixl" || form.type === "deltamath") && (
+                    <div>
+                      <label className="admin-label">
+                        {form.type === "ixl" ? "Edpuzzle" : "DeltaMath"} Activity URL *
+                      </label>
+                      <input
+                        type="url"
+                        required
+                        value={form.platformUrl ?? ""}
+                        onChange={(e) =>
+                          setForm({ ...form, platformUrl: e.target.value })
+                        }
+                        className="admin-input"
+                        placeholder="https://www.edpuzzle.com/…"
+                      />
+                    </div>
+                  )}
+
+                  {form.type === "quiz" && (
+                    <div className="space-y-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                         <div>
-                          <label className="admin-label">Pass mark (%)</label>
-                          <input
-                            type="number"
-                            min={0}
-                            max={100}
-                            value={form.passMark ?? 60}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                passMark: Number(e.target.value),
-                              })
-                            }
-                            className="admin-input"
-                          />
+                          <p className="text-sm font-semibold text-gray-900">
+                            Questions
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            {form.questions?.length ?? 0} ·{" "}
+                            {form.totalPoints ?? 0} pts total
+                          </p>
                         </div>
-                        <div>
-                          <label className="admin-label">
-                            Time limit (mins)
-                          </label>
-                          <input
-                            type="number"
-                            min={0}
-                            value={form.timeLimit ?? 0}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                timeLimit: Number(e.target.value),
-                              })
-                            }
-                            className="admin-input"
-                          />
-                        </div>
-                        <div>
-                          <label className="admin-label">Max attempts</label>
-                          <input
-                            type="number"
-                            min={1}
-                            value={form.maxAttempts ?? 1}
-                            onChange={(e) =>
-                              setForm({
-                                ...form,
-                                maxAttempts: Number(e.target.value),
-                              })
-                            }
-                            className="admin-input"
-                          />
+                        <div className="flex flex-wrap gap-2 items-center">
+                          <button
+                            type="button"
+                            onClick={() => openLibrary("quiz")}
+                            className="btn-secondary text-sm"
+                          >
+                            Import from Library
+                          </button>
+                          <PdfMcqImport onImported={importMcqFromPdf} />
+                          <button
+                            type="button"
+                            onClick={() => addQuestion("multiple_choice")}
+                            className="btn-secondary text-sm"
+                          >
+                            + multiple choice
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addQuestion("true_false")}
+                            className="btn-secondary text-sm"
+                          >
+                            + true false
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => addQuestion("short_answer")}
+                            className="btn-secondary text-sm"
+                          >
+                            + short answer
+                          </button>
                         </div>
                       </div>
 
-                      {(form.questions ?? []).map((question, qIndex) => (
-                        <div
-                          key={question.id}
-                          className="border border-gray-200 rounded-xl p-4 bg-white"
-                        >
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="flex-1 space-y-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="font-semibold text-sm text-gray-900">
-                                  Question {qIndex + 1}
-                                </p>
-                                <button
-                                  type="button"
-                                  onClick={() => removeQuestion(qIndex)}
-                                  className="text-red-500 text-sm font-semibold hover:underline"
-                                >
-                                  Remove
-                                </button>
-                              </div>
-                              <textarea
-                                value={question.text}
-                                onChange={(e) =>
-                                  updateQuestion(qIndex, {
-                                    text: e.target.value,
-                                  })
-                                }
-                                className="admin-input resize-none"
-                                rows={2}
-                                placeholder="Question text"
-                              />
-                              <QuestionMediaControls
-                                imageUrl={question.imageUrl}
-                                videoUrl={question.videoUrl}
-                                videoName={question.videoName}
-                                onChange={(patch) =>
-                                  updateQuestion(qIndex, {
-                                    ...(patch.imageUrl === null
-                                      ? { imageUrl: undefined }
-                                      : patch.imageUrl !== undefined
-                                        ? { imageUrl: patch.imageUrl }
-                                        : {}),
-                                    ...(patch.videoUrl === null
-                                      ? { videoUrl: undefined, videoName: undefined }
-                                      : patch.videoUrl !== undefined
-                                        ? {
+                      <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                        <div className="grid sm:grid-cols-3 gap-4">
+                          <div>
+                            <label className="admin-label">Pass mark (%)</label>
+                            <input
+                              type="number"
+                              min={0}
+                              max={100}
+                              value={form.passMark ?? 60}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  passMark: Number(e.target.value),
+                                })
+                              }
+                              className="admin-input"
+                            />
+                          </div>
+                          <div>
+                            <label className="admin-label">
+                              Time limit (mins)
+                            </label>
+                            <input
+                              type="number"
+                              min={0}
+                              value={form.timeLimit ?? 0}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  timeLimit: Number(e.target.value),
+                                })
+                              }
+                              className="admin-input"
+                            />
+                          </div>
+                          <div>
+                            <label className="admin-label">Max attempts</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={form.maxAttempts ?? 1}
+                              onChange={(e) =>
+                                setForm({
+                                  ...form,
+                                  maxAttempts: Number(e.target.value),
+                                })
+                              }
+                              className="admin-input"
+                            />
+                          </div>
+                        </div>
+
+                        {(form.questions ?? []).map((question, qIndex) => (
+                          <div
+                            key={question.id}
+                            className="border border-gray-200 rounded-xl p-4 bg-white"
+                          >
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                              <div className="flex-1 space-y-2">
+                                <div className="flex items-center justify-between gap-3">
+                                  <p className="font-semibold text-sm text-gray-900">
+                                    Question {qIndex + 1}
+                                  </p>
+                                  <button
+                                    type="button"
+                                    onClick={() => removeQuestion(qIndex)}
+                                    className="text-red-500 text-sm font-semibold hover:underline"
+                                  >
+                                    Remove
+                                  </button>
+                                </div>
+                                <textarea
+                                  value={question.text}
+                                  onChange={(e) =>
+                                    updateQuestion(qIndex, {
+                                      text: e.target.value,
+                                    })
+                                  }
+                                  className="admin-input resize-none"
+                                  rows={2}
+                                  placeholder="Question text"
+                                />
+                                <QuestionMediaControls
+                                  imageUrl={question.imageUrl}
+                                  videoUrl={question.videoUrl}
+                                  videoName={question.videoName}
+                                  onChange={(patch) =>
+                                    updateQuestion(qIndex, {
+                                      ...(patch.imageUrl === null
+                                        ? { imageUrl: undefined }
+                                        : patch.imageUrl !== undefined
+                                          ? { imageUrl: patch.imageUrl }
+                                          : {}),
+                                      ...(patch.videoUrl === null
+                                        ? { videoUrl: undefined, videoName: undefined }
+                                        : patch.videoUrl !== undefined
+                                          ? {
                                             videoUrl: patch.videoUrl,
                                             videoName:
                                               patch.videoName === null
                                                 ? undefined
                                                 : patch.videoName ??
-                                                  question.videoName,
+                                                question.videoName,
                                           }
-                                        : {}),
-                                  })
-                                }
-                              />
-                            </div>
-                            <div className="grid gap-3 w-full sm:w-52">
-                              <div>
-                                <label className="admin-label">Type</label>
-                                <select
-                                  value={question.type}
-                                  onChange={(e) =>
-                                    updateQuestion(qIndex, {
-                                      type: e.target.value as QuestionType,
+                                          : {}),
                                     })
                                   }
-                                  className="admin-input"
-                                >
-                                  <option value="multiple_choice">
-                                    Multiple Choice
-                                  </option>
-                                  <option value="true_false">
-                                    True / False
-                                  </option>
-                                  <option value="short_answer">
-                                    Short Answer
-                                  </option>
-                                </select>
-                              </div>
-                              <div>
-                                <label className="admin-label">Points</label>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={question.points ?? 1}
-                                  onChange={(e) =>
-                                    updateQuestion(qIndex, {
-                                      points: Number(e.target.value),
-                                    })
-                                  }
-                                  className="admin-input"
                                 />
                               </div>
+                              <div className="grid gap-3 w-full sm:w-52">
+                                <div>
+                                  <label className="admin-label">Type</label>
+                                  <select
+                                    value={question.type}
+                                    onChange={(e) =>
+                                      updateQuestion(qIndex, {
+                                        type: e.target.value as QuestionType,
+                                      })
+                                    }
+                                    className="admin-input"
+                                  >
+                                    <option value="multiple_choice">
+                                      Multiple Choice
+                                    </option>
+                                    <option value="true_false">
+                                      True / False
+                                    </option>
+                                    <option value="short_answer">
+                                      Short Answer
+                                    </option>
+                                  </select>
+                                </div>
+                                <div>
+                                  <label className="admin-label">Points</label>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={question.points ?? 1}
+                                    onChange={(e) =>
+                                      updateQuestion(qIndex, {
+                                        points: Number(e.target.value),
+                                      })
+                                    }
+                                    className="admin-input"
+                                  />
+                                </div>
+                              </div>
                             </div>
-                          </div>
 
-                          <div className="grid sm:grid-cols-2 gap-4 mt-4">
-                            <div>
-                              <label className="admin-label">
-                                Correct answer
-                              </label>
-                              {question.type === "multiple_choice" && (
-                                <select
-                                  value={question.correctAnswer}
-                                  onChange={(e) =>
-                                    updateQuestion(qIndex, {
-                                      correctAnswer: e.target.value,
-                                    })
-                                  }
-                                  className="admin-input"
-                                >
-                                  <option value="">
-                                    Select correct option
-                                  </option>
-                                  {(question.options ?? []).map(
-                                    (option, optionIndex) => (
-                                      <option key={optionIndex} value={option}>
-                                        {option || `Option ${optionIndex + 1}`}
-                                      </option>
-                                    ),
-                                  )}
-                                </select>
-                              )}
-                              {question.type === "true_false" && (
-                                <select
-                                  value={question.correctAnswer}
-                                  onChange={(e) =>
-                                    updateQuestion(qIndex, {
-                                      correctAnswer: e.target.value,
-                                    })
-                                  }
-                                  className="admin-input"
-                                >
-                                  <option value="">
-                                    Select correct answer
-                                  </option>
-                                  <option value="true">True</option>
-                                  <option value="false">False</option>
-                                </select>
-                              )}
-                              {question.type === "short_answer" && (
-                                <input
-                                  value={question.correctAnswer}
-                                  onChange={(e) =>
-                                    updateQuestion(qIndex, {
-                                      correctAnswer: e.target.value,
-                                    })
-                                  }
-                                  className="admin-input"
-                                  placeholder="Answer text"
-                                />
-                              )}
-                            </div>
-                            {question.type === "multiple_choice" && (
-                              <div className="space-y-2">
-                                <label className="admin-label">Options</label>
-                                {(question.options ?? []).map(
-                                  (option, optionIndex) => (
-                                    <input
-                                      key={optionIndex}
-                                      value={option}
-                                      onChange={(e) => {
-                                        const options = [
-                                          ...(question.options ?? []),
-                                        ];
-                                        options[optionIndex] = e.target.value;
-                                        updateQuestion(qIndex, { options });
-                                      }}
-                                      className="admin-input"
-                                      placeholder={`Option ${optionIndex + 1}`}
-                                    />
-                                  ),
+                            <div className="grid sm:grid-cols-2 gap-4 mt-4">
+                              <div>
+                                <label className="admin-label">
+                                  Correct answer
+                                </label>
+                                {question.type === "multiple_choice" && (
+                                  <select
+                                    value={question.correctAnswer}
+                                    onChange={(e) =>
+                                      updateQuestion(qIndex, {
+                                        correctAnswer: e.target.value,
+                                      })
+                                    }
+                                    className="admin-input"
+                                  >
+                                    <option value="">
+                                      Select correct option
+                                    </option>
+                                    {(question.options ?? []).map(
+                                      (option, optionIndex) => (
+                                        <option key={optionIndex} value={option}>
+                                          {option || `Option ${optionIndex + 1}`}
+                                        </option>
+                                      ),
+                                    )}
+                                  </select>
+                                )}
+                                {question.type === "true_false" && (
+                                  <select
+                                    value={question.correctAnswer}
+                                    onChange={(e) =>
+                                      updateQuestion(qIndex, {
+                                        correctAnswer: e.target.value,
+                                      })
+                                    }
+                                    className="admin-input"
+                                  >
+                                    <option value="">
+                                      Select correct answer
+                                    </option>
+                                    <option value="true">True</option>
+                                    <option value="false">False</option>
+                                  </select>
+                                )}
+                                {question.type === "short_answer" && (
+                                  <input
+                                    value={question.correctAnswer}
+                                    onChange={(e) =>
+                                      updateQuestion(qIndex, {
+                                        correctAnswer: e.target.value,
+                                      })
+                                    }
+                                    className="admin-input"
+                                    placeholder="Answer text"
+                                  />
                                 )}
                               </div>
-                            )}
-                          </div>
+                              {question.type === "multiple_choice" && (
+                                <div className="space-y-2">
+                                  <label className="admin-label">Options</label>
+                                  {(question.options ?? []).map(
+                                    (option, optionIndex) => (
+                                      <input
+                                        key={optionIndex}
+                                        value={option}
+                                        onChange={(e) => {
+                                          const options = [
+                                            ...(question.options ?? []),
+                                          ];
+                                          options[optionIndex] = e.target.value;
+                                          updateQuestion(qIndex, { options });
+                                        }}
+                                        className="admin-input"
+                                        placeholder={`Option ${optionIndex + 1}`}
+                                      />
+                                    ),
+                                  )}
+                                </div>
+                              )}
+                            </div>
 
-                          <div className="mt-4">
-                            <label className="admin-label">
-                              Explanation (optional)
-                            </label>
-                            <textarea
-                              value={question.explanation ?? ""}
-                              onChange={(e) =>
-                                updateQuestion(qIndex, {
-                                  explanation: e.target.value,
-                                })
-                              }
-                              rows={2}
-                              className="admin-input resize-none"
-                              placeholder="Solution notes or feedback"
-                            />
+                            <div className="mt-4">
+                              <label className="admin-label">
+                                Explanation (optional)
+                              </label>
+                              <textarea
+                                value={question.explanation ?? ""}
+                                onChange={(e) =>
+                                  updateQuestion(qIndex, {
+                                    explanation: e.target.value,
+                                  })
+                                }
+                                rows={2}
+                                className="admin-input resize-none"
+                                placeholder="Solution notes or feedback"
+                              />
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        ))}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
 
-                <div>
-                  <label className="admin-label">
-                    Full Content / Instructions (optional)
-                  </label>
-                  <WysiwygEditor
-                    content={form.content ?? ""}
-                    onChange={(html) => setForm({ ...form, content: html })}
-                    placeholder="Detailed instructions, questions…"
-                  />
-                </div>
-
-                {/* File upload */}
-                {form.type === "document" && (
                   <div>
-                    <label className="admin-label">Attach Document / PDF</label>
-                    <div className="flex items-center gap-3 flex-wrap">
-                      <button
-                        type="button"
-                        onClick={() => fileRef.current?.click()}
-                        disabled={fileUploading}
-                        className="btn-secondary flex items-center gap-2"
-                      >
-                        <MdUpload size={16} />
-                        {fileUploading ? "Uploading…" : "Upload File"}
-                      </button>
-                      {form.fileUrl && (
-                        <a
-                          href={form.fileUrl}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-[#00369b] hover:underline"
-                        >
-                          {form.fileName || "Uploaded file"}
-                        </a>
-                      )}
-                    </div>
-                    <input
-                      ref={fileRef}
-                      type="file"
-                      className="hidden"
-                      onChange={handleFileUpload}
+                    <label className="admin-label">
+                      Full Content / Instructions (optional)
+                    </label>
+                    <WysiwygEditor
+                      content={form.content ?? ""}
+                      onChange={(html) => setForm({ ...form, content: html })}
+                      placeholder="Detailed instructions, questions…"
                     />
                   </div>
-                )}
 
-                {/* Unlock after material */}
-                <div>
-                  <label className="admin-label">
-                    Unlock After Material (optional)
-                  </label>
-                  <select
-                    value={form.linkedMaterialId ?? ""}
-                    onChange={(e) =>
-                      setForm({ ...form, linkedMaterialId: e.target.value })
-                    }
-                    className="admin-input"
-                  >
-                    <option value="">
-                      — No prerequisite (always visible) —
-                    </option>
-                    {materials
-                      .filter((m) => form.targetGrades.includes(m.grade))
-                      .map((m) => (
-                        <option key={m.id} value={m.id}>
-                          {m.title} · {formatGradeLabel(m.grade)} · {m.subject}
-                        </option>
-                      ))}
-                  </select>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Students must complete this material before the assignment
-                    unlocks.
-                  </p>
-                </div>
+                  {/* File upload */}
+                  {form.type === "document" && (
+                    <div>
+                      <label className="admin-label">Attach Document / PDF</label>
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={() => fileRef.current?.click()}
+                          disabled={fileUploading}
+                          className="btn-secondary flex items-center gap-2"
+                        >
+                          <MdUpload size={16} />
+                          {fileUploading ? "Uploading…" : "Upload File"}
+                        </button>
+                        {form.fileUrl && (
+                          <a
+                            href={form.fileUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-[#00369b] hover:underline"
+                          >
+                            {form.fileName || "Uploaded file"}
+                          </a>
+                        )}
+                      </div>
+                      <input
+                        ref={fileRef}
+                        type="file"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                      />
+                    </div>
+                  )}
 
-                {/* Target grades */}
-                <div>
-                  <label className="admin-label">Target Grades *</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {GRADES.map((g) => (
-                      <button
-                        key={g}
-                        type="button"
-                        onClick={() => toggleGrade(g)}
-                        className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${
-                          form.targetGrades.includes(g)
+                  {/* Unlock after material */}
+                  <div>
+                    <label className="admin-label">
+                      Unlock After Material (optional)
+                    </label>
+                    <select
+                      value={form.linkedMaterialId ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, linkedMaterialId: e.target.value })
+                      }
+                      className="admin-input"
+                    >
+                      <option value="">
+                        — No prerequisite (always visible) —
+                      </option>
+                      {materials
+                        .filter((m) => form.targetGrades.includes(m.grade))
+                        .map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.title} · {formatGradeLabel(m.grade)} · {m.subject}
+                          </option>
+                        ))}
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Students must complete this material before the assignment
+                      unlocks.
+                    </p>
+                  </div>
+
+                  {/* Target grades */}
+                  <div>
+                    <label className="admin-label">Target Grades *</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {GRADES.map((g) => (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() => toggleGrade(g)}
+                          className={`px-3 py-1 rounded-full text-xs font-semibold border transition-all ${form.targetGrades.includes(g)
                             ? "bg-[#00369b] text-white border-[#00369b]"
                             : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
-                        }`}
-                      >
-                        {formatGradeLabel(g)}
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    Assignment will appear for all students in selected grades
-                    (or specific students below).
-                  </p>
-                </div>
-
-                {/* Target specific students */}
-                <div>
-                  <label className="admin-label">
-                    Assign to Specific Students (leave empty for all in grade)
-                  </label>
-                  <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
-                    {students
-                      .filter((s) => form.targetGrades.includes(s.grade))
-                      .map((s) => (
-                        <label
-                          key={s.id}
-                          className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
+                            }`}
                         >
-                          <input
-                            type="checkbox"
-                            checked={
-                              form.targetStudentIds?.includes(s.id!) ?? false
-                            }
-                            onChange={(e) => {
-                              const ids = e.target.checked
-                                ? [...(form.targetStudentIds ?? []), s.id!]
-                                : (form.targetStudentIds ?? []).filter(
+                          {formatGradeLabel(g)}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-400 mt-1">
+                      Assignment will appear for all students in selected grades
+                      (or specific students below).
+                    </p>
+                  </div>
+
+                  {/* Target specific students */}
+                  <div>
+                    <label className="admin-label">
+                      Assign to Specific Students (leave empty for all in grade)
+                    </label>
+                    <div className="max-h-40 overflow-y-auto border border-gray-200 rounded-lg p-2 space-y-1">
+                      {students
+                        .filter((s) => form.targetGrades.includes(s.grade))
+                        .map((s) => (
+                          <label
+                            key={s.id}
+                            className="flex items-center gap-2 text-sm cursor-pointer hover:bg-gray-50 px-2 py-1 rounded"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={
+                                form.targetStudentIds?.includes(s.id!) ?? false
+                              }
+                              onChange={(e) => {
+                                const ids = e.target.checked
+                                  ? [...(form.targetStudentIds ?? []), s.id!]
+                                  : (form.targetStudentIds ?? []).filter(
                                     (id) => id !== s.id!,
                                   );
-                              setForm({ ...form, targetStudentIds: ids });
-                            }}
-                          />
-                          <span>
-                            {s.firstName} {s.lastName}
-                          </span>
-                          <span className="text-gray-400">
-                            — {formatGradeLabel(s.grade)}
-                          </span>
-                        </label>
-                      ))}
-                    {students.filter((s) => form.targetGrades.includes(s.grade))
-                      .length === 0 && (
-                      <p className="text-xs text-gray-400 px-2 py-2">
-                        Select target grades first to see students.
-                      </p>
-                    )}
+                                setForm({ ...form, targetStudentIds: ids });
+                              }}
+                            />
+                            <span>
+                              {s.firstName} {s.lastName}
+                            </span>
+                            <span className="text-gray-400">
+                              — {formatGradeLabel(s.grade)}
+                            </span>
+                          </label>
+                        ))}
+                      {students.filter((s) => form.targetGrades.includes(s.grade))
+                        .length === 0 && (
+                          <p className="text-xs text-gray-400 px-2 py-2">
+                            Select target grades first to see students.
+                          </p>
+                        )}
+                    </div>
                   </div>
-                </div>
 
-                {/* Publish */}
-                <label className="flex items-center gap-3 cursor-pointer">
-                  <div
-                    onClick={() =>
-                      setForm({ ...form, published: !form.published })
-                    }
-                    className={`w-11 h-6 rounded-full relative transition-colors ${form.published ? "bg-[#00369b]" : "bg-gray-300"}`}
-                  >
+                  {/* Publish */}
+                  <label className="flex items-center gap-3 cursor-pointer">
                     <div
-                      className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${form.published ? "left-5" : "left-0.5"}`}
-                    />
-                  </div>
-                  <span className="text-sm font-medium text-gray-700">
-                    {form.published ? "Published" : "Save as Draft"}
-                  </span>
-                </label>
+                      onClick={() =>
+                        setForm({ ...form, published: !form.published })
+                      }
+                      className={`w-11 h-6 rounded-full relative transition-colors ${form.published ? "bg-[#00369b]" : "bg-gray-300"}`}
+                    >
+                      <div
+                        className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${form.published ? "left-5" : "left-0.5"}`}
+                      />
+                    </div>
+                    <span className="text-sm font-medium text-gray-700">
+                      {form.published ? "Published" : "Save as Draft"}
+                    </span>
+                  </label>
 
-                <div className="flex gap-3 pt-2 border-t border-gray-100">
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="btn-primary disabled:opacity-60"
-                  >
-                    {saving
-                      ? "Saving…"
-                      : editing
-                        ? "Save Changes"
-                        : "Create Assignment"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
+                  <div className="flex gap-3 pt-2 border-t border-gray-100">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="btn-primary disabled:opacity-60"
+                    >
+                      {saving
+                        ? "Saving…"
+                        : editing
+                          ? "Save Changes"
+                          : "Create Assignment"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setModalOpen(false)}
+                      className="btn-secondary"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-          </div>
           </ModalPortal>
         )}
 
         {/* Library Picker Modal — rendered after Create modal so it stacks on top */}
         {libModal && (
           <ModalPortal>
-          <div
-            className="modal-overlay"
-            style={{ zIndex: 99999999 }}
-            onClick={(e) => e.target === e.currentTarget && setLibModal(false)}
-          >
-            <div className="modal-box" style={{ maxWidth: 680 }}>
-              <div className="modal-header">
-                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <MdAutoAwesome size={16} className="text-purple-600" /> Import
-                  from Question Library
-                </h2>
-                <button
-                  onClick={() => setLibModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+            <div
+              className="modal-overlay"
+              style={{ zIndex: 99999999 }}
+              onClick={(e) => e.target === e.currentTarget && setLibModal(false)}
+            >
+              <div className="modal-box" style={{ maxWidth: 680 }}>
+                <div className="modal-header">
+                  <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <MdAutoAwesome size={16} className="text-purple-600" /> Import
+                    from Question Library
+                  </h2>
+                  <button
+                    onClick={() => setLibModal(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <MdClose size={20} />
+                  </button>
+                </div>
+                <div className="p-4 bg-amber-50 border-b border-amber-100 text-xs text-amber-800 flex items-start gap-2">
+                  <MdAutoAwesome
+                    size={14}
+                    className="shrink-0 mt-0.5 text-amber-600"
+                  />
+                  {libMode === "quiz"
+                    ? "Imported questions will be added as quiz items, ready for students to take inside the portal."
+                    : "Imported questions will be added as formatted worksheet content for students to complete."}
+                </div>
+                <div
+                  className="p-6 overflow-y-auto"
+                  style={{ maxHeight: "60vh" }}
                 >
-                  <MdClose size={20} />
-                </button>
-              </div>
-              <div className="p-4 bg-amber-50 border-b border-amber-100 text-xs text-amber-800 flex items-start gap-2">
-                <MdAutoAwesome
-                  size={14}
-                  className="shrink-0 mt-0.5 text-amber-600"
-                />
-                {libMode === "quiz"
-                  ? "Imported questions will be added as quiz items, ready for students to take inside the portal."
-                  : "Imported questions will be added as formatted worksheet content for students to complete."}
-              </div>
-              <div
-                className="p-6 overflow-y-auto"
-                style={{ maxHeight: "60vh" }}
-              >
-                {libLoading ? (
-                  <div className="py-12 text-center text-gray-400 text-sm">
-                    Loading library…
-                  </div>
-                ) : questionSets.length === 0 ? (
-                  <div className="py-12 text-center">
-                    <MdLibraryBooks
-                      size={36}
-                      className="mx-auto text-gray-300 mb-3"
-                    />
-                    <p className="text-gray-500 font-medium">
-                      No question sets saved yet.
-                    </p>
-                    <p className="text-xs text-gray-400 mt-1">
-                      Generate questions in the AI Generator and save them to
-                      the library first.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {questionSets
-                      .filter(
-                        (set) =>
-                          !form.targetGrades?.length ||
-                          !set.year ||
-                          setYearMatchesTarget(set.year, form.targetGrades)
-                      )
-                      .map((set) => (
-                      <div
-                        key={set.id}
-                        className="border border-gray-200 p-4 hover:border-purple-300 hover:bg-purple-50/30 transition-all"
-                      >
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="font-semibold text-gray-900">
-                              {set.title}
-                            </p>
-                            <div className="flex flex-wrap gap-2 mt-1">
-                              <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 font-medium">
-                                {set.subject}
-                              </span>
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">
-                                {set.curriculum}
-                              </span>
-                              <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">
-                                {set.year}
-                              </span>
-                              <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5">
-                                {set.difficulty}
-                              </span>
-                              <span className="text-xs text-gray-400">
-                                {set.questions.length} questions
-                              </span>
+                  {libLoading ? (
+                    <div className="py-12 text-center text-gray-400 text-sm">
+                      Loading library…
+                    </div>
+                  ) : questionSets.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <MdLibraryBooks
+                        size={36}
+                        className="mx-auto text-gray-300 mb-3"
+                      />
+                      <p className="text-gray-500 font-medium">
+                        No question sets saved yet.
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Generate questions in the AI Generator and save them to
+                        the library first.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {questionSets
+                        .filter(
+                          (set) =>
+                            !form.targetGrades?.length ||
+                            !set.year ||
+                            setYearMatchesTarget(set.year, form.targetGrades)
+                        )
+                        .map((set) => (
+                          <div
+                            key={set.id}
+                            className="border border-gray-200 p-4 hover:border-purple-300 hover:bg-purple-50/30 transition-all"
+                          >
+                            <div className="flex items-start justify-between gap-4">
+                              <div>
+                                <p className="font-semibold text-gray-900">
+                                  {set.title}
+                                </p>
+                                <div className="flex flex-wrap gap-2 mt-1">
+                                  <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 font-medium">
+                                    {set.subject}
+                                  </span>
+                                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">
+                                    {set.curriculum}
+                                  </span>
+                                  <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">
+                                    {set.year}
+                                  </span>
+                                  <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5">
+                                    {set.difficulty}
+                                  </span>
+                                  <span className="text-xs text-gray-400">
+                                    {set.questions.length} questions
+                                  </span>
+                                </div>
+                                <p className="text-xs text-gray-500 mt-1">
+                                  {set.topic}
+                                  {set.subtopic ? ` › ${set.subtopic}` : ""}
+                                </p>
+                              </div>
+                              <div className="flex flex-col gap-2 shrink-0">
+                                <button
+                                  type="button"
+                                  onClick={() => importSetAsContent(set)}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800 transition-colors"
+                                >
+                                  <MdAdd size={15} /> Import as Worksheet
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => importSetAsQuiz(set)}
+                                  className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
+                                >
+                                  <MdQuiz size={15} /> Import as Quiz
+                                </button>
+                              </div>
                             </div>
-                            <p className="text-xs text-gray-500 mt-1">
-                              {set.topic}
-                              {set.subtopic ? ` › ${set.subtopic}` : ""}
-                            </p>
+                            <div className="mt-3 space-y-1.5">
+                              {set.questions.slice(0, 2).map((q, i) => (
+                                <p
+                                  key={i}
+                                  className="text-xs text-gray-500 pl-2 border-l-2 border-gray-200 line-clamp-1"
+                                >
+                                  Q{i + 1}: {q.text}
+                                </p>
+                              ))}
+                              {set.questions.length > 2 && (
+                                <p className="text-xs text-gray-400 pl-2">
+                                  + {set.questions.length - 2} more…
+                                </p>
+                              )}
+                            </div>
                           </div>
-                          <div className="flex flex-col gap-2 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => importSetAsContent(set)}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800 transition-colors"
-                            >
-                              <MdAdd size={15} /> Import as Worksheet
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => importSetAsQuiz(set)}
-                              className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors"
-                            >
-                              <MdQuiz size={15} /> Import as Quiz
-                            </button>
-                          </div>
-                        </div>
-                        <div className="mt-3 space-y-1.5">
-                          {set.questions.slice(0, 2).map((q, i) => (
-                            <p
-                              key={i}
-                              className="text-xs text-gray-500 pl-2 border-l-2 border-gray-200 line-clamp-1"
-                            >
-                              Q{i + 1}: {q.text}
-                            </p>
-                          ))}
-                          {set.questions.length > 2 && (
-                            <p className="text-xs text-gray-400 pl-2">
-                              + {set.questions.length - 2} more…
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
+                        ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
           </ModalPortal>
+        )}
+
+        {/* View Results modal — quiz submissions */}
+        {resultModal && (
+          <StudentResultsModal
+            studentName={resultModal.studentName}
+            submission={resultModal.submission}
+            assignment={resultModal.assignment}
+            onClose={() => setResultModal(null)}
+          />
         )}
       </div>
     </AdminLayout>
