@@ -214,6 +214,8 @@ export interface Assignment {
   maxAttempts?: number;
   targetGrades: string[];
   targetStudentIds?: string[];
+  /** Admin list grouping (falls back to subject when empty). */
+  folder?: string;
   published: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -782,6 +784,13 @@ export interface PracticeAttempt {
   attachmentName?: string;
   submittedAt?: Timestamp;
   gradedAt?: Timestamp;
+}
+
+export async function getAllPracticePapers(): Promise<PracticePaper[]> {
+  const snap = await getDocs(collection(db, "practicePapers"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as PracticePaper) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function getPracticePapers(program: PracticeProgram): Promise<PracticePaper[]> {
