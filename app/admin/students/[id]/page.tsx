@@ -26,6 +26,7 @@ import { PracticePieChart, SkillMountainChart } from "@/components/AnalyticsChar
 import { adminFetch } from "@/lib/adminFetch";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 import ReactivateAccessModal from "@/components/ReactivateAccessModal";
+import StudentResultsModal from "@/components/StudentResultsModal";
 import { formatPlanExpiresAt } from "@/lib/planEntitlements";
 import { formatTrialEndsLabel, hasTrialEnded, isOnActiveTrial } from "@/lib/trial";
 import { Timestamp } from "firebase/firestore";
@@ -91,6 +92,7 @@ export default function StudentDetailPage() {
   const [tests, setTests] = useState<Test[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [assignmentStatuses, setAssignmentStatuses] = useState<Record<string, string>>({});
+  const [assignmentSubs, setAssignmentSubs] = useState<Record<string, AssignmentSubmission>>({});
   const [practice, setPractice] = useState<AiPracticeAttempt[]>([]);
   const [gaps, setGaps] = useState<LearningGap[]>([]);
   const [sessions, setSessions] = useState<StudySession[]>([]);
@@ -109,6 +111,11 @@ export default function StudentDetailPage() {
   const [siblingBusy, setSiblingBusy] = useState(false);
   const [siblingMsg, setSiblingMsg] = useState("");
   const [reactivateOpen, setReactivateOpen] = useState(false);
+  const [resultModal, setResultModal] = useState<{
+    studentName: string;
+    submission: AssignmentSubmission;
+    assignment: Assignment;
+  } | null>(null);
 
   useEffect(() => {
     if (!id) return;
@@ -163,14 +170,17 @@ export default function StudentDetailPage() {
         setDetailLabel(null);
       }
       const statuses: Record<string, string> = {};
+      const subsByAssignment: Record<string, AssignmentSubmission> = {};
       await Promise.all(asgn.map(async (a) => {
         if (a.id) {
           const subList = await getSubmissionsByAssignment(a.id);
           const mine = subList.find((sub) => sub.studentId === id);
           statuses[a.id] = mine?.status ?? "not_started";
+          if (mine) subsByAssignment[a.id] = mine;
         }
       }));
       setAssignmentStatuses(statuses);
+      setAssignmentSubs(subsByAssignment);
       setLoading(false);
     }
     load();
@@ -514,8 +524,8 @@ export default function StudentDetailPage() {
                   {trialEnded && <span className="badge badge-red">Trial ended</span>}
                 </div>
                 <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
-                  <span className="flex items-center gap-1"><MdEmail size={13}/>{student.parentEmail || student.email}</span>
-                  {student.parentPhone && <span className="flex items-center gap-1"><MdPhone size={13}/>{student.parentPhone}</span>}
+                  <span className="flex items-center gap-1"><MdEmail size={13} />{student.parentEmail || student.email}</span>
+                  {student.parentPhone && <span className="flex items-center gap-1"><MdPhone size={13} />{student.parentPhone}</span>}
                   <span className="text-xs text-gray-400">
                     Access until: {formatPlanExpiresAt(student)}
                   </span>
@@ -531,17 +541,16 @@ export default function StudentDetailPage() {
               <button
                 type="button"
                 onClick={() => setReactivateOpen(true)}
-                className={`flex items-center gap-2 text-sm py-1.5 px-3 rounded-lg font-semibold cursor-pointer ${
-                  needsReactivation
-                    ? "bg-[#00369b] text-white hover:bg-[#002a7a]"
-                    : "btn-secondary"
-                }`}
+                className={`flex items-center gap-2 text-sm py-1.5 px-3 rounded-lg font-semibold cursor-pointer ${needsReactivation
+                  ? "bg-[#00369b] text-white hover:bg-[#002a7a]"
+                  : "btn-secondary"
+                  }`}
               >
                 <MdLockOpen size={16} />
                 {needsReactivation ? "Reactivate access" : "Extend access"}
               </button>
               <button onClick={() => setEditing(!editing)} className="btn-secondary flex items-center gap-2 text-sm py-1.5 cursor-pointer">
-                <MdEdit size={14}/>{editing ? "Cancel" : "Edit details"}
+                <MdEdit size={14} />{editing ? "Cancel" : "Edit details"}
               </button>
             </div>
           </div>
@@ -586,7 +595,7 @@ export default function StudentDetailPage() {
               </div>
               <div className="sm:col-span-2">
                 <button onClick={handleSave} disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-60 cursor-pointer">
-                  <MdSave size={14}/>{saving ? "Saving…" : "Save Changes"}
+                  <MdSave size={14} />{saving ? "Saving…" : "Save Changes"}
                 </button>
               </div>
             </div>
@@ -611,7 +620,7 @@ export default function StudentDetailPage() {
           {TABS.map((t) => (
             <button key={t.key} type="button" onClick={() => setTab(t.key)}
               className={`filter-pill flex items-center gap-1.5${tab === t.key ? " active" : ""}`}>
-              <t.icon size={14}/>{t.label}
+              <t.icon size={14} />{t.label}
             </button>
           ))}
         </div>
@@ -787,7 +796,7 @@ export default function StudentDetailPage() {
                         <div className="mt-3 flex flex-wrap gap-2">
                           {testAttempts.map((a) => (
                             <div key={a.id} className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 ${a.status === "approved" ? (a.passed ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600") : a.status === "pending_review" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                              {a.status === "approved" ? (a.passed ? <MdCheckCircle size={11}/> : <MdCancel size={11}/>) : <MdPending size={11}/>}
+                              {a.status === "approved" ? (a.passed ? <MdCheckCircle size={11} /> : <MdCancel size={11} />) : <MdPending size={11} />}
                               Attempt {a.attemptNumber}{a.status === "approved" ? ` · ${a.percentage}%` : a.status === "pending_review" ? " · Pending" : ""}
                             </div>
                           ))}
@@ -809,14 +818,44 @@ export default function StudentDetailPage() {
                 <div className="space-y-2">
                   {myAssignments.map((a) => {
                     const status = assignmentStatuses[a.id!] ?? "not_started";
+                    const sub = assignmentSubs[a.id!];
                     const statusColor: Record<string, string> = { not_started: "badge-gray", in_progress: "badge-yellow", submitted: "badge-blue", graded: "badge-green" };
+                    const canViewResults =
+                      a.type === "quiz" &&
+                      (a.questions?.length ?? 0) > 0 &&
+                      sub &&
+                      (sub.status === "graded" || sub.status === "submitted") &&
+                      sub.answers &&
+                      Object.keys(sub.answers).length > 0;
+
                     return (
-                      <div key={a.id} className="flex items-center justify-between border border-gray-200 px-4 py-3 bg-white">
-                        <div>
+                      <div key={a.id} className="flex items-center justify-between border border-gray-200 px-4 py-3 bg-white gap-3 flex-wrap">
+                        <div className="min-w-0 flex-1">
                           <p className="font-medium text-sm text-gray-800">{a.title}</p>
-                          <p className="text-xs text-gray-400">{a.subject} · {a.type}{a.dueDate ? ` · Due ${new Date(a.dueDate).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : ""}</p>
+                          <p className="text-xs text-gray-400">
+                            {a.subject} · {a.type}
+                            {a.dueDate ? ` · Due ${new Date(a.dueDate).toLocaleDateString("en-AU", { day: "numeric", month: "short" })}` : ""}
+                            {sub?.score !== undefined ? ` · Score: ${sub.score}/${a.maxScore}` : ""}
+                          </p>
                         </div>
-                        <span className={`badge ${statusColor[status]}`}>{status.replace("_", " ")}</span>
+                        <div className="flex items-center gap-2">
+                          <span className={`badge ${statusColor[status]}`}>{status.replace("_", " ")}</span>
+                          {canViewResults && (
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setResultModal({
+                                  studentName: `${student.firstName} ${student.lastName}`,
+                                  submission: sub!,
+                                  assignment: a,
+                                })
+                              }
+                              className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
+                            >
+                              <MdBarChart size={13} /> View Results
+                            </button>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -929,6 +968,16 @@ export default function StudentDetailPage() {
           }));
         }}
       />
+
+      {/* View Results modal */}
+      {resultModal && (
+        <StudentResultsModal
+          studentName={resultModal.studentName}
+          submission={resultModal.submission}
+          assignment={resultModal.assignment}
+          onClose={() => setResultModal(null)}
+        />
+      )}
     </AdminLayout>
   );
 }
