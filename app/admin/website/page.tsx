@@ -16,13 +16,15 @@ import {
 } from "@/lib/firestore";
 import { MdSave, MdAdd, MdEdit, MdDelete, MdClose, MdCheckCircle, MdWeb } from "react-icons/md";
 
-type Tab = "hero" | "brief" | "contact_info" | "header_info" | "testimonials" | "pricing" | "faqs" | "classes" | "services" | "partners";
+type Tab = "hero" | "brief" | "header_info" | "contact_info" | "about_page" | "cta" | "classes" | "services" | "partners" | "testimonials" | "pricing" | "faqs";
 
 const TABS: { key: Tab; label: string }[] = [
   { key: "hero", label: "Hero" },
   { key: "brief", label: "About Brief" },
   { key: "header_info", label: "Header Info" },
   { key: "contact_info", label: "Contact Info" },
+  { key: "about_page", label: "About Page" },
+  { key: "cta", label: "CTA Banner" },
   { key: "classes", label: "Classes" },
   { key: "services", label: "Services" },
   { key: "partners", label: "Partners" },
@@ -345,6 +347,75 @@ function HeaderInfoEditor() {
   );
 }
 
+// ── About Page Editor ─────────────────────────────────────
+function AboutPageEditor() {
+  const EMPTY = { heroHeading: "", heroImage: "", vision: "", mission: "", directorName: "", directorRole: "", directorImage: "", directorBio: "", storyHeading: "", storyBody: "", storyImage: "", storyQuote: "", approachHeading: "", approachBody: "", approachImageDesktop: "", approachImageMobile: "", testimonialsHeading: "What Our Students Say About Us", faqHeading: "We know you have questions, We also have answers" };
+  const [form, setForm] = useState(EMPTY);
+  const [saving, setSaving] = useState(false); const [ok, setOk] = useState(false);
+  useEffect(() => { getSiteContent("about_page").then((d) => { if (d) setForm(d.data as typeof form); }); }, []);
+  async function save(e: React.FormEvent) { e.preventDefault(); setSaving(true); await upsertSiteContent("about_page", form); setSaving(false); setOk(true); setTimeout(() => setOk(false), 3000); }
+  const tf = (key: keyof typeof EMPTY, label: string, rows?: number) => (
+    <div key={key}><label className="admin-label">{label}</label>
+      {rows ? <textarea value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} rows={rows} className="admin-input resize-none" /> : <input value={form[key]} onChange={(e) => setForm({ ...form, [key]: e.target.value })} className="admin-input" />}
+    </div>
+  );
+  return (
+    <form onSubmit={save} className="space-y-4">
+      <p className="text-xs text-gray-400 bg-blue-50 border border-blue-200 px-3 py-2">These fields control every section of the About page. Leave blank to use the defaults.</p>
+      <h3 className="admin-label text-sm text-gray-600 font-bold pt-2">Hero Section</h3>
+      {tf("heroHeading", "Hero Heading")}
+      <ImageUpload label="Hero Background Image" value={form.heroImage} onChange={(v) => setForm({ ...form, heroImage: v })} folder="bridgitus/site" />
+      <h3 className="admin-label text-sm text-gray-600 font-bold pt-2">Vision & Mission</h3>
+      {tf("vision", "Vision Statement", 2)}
+      {tf("mission", "Mission Statement", 3)}
+      <h3 className="admin-label text-sm text-gray-600 font-bold pt-2">Director's Desk</h3>
+      <div className="grid sm:grid-cols-2 gap-4">{tf("directorName", "Director Name")}{tf("directorRole", "Director Role/Title")}</div>
+      {tf("directorBio", "Director Bio (separate paragraphs with blank lines)", 6)}
+      <ImageUpload label="Director Photo" value={form.directorImage} onChange={(v) => setForm({ ...form, directorImage: v })} folder="bridgitus/site" />
+      <h3 className="admin-label text-sm text-gray-600 font-bold pt-2">Our Story</h3>
+      {tf("storyHeading", "Story Heading")}
+      {tf("storyBody", "Story Body", 4)}
+      {tf("storyQuote", "Story Quote (optional)")}
+      <ImageUpload label="Story Image" value={form.storyImage} onChange={(v) => setForm({ ...form, storyImage: v })} folder="bridgitus/site" />
+      <h3 className="admin-label text-sm text-gray-600 font-bold pt-2">Our Approach</h3>
+      {tf("approachHeading", "Approach Heading")}
+      {tf("approachBody", "Approach Body", 3)}
+      <ImageUpload label="Process Diagram (Desktop)" value={form.approachImageDesktop} onChange={(v) => setForm({ ...form, approachImageDesktop: v })} folder="bridgitus/site" />
+      <ImageUpload label="Process Diagram (Mobile)" value={form.approachImageMobile} onChange={(v) => setForm({ ...form, approachImageMobile: v })} folder="bridgitus/site" />
+      <h3 className="admin-label text-sm text-gray-600 font-bold pt-2">Section Headings</h3>
+      {tf("testimonialsHeading", "Testimonials Section Heading")}
+      {tf("faqHeading", "FAQ Section Heading")}
+      <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+        <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-60"><MdSave size={15} />{saving ? "Saving…" : "Save About Page"}</button>
+        {ok && <span className="text-sm text-emerald-600 flex items-center gap-1"><MdCheckCircle size={14} />Saved</span>}
+      </div>
+    </form>
+  );
+}
+
+// ── CTA Banner Editor ─────────────────────────────────────
+function CtaEditor() {
+  const EMPTY = { heading: "Every class is an opportunity to succeed.", subheading: "Ready to take the first step? Register today and start your learning journey.", buttonLabel: "Get Started", buttonHref: "/register" };
+  const [form, setForm] = useState(EMPTY);
+  const [saving, setSaving] = useState(false); const [ok, setOk] = useState(false);
+  useEffect(() => { getSiteContent("cta").then((d) => { if (d) setForm(d.data as typeof form); }); }, []);
+  async function save(e: React.FormEvent) { e.preventDefault(); setSaving(true); await upsertSiteContent("cta", form); setSaving(false); setOk(true); setTimeout(() => setOk(false), 3000); }
+  return (
+    <form onSubmit={save} className="space-y-4">
+      <div><label className="admin-label">Heading</label><input value={form.heading} onChange={(e) => setForm({ ...form, heading: e.target.value })} className="admin-input" /></div>
+      <div><label className="admin-label">Sub-heading</label><textarea value={form.subheading} onChange={(e) => setForm({ ...form, subheading: e.target.value })} rows={2} className="admin-input resize-none" /></div>
+      <div className="grid sm:grid-cols-2 gap-4">
+        <div><label className="admin-label">Button Label</label><input value={form.buttonLabel} onChange={(e) => setForm({ ...form, buttonLabel: e.target.value })} className="admin-input" /></div>
+        <div><label className="admin-label">Button Link</label><input value={form.buttonHref} onChange={(e) => setForm({ ...form, buttonHref: e.target.value })} className="admin-input" placeholder="/register" /></div>
+      </div>
+      <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+        <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-60"><MdSave size={15} />{saving ? "Saving…" : "Save CTA"}</button>
+        {ok && <span className="text-sm text-emerald-600 flex items-center gap-1"><MdCheckCircle size={14} />Saved</span>}
+      </div>
+    </form>
+  );
+}
+
 // ── Stats editor ──────────────────────────────────────────
 function StatsEditor() {
   const EMPTY = { stat1Label: "100% Positive Feedback", stat1Sub: "Over 100+ positive feedback", stat2Label: "99% Success Rate", stat2Sub: "Students who stick with us succeed", stat3Label: "24/7 Expert Support", stat3Sub: "Always here when you need help" };
@@ -548,6 +619,8 @@ export default function WebsitePage() {
           {tab === "brief" && <BriefEditor />}
           {tab === "header_info" && <HeaderInfoEditor />}
           {tab === "contact_info" && <ContactInfoEditor />}
+          {tab === "about_page" && <AboutPageEditor />}
+          {tab === "cta" && <CtaEditor />}
           {tab === "classes" && <ClassesEditor />}
           {tab === "services" && <ServicesEditor />}
           {tab === "partners" && <PartnersEditor />}
