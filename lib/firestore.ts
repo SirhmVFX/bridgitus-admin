@@ -1,20 +1,6 @@
 import {
-  collection,
-  doc,
-  getDocs,
-  getDoc,
-  addDoc,
-  updateDoc,
-  deleteDoc,
-  query,
-  orderBy,
-  where,
-  serverTimestamp,
-  Timestamp,
-  getCountFromServer,
-  limit,
-  startAfter,
-  DocumentSnapshot,
+  collection, doc, getDocs, getDoc, addDoc, updateDoc, deleteDoc,
+  query, where, serverTimestamp, Timestamp, getCountFromServer, limit,
 } from "firebase/firestore";
 import { db } from "./firebase";
 // All addressable admin sections
@@ -223,9 +209,10 @@ export async function getAdminByUid(uid: string): Promise<AdminUser | null> {
 }
 
 export async function getAllAdmins(): Promise<AdminUser[]> {
-  const q = query(collection(db, "admins"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as AdminUser) }));
+  const snap = await getDocs(collection(db, "admins"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as AdminUser) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function createAdmin(
@@ -257,19 +244,18 @@ export async function deleteAdmin(id: string): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 export async function getAllStudents(): Promise<Student[]> {
-  const q = query(collection(db, "students"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Student) }));
+  // No orderBy — sort client-side to avoid needing createdAt index
+  const snap = await getDocs(collection(db, "students"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Student) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function getStudentsByGrade(grade: string): Promise<Student[]> {
-  const q = query(
-    collection(db, "students"),
-    where("grade", "==", grade),
-    orderBy("firstName", "asc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Student) }));
+  const snap = await getDocs(query(collection(db, "students"), where("grade", "==", grade)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Student) }))
+    .sort((a, b) => a.firstName.localeCompare(b.firstName));
 }
 
 export async function getStudentById(id: string): Promise<Student | null> {
@@ -302,31 +288,17 @@ export async function getStudentCount(): Promise<number> {
 // ─────────────────────────────────────────────────────────────
 
 export async function getAllMaterials(): Promise<LearningMaterial[]> {
-  const q = query(
-    collection(db, "learningMaterials"),
-    orderBy("grade", "asc"),
-    orderBy("order", "asc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as LearningMaterial),
-  }));
+  const snap = await getDocs(collection(db, "learningMaterials"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as LearningMaterial) }))
+    .sort((a, b) => a.grade.localeCompare(b.grade) || a.order - b.order);
 }
 
-export async function getMaterialsByGrade(
-  grade: string
-): Promise<LearningMaterial[]> {
-  const q = query(
-    collection(db, "learningMaterials"),
-    where("grade", "==", grade),
-    orderBy("order", "asc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as LearningMaterial),
-  }));
+export async function getMaterialsByGrade(grade: string): Promise<LearningMaterial[]> {
+  const snap = await getDocs(query(collection(db, "learningMaterials"), where("grade", "==", grade)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as LearningMaterial) }))
+    .sort((a, b) => a.order - b.order);
 }
 
 export async function getMaterialById(
@@ -372,19 +344,17 @@ export async function getMaterialCount(): Promise<number> {
 // ─────────────────────────────────────────────────────────────
 
 export async function getAllTests(): Promise<Test[]> {
-  const q = query(collection(db, "tests"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Test) }));
+  const snap = await getDocs(collection(db, "tests"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Test) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function getTestsByGrade(grade: string): Promise<Test[]> {
-  const q = query(
-    collection(db, "tests"),
-    where("grade", "==", grade),
-    orderBy("createdAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Test) }));
+  const snap = await getDocs(query(collection(db, "tests"), where("grade", "==", grade)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Test) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function getTestById(id: string): Promise<Test | null> {
@@ -421,44 +391,31 @@ export async function deleteTest(id: string): Promise<void> {
 // ─────────────────────────────────────────────────────────────
 
 export async function getAllPendingAttempts(): Promise<TestAttempt[]> {
-  const q = query(
-    collection(db, "testAttempts"),
-    where("status", "==", "pending_review"),
-    orderBy("submittedAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }));
+  const snap = await getDocs(query(collection(db, "testAttempts"), where("status", "==", "pending_review")));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }))
+    .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function getAllAttempts(): Promise<TestAttempt[]> {
-  const q = query(
-    collection(db, "testAttempts"),
-    orderBy("submittedAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }));
+  const snap = await getDocs(collection(db, "testAttempts"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }))
+    .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function getAttemptsByTest(testId: string): Promise<TestAttempt[]> {
-  const q = query(
-    collection(db, "testAttempts"),
-    where("testId", "==", testId),
-    orderBy("submittedAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }));
+  const snap = await getDocs(query(collection(db, "testAttempts"), where("testId", "==", testId)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }))
+    .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
 }
 
-export async function getAttemptsByStudent(
-  studentId: string
-): Promise<TestAttempt[]> {
-  const q = query(
-    collection(db, "testAttempts"),
-    where("studentId", "==", studentId),
-    orderBy("submittedAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }));
+export async function getAttemptsByStudent(studentId: string): Promise<TestAttempt[]> {
+  const snap = await getDocs(query(collection(db, "testAttempts"), where("studentId", "==", studentId)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }))
+    .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function reviewAttempt(
@@ -487,12 +444,10 @@ export async function getPendingAttemptCount(): Promise<number> {
 // ─────────────────────────────────────────────────────────────
 
 export async function getAllAssignments(): Promise<Assignment[]> {
-  const q = query(
-    collection(db, "assignments"),
-    orderBy("createdAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Assignment) }));
+  const snap = await getDocs(collection(db, "assignments"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Assignment) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function getAssignmentById(
@@ -532,19 +487,11 @@ export async function deleteAssignment(id: string): Promise<void> {
 // ASSIGNMENT SUBMISSIONS
 // ─────────────────────────────────────────────────────────────
 
-export async function getSubmissionsByAssignment(
-  assignmentId: string
-): Promise<AssignmentSubmission[]> {
-  const q = query(
-    collection(db, "assignmentSubmissions"),
-    where("assignmentId", "==", assignmentId),
-    orderBy("submittedAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({
-    id: d.id,
-    ...(d.data() as AssignmentSubmission),
-  }));
+export async function getSubmissionsByAssignment(assignmentId: string): Promise<AssignmentSubmission[]> {
+  const snap = await getDocs(query(collection(db, "assignmentSubmissions"), where("assignmentId", "==", assignmentId)));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as AssignmentSubmission) }))
+    .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
 }
 
 export async function gradeSubmission(
@@ -623,13 +570,13 @@ export async function getCompletionsByMaterial(
 // ─────────────────────────────────────────────────────────────
 
 export async function getAllAnnouncements(): Promise<Announcement[]> {
-  const q = query(
-    collection(db, "announcements"),
-    orderBy("pinned", "desc"),
-    orderBy("createdAt", "desc")
-  );
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Announcement) }));
+  const snap = await getDocs(collection(db, "announcements"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as Announcement) }))
+    .sort((a, b) => {
+      if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+      return (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0;
+    });
 }
 
 export async function createAnnouncement(
@@ -737,9 +684,8 @@ export async function upsertSiteContent(section: string, data: Record<string, un
 
 // Testimonials
 export async function getAllTestimonials(): Promise<SiteTestimonial[]> {
-  const q = query(collection(db, "siteTestimonials"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteTestimonial) }));
+  const snap = await getDocs(collection(db, "siteTestimonials"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteTestimonial) })).sort((a, b) => a.order - b.order);
 }
 export async function createTestimonial(data: Omit<SiteTestimonial, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "siteTestimonials"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -754,9 +700,8 @@ export async function deleteTestimonial(id: string): Promise<void> {
 
 // Pricing
 export async function getAllPricingPlans(): Promise<SitePricingPlan[]> {
-  const q = query(collection(db, "sitePricingPlans"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SitePricingPlan) }));
+  const snap = await getDocs(collection(db, "sitePricingPlans"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SitePricingPlan) })).sort((a, b) => a.order - b.order);
 }
 export async function createPricingPlan(data: Omit<SitePricingPlan, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "sitePricingPlans"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -771,9 +716,8 @@ export async function deletePricingPlan(id: string): Promise<void> {
 
 // FAQs
 export async function getAllFaqs(): Promise<SiteFaq[]> {
-  const q = query(collection(db, "siteFaqs"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteFaq) }));
+  const snap = await getDocs(collection(db, "siteFaqs"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteFaq) })).sort((a, b) => a.order - b.order);
 }
 export async function createFaq(data: Omit<SiteFaq, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "siteFaqs"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -788,9 +732,10 @@ export async function deleteFaq(id: string): Promise<void> {
 
 // Contact Messages
 export async function getAllContactMessages(): Promise<ContactMessage[]> {
-  const q = query(collection(db, "contactMessages"), orderBy("createdAt", "desc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as ContactMessage) }));
+  const snap = await getDocs(collection(db, "contactMessages"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as ContactMessage) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
 }
 export async function markMessageRead(id: string): Promise<void> {
   await updateDoc(doc(db, "contactMessages", id), { read: true });
@@ -823,9 +768,8 @@ export interface SiteClass {
 }
 
 export async function getAllClasses(): Promise<SiteClass[]> {
-  const q = query(collection(db, "siteClasses"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteClass) }));
+  const snap = await getDocs(collection(db, "siteClasses"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteClass) })).sort((a, b) => a.order - b.order);
 }
 export async function createClass(data: Omit<SiteClass, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "siteClasses"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -857,9 +801,8 @@ export interface SiteService {
 }
 
 export async function getAllServices(): Promise<SiteService[]> {
-  const q = query(collection(db, "siteServices"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteService) }));
+  const snap = await getDocs(collection(db, "siteServices"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteService) })).sort((a, b) => a.order - b.order);
 }
 export async function createService(data: Omit<SiteService, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "siteServices"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
@@ -888,9 +831,8 @@ export interface SitePartner {
 }
 
 export async function getAllPartners(): Promise<SitePartner[]> {
-  const q = query(collection(db, "sitePartners"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SitePartner) }));
+  const snap = await getDocs(collection(db, "sitePartners"));
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SitePartner) })).sort((a, b) => a.order - b.order);
 }
 export async function createPartner(data: Omit<SitePartner, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "sitePartners"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });

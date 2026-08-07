@@ -43,8 +43,14 @@ export default function AssignmentsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
-    const [a, s, mats] = await Promise.all([getAllAssignments(), getAllStudents(), getAllMaterials()]);
-    setAssignments(a); setStudents(s); setMaterials(mats); setLoading(false);
+    try {
+      const [a, s, mats] = await Promise.all([getAllAssignments(), getAllStudents(), getAllMaterials()]);
+      setAssignments(a); setStudents(s); setMaterials(mats);
+    } catch (err) {
+      console.error("Assignments load error:", err);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); }, []);
 
@@ -175,6 +181,9 @@ export default function AssignmentsPage() {
                               className="p-1.5 text-gray-400 hover:text-[#00369b]" title="Open platform"><MdOpenInNew size={16} /></a>
                           )}
                           <button onClick={() => openSubmissions(a)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="View submissions"><MdVisibility size={16} /></button>
+                          <a href={`/admin/analytics/assignment/${a.id}`} className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex" title="Analytics">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+                          </a>
                           <button onClick={() => openEdit(a)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={16} /></button>
                           <button onClick={() => handleDelete(a.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={16} /></button>
                         </div>

@@ -32,25 +32,39 @@ export default function StudentsPage() {
   const [statusEdit, setStatusEdit] = useState<Student["status"]>("active");
   const [gradeEdit, setGradeEdit] = useState("");
 
+  const [loadError, setLoadError] = useState<string | null>(null);
+
   async function load() {
-    const s = await getAllStudents();
-    const mats = await getAllMaterials();
-    setStudents(s); setAllMaterials(mats); setLoading(false);
+    setLoadError(null);
+    try {
+      const [s, mats] = await Promise.all([getAllStudents(), getAllMaterials()]);
+      setStudents(s); setAllMaterials(mats);
+    } catch (err) {
+      console.error("Failed to load students:", err);
+      setLoadError(err instanceof Error ? err.message : "Failed to load data. Check your Firebase configuration and Firestore security rules.");
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); }, []);
 
   async function openView(s: Student) {
     setViewStudent(s);
     setDetailLoading(true);
-    const [att, prog, comps] = await Promise.all([
-      getAttemptsByStudent(s.id!),
-      getProgressByStudent(s.id!),
-      getCompletionsByStudent(s.id!),
-    ]);
-    setStudentAttempts(att);
-    setStudentProgress(prog);
-    setStudentCompletions(comps);
-    setDetailLoading(false);
+    try {
+      const [att, prog, comps] = await Promise.all([
+        getAttemptsByStudent(s.id!),
+        getProgressByStudent(s.id!),
+        getCompletionsByStudent(s.id!),
+      ]);
+      setStudentAttempts(att);
+      setStudentProgress(prog);
+      setStudentCompletions(comps);
+    } catch (err) {
+      console.error("Failed to load student detail:", err);
+    } finally {
+      setDetailLoading(false);
+    }
   }
 
   function openEdit(s: Student) {
@@ -99,69 +113,92 @@ export default function StudentsPage() {
 
         {/* Filters */}
         <div className="admin-card flex flex-wrap gap-3 items-center">
-          <div className="relative flex-1 min-w-48">
-            <MdSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search by name, ID, email…" className="admin-input pl-8" />
+          <div className="flex">
+            <div className="relative flex-1 min-w-48">
+              <MdSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name, ID, email…" className="admin-input pl-8" />
+            </div>
+            <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="admin-input w-auto">
+              <option value="all">All Grades</option>
+              {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+            </select>
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="admin-input w-auto">
+              <option value="all">All Status</option>
+              <option value="active">Active</option>
+              <option value="inactive">Inactive</option>
+              <option value="suspended">Suspended</option>
+            </select>
           </div>
-          <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="admin-input w-auto">
-            <option value="all">All Grades</option>
-            {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
-          </select>
-          <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="admin-input w-auto">
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-            <option value="suspended">Suspended</option>
-          </select>
           <span className="text-xs text-gray-400">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
         </div>
 
         {/* Table */}
         <div className="admin-card p-0 overflow-hidden">
-          {loading ? <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
-            : filtered.length === 0 ? (
-              <div className="p-12 text-center">
-                <MdPeople size={40} className="mx-auto text-gray-300 mb-3" />
-                <p className="text-gray-500">No students found.</p>
+          {loading ? (
+            <div className="p-12 text-center">
+              <div className="w-8 h-8 border-4 border-[#00369b] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
+              <p className="text-sm text-gray-400">Loading students…</p>
+            </div>
+          ) : loadError ? (
+            <div className="p-12 text-center">
+              <p className="text-red-500 font-semibold mb-2">Failed to load students</p>
+              <p className="text-sm text-gray-500 mb-4 max-w-md mx-auto">{loadError}</p>
+              <button onClick={load} className="btn-primary text-sm">Retry</button>
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 text-xs text-amber-700 text-left max-w-lg mx-auto">
+                <p className="font-semibold mb-1">Troubleshooting tips:</p>
+                <ul className="list-disc pl-4 space-y-1">
+                  <li>Ensure you are logged in as an admin user registered in Firestore (/admins collection)</li>
+                  <li>Check your Firestore security rules allow authenticated reads on the &apos;students&apos; collection</li>
+                  <li>Verify your Firebase env vars in .env.local are correct</li>
+                </ul>
               </div>
-            ) : (
-              <table className="admin-table">
-                <thead><tr>
-                  <th>Student</th><th>Student ID</th><th>Grade</th><th>School</th>
-                  <th>Parent Email</th><th>Status</th><th>Actions</th>
-                </tr></thead>
-                <tbody>
-                  {filtered.map((s) => (
-                    <tr key={s.id}>
-                      <td>
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-[#00369b]/10 flex items-center justify-center text-[#00369b] text-xs font-bold shrink-0">
-                            {s.firstName?.[0]}{s.lastName?.[0]}
-                          </div>
-                          <div>
-                            <p className="font-medium text-gray-800">{s.firstName} {s.lastName}</p>
-                            <p className="text-xs text-gray-400">{s.email}</p>
-                          </div>
+            </div>
+          ) : filtered.length === 0 ? (
+            <div className="p-12 text-center">
+              <MdPeople size={40} className="mx-auto text-gray-300 mb-3" />
+              <p className="text-gray-500">No students found.</p>
+            </div>
+          ) : (
+            <table className="admin-table">
+              <thead><tr>
+                <th>Student</th><th>Student ID</th><th>Grade</th><th>School</th>
+                <th>Parent Email</th><th>Status</th><th>Actions</th>
+              </tr></thead>
+              <tbody>
+                {filtered.map((s) => (
+                  <tr key={s.id}>
+                    <td>
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#00369b]/10 flex items-center justify-center text-[#00369b] text-xs font-bold shrink-0">
+                          {s.firstName?.[0]}{s.lastName?.[0]}
                         </div>
-                      </td>
-                      <td><span className="font-mono text-xs text-[#00369b] font-bold">{s.studentId}</span></td>
-                      <td><span className="badge badge-blue">Grade {s.grade}</span></td>
-                      <td className="text-gray-600 text-sm">{s.school}</td>
-                      <td className="text-gray-600 text-sm">{s.parentEmail}</td>
-                      <td><span className={`badge ${s.status === "active" ? "badge-green" : s.status === "suspended" ? "badge-red" : "badge-gray"}`}>{s.status}</span></td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <button onClick={() => openView(s)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="View details"><MdVisibility size={16} /></button>
-                          <button onClick={() => openEdit(s)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="Edit"><MdEdit size={16} /></button>
-                          <button onClick={() => handleDelete(s.id!)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete"><MdDelete size={16} /></button>
+                        <div>
+                          <p className="font-medium text-gray-800">{s.firstName} {s.lastName}</p>
+                          <p className="text-xs text-gray-400">{s.email}</p>
                         </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+                      </div>
+                    </td>
+                    <td><span className="font-mono text-xs text-[#00369b] font-bold">{s.studentId}</span></td>
+                    <td><span className="badge badge-blue">Grade {s.grade}</span></td>
+                    <td className="text-gray-600 text-sm">{s.school}</td>
+                    <td className="text-gray-600 text-sm">{s.parentEmail}</td>
+                    <td><span className={`badge ${s.status === "active" ? "badge-green" : s.status === "suspended" ? "badge-red" : "badge-gray"}`}>{s.status}</span></td>
+                    <td>
+                      <div className="flex items-center gap-2">
+                        <button onClick={() => openView(s)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="Quick view"><MdVisibility size={16} /></button>
+                        <a href={`/admin/students/${s.id}`} className="p-1.5 text-gray-400 hover:text-[#00369b] inline-flex" title="Full details">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
+                        </a>
+                        <button onClick={() => openEdit(s)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="Edit"><MdEdit size={16} /></button>
+                        <button onClick={() => handleDelete(s.id!)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete"><MdDelete size={16} /></button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
       </div>
 

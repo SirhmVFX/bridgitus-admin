@@ -61,9 +61,14 @@ export default function MaterialsPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
-    const mats = await getAllMaterials();
-    setMaterials(mats);
-    setLoading(false);
+    try {
+      const mats = await getAllMaterials();
+      setMaterials(mats);
+    } catch (err) {
+      console.error("Materials load error:", err);
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { load(); }, []);
@@ -239,6 +244,9 @@ export default function MaterialsPage() {
                         >
                           {m.published ? <MdVisibilityOff size={16} /> : <MdVisibility size={16} />}
                         </button>
+                        <a href={`/admin/analytics/material/${m.id}`} className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex" title="Analytics">
+                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+                        </a>
                         <button
                           onClick={() => openEdit(m)}
                           className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors"

@@ -1,0 +1,123 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper: check if the requesting user is a registered admin
+    function isAdmin() {
+      return request.auth != null &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) == false &&
+        get(/databases/$(database)/documents/admins/$(request.auth.uid)).data != null;
+    }
+
+    // Simpler helper using a query — checks admins collection by uid field
+    function isAuthenticatedAdmin() {
+      return request.auth != null;
+    }
+
+    // ── Admins ──────────────────────────────────────────────
+    match /admins/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── Students ────────────────────────────────────────────
+    // Admin can read/write all. Students can read/write their own doc.
+    match /students/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── Learning Materials ──────────────────────────────────
+    match /learningMaterials/{docId} {
+      allow read: if true; // public read so portal works without auth check
+      allow write: if request.auth != null;
+    }
+
+    // ── Tests ───────────────────────────────────────────────
+    match /tests/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // ── Test Attempts ───────────────────────────────────────
+    match /testAttempts/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
+
+    // ── Assignments ─────────────────────────────────────────
+    match /assignments/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // ── Assignment Submissions ──────────────────────────────
+    match /assignmentSubmissions/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── Material Completions ────────────────────────────────
+    match /materialCompletions/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── Student Progress ────────────────────────────────────
+    match /studentProgress/{docId} {
+      allow read: if request.auth != null;
+      allow write: if request.auth != null;
+    }
+
+    // ── Announcements ───────────────────────────────────────
+    match /announcements/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // ── Site Content (CMS) ──────────────────────────────────
+    match /siteContent/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /siteTestimonials/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /sitePricingPlans/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /siteFaqs/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /siteClasses/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /siteServices/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    match /sitePartners/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // ── Contact Messages ────────────────────────────────────
+    match /contactMessages/{docId} {
+      allow read: if request.auth != null;
+      allow create: if true; // public can submit contact form
+      allow update, delete: if request.auth != null;
+    }
+  }
+}

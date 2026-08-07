@@ -7,6 +7,7 @@ import {
   getDashboardStats, getAllPendingAttempts, getAllStudents, getAllAnnouncements,
   type TestAttempt, type Student, type Announcement,
 } from "@/lib/firestore";
+import FirebaseStatus from "@/components/FirebaseStatus";
 import {
   MdPeople, MdMenuBook, MdQuiz, MdPending, MdArrowForward,
   MdCheckCircle, MdTrendingUp, MdCampaign, MdPushPin,
@@ -23,17 +24,22 @@ export default function DashboardPage() {
 
   useEffect(() => {
     async function load() {
-      const [s, p, students, ann] = await Promise.all([
-        getDashboardStats(),
-        getAllPendingAttempts(),
-        getAllStudents(),
-        getAllAnnouncements(),
-      ]);
-      setStats(s);
-      setPending(p.slice(0, 5));
-      setRecentStudents(students.slice(0, 5));
-      setAnnouncements(ann.filter((a) => a.published).slice(0, 3));
-      setLoading(false);
+      try {
+        const [s, p, students, ann] = await Promise.all([
+          getDashboardStats(),
+          getAllPendingAttempts(),
+          getAllStudents(),
+          getAllAnnouncements(),
+        ]);
+        setStats(s);
+        setPending(p.slice(0, 5));
+        setRecentStudents(students.slice(0, 5));
+        setAnnouncements(ann.filter((a) => a.published).slice(0, 3));
+      } catch (err) {
+        console.error("Dashboard load error:", err);
+      } finally {
+        setLoading(false);
+      }
     }
     load();
   }, []);
@@ -52,6 +58,9 @@ export default function DashboardPage() {
           <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
           <p className="text-gray-500 text-sm mt-0.5">Bridgitus Learning Management Overview</p>
         </div>
+
+        {/* Firebase connection status — only shows if there's an issue */}
+        <FirebaseStatus />
 
         {/* Stat cards */}
         {loading ? (

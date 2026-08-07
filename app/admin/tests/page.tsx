@@ -49,8 +49,14 @@ export default function TestsPage() {
   const [reviewing, setReviewing] = useState(false);
 
   async function load() {
-    const [t, a, mats] = await Promise.all([getAllTests(), getAllAttempts(), getAllMaterials()]);
-    setTests(t); setAttempts(a); setMaterials(mats); setLoading(false);
+    try {
+      const [t, a, mats] = await Promise.all([getAllTests(), getAllAttempts(), getAllMaterials()]);
+      setTests(t); setAttempts(a); setMaterials(mats);
+    } catch (err) {
+      console.error("Tests load error:", err);
+    } finally {
+      setLoading(false);
+    }
   }
   useEffect(() => { load(); }, []);
 
@@ -172,6 +178,9 @@ export default function TestsPage() {
                         <td>
                           <div className="flex items-center gap-2">
                             <button onClick={() => openEdit(t)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={16} /></button>
+                            <a href={`/admin/analytics/test/${t.id}`} className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex" title="Analytics">
+                              <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+                            </a>
                             <button onClick={() => handleDelete(t.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={16} /></button>
                           </div>
                         </td>

@@ -45,7 +45,7 @@ export default function AccountPage() {
   const [newAdminEmail, setNewAdminEmail] = useState("");
   const [newAdminName, setNewAdminName] = useState("");
   const [newAdminPw, setNewAdminPw] = useState("");
-  const [newAdminRole, setNewAdminRole] = useState<"admin"|"super">("admin");
+  const [newAdminRole, setNewAdminRole] = useState<"admin" | "super">("admin");
   const [createSaving, setCreateSaving] = useState(false);
   const [createError, setCreateError] = useState("");
 
@@ -134,9 +134,9 @@ export default function AccountPage() {
 
         {/* Profile */}
         <div className="admin-card space-y-4">
-          <h2 className="font-semibold text-gray-900 flex items-center gap-2"><MdPerson size={18} className="text-[#00369b]"/>Profile</h2>
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2"><MdPerson size={18} className="text-primary" />Profile</h2>
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-[#00369b] flex items-center justify-center text-white text-xl font-bold shrink-0">
+            <div className="w-14 h-14 rounded-full bg-primary flex items-center justify-center text-white text-xl font-bold shrink-0">
               {adminUser?.displayName?.[0] ?? user?.email?.[0]?.toUpperCase() ?? "A"}
             </div>
             <div>
@@ -147,41 +147,41 @@ export default function AccountPage() {
           </div>
           <div>
             <label className="admin-label">Display Name</label>
-            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="admin-input" placeholder="Your name"/>
+            <input value={displayName} onChange={(e) => setDisplayName(e.target.value)} className="admin-input" placeholder="Your name" />
           </div>
           <div className="flex items-center gap-3">
             <button onClick={handleSaveProfile} disabled={profileSaving} className="btn-primary flex items-center gap-2 disabled:opacity-60">
-              <MdSave size={16}/>{profileSaving ? "Saving…" : "Save"}
+              <MdSave size={16} />{profileSaving ? "Saving…" : "Save"}
             </button>
-            {profileOk && <span className="text-sm text-emerald-600 flex items-center gap-1"><MdCheckCircle size={16}/>Saved</span>}
+            {profileOk && <span className="text-sm text-emerald-600 flex items-center gap-1"><MdCheckCircle size={16} />Saved</span>}
           </div>
         </div>
 
         {/* Change Password */}
         <div className="admin-card space-y-4">
-          <h2 className="font-semibold text-gray-900 flex items-center gap-2"><MdLock size={18} className="text-[#00369b]"/>Change Password</h2>
+          <h2 className="font-semibold text-gray-900 flex items-center gap-2"><MdLock size={18} className="text-primary" />Change Password</h2>
           <form onSubmit={handlePasswordChange} className="space-y-4">
             {[
-              {label:"Current Password",   val:currentPw,  set:setCurrentPw,  ph:"••••••••"},
-              {label:"New Password",        val:newPw,      set:setNewPw,      ph:"Min 8 characters"},
-              {label:"Confirm New Password",val:confirmPw,  set:setConfirmPw,  ph:"Repeat new password"},
-            ].map(({label,val,set,ph}) => (
+              { label: "Current Password", val: currentPw, set: setCurrentPw, ph: "••••••••" },
+              { label: "New Password", val: newPw, set: setNewPw, ph: "Min 8 characters" },
+              { label: "Confirm New Password", val: confirmPw, set: setConfirmPw, ph: "Repeat new password" },
+            ].map(({ label, val, set, ph }) => (
               <div key={label}>
                 <label className="admin-label">{label}</label>
                 <div className="relative">
                   <input type={showPw ? "text" : "password"} value={val}
-                    onChange={(e) => set(e.target.value)} required className="admin-input pr-10" placeholder={ph}/>
+                    onChange={(e) => set(e.target.value)} required className="admin-input pr-10" placeholder={ph} />
                   <button type="button" onClick={() => setShowPw(!showPw)}
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
-                    {showPw ? <MdVisibilityOff size={16}/> : <MdVisibility size={16}/>}
+                    {showPw ? <MdVisibilityOff size={16} /> : <MdVisibility size={16} />}
                   </button>
                 </div>
               </div>
             ))}
             {pwError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{pwError}</p>}
-            {pwOk && <p className="text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg flex items-center gap-2"><MdCheckCircle size={16}/>Password updated!</p>}
+            {pwOk && <p className="text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg flex items-center gap-2"><MdCheckCircle size={16} />Password updated!</p>}
             <button type="submit" disabled={pwSaving} className="btn-primary flex items-center gap-2 disabled:opacity-60">
-              <MdLock size={16}/>{pwSaving ? "Updating…" : "Update Password"}
+              <MdLock size={16} />{pwSaving ? "Updating…" : "Update Password"}
             </button>
           </form>
         </div>
@@ -192,14 +192,14 @@ export default function AccountPage() {
           <form onSubmit={handleEmailChange} className="space-y-4">
             <div>
               <label className="admin-label">New Email Address</label>
-              <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required className="admin-input" placeholder="new@bridgitus.com"/>
+              <input type="email" value={newEmail} onChange={(e) => setNewEmail(e.target.value)} required className="admin-input" placeholder="new@bridgitus.com" />
             </div>
             <div>
               <label className="admin-label">Current Password (to verify)</label>
-              <input type="password" value={emailPw} onChange={(e) => setEmailPw(e.target.value)} required className="admin-input" placeholder="••••••••"/>
+              <input type="password" value={emailPw} onChange={(e) => setEmailPw(e.target.value)} required className="admin-input" placeholder="••••••••" />
             </div>
             {emailError && <p className="text-sm text-red-600 bg-red-50 px-3 py-2 rounded-lg">{emailError}</p>}
-            {emailOk && <p className="text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg flex items-center gap-2"><MdCheckCircle size={16}/>Email updated!</p>}
+            {emailOk && <p className="text-sm text-emerald-600 bg-emerald-50 px-3 py-2 rounded-lg flex items-center gap-2"><MdCheckCircle size={16} />Email updated!</p>}
             <button type="submit" disabled={emailSaving} className="btn-primary disabled:opacity-60">{emailSaving ? "Updating…" : "Update Email"}</button>
           </form>
         </div>
@@ -210,7 +210,7 @@ export default function AccountPage() {
             <div className="flex items-center justify-between">
               <h2 className="font-semibold text-gray-900">Admin Team</h2>
               <button onClick={() => setCreateModal(true)} className="btn-primary flex items-center gap-2 text-sm py-1.5">
-                <MdAdd size={16}/>Add Admin
+                <MdAdd size={16} />Add Admin
               </button>
             </div>
             {adminsLoading ? <p className="text-sm text-gray-400">Loading…</p> : (
@@ -218,7 +218,7 @@ export default function AccountPage() {
                 {admins.map((a) => (
                   <div key={a.id} className="flex items-center justify-between px-6 py-3">
                     <div className="flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full bg-[#00369b]/10 flex items-center justify-center text-[#00369b] font-bold text-sm">
+                      <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-sm">
                         {a.displayName?.[0] ?? "A"}
                       </div>
                       <div>
@@ -230,7 +230,7 @@ export default function AccountPage() {
                       <span className={`badge ${a.role === "super" ? "badge-blue" : "badge-gray"} capitalize`}>{a.role}</span>
                       {a.uid !== user?.uid && (
                         <button onClick={() => handleDeleteAdmin(a.id!, a.uid)}
-                          className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={16}/></button>
+                          className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={16} /></button>
                       )}
                     </div>
                   </div>
@@ -247,24 +247,24 @@ export default function AccountPage() {
           <div className="modal-box max-w-md">
             <div className="modal-header">
               <h2 className="font-semibold text-gray-900">Create Admin Account</h2>
-              <button onClick={() => setCreateModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20}/></button>
+              <button onClick={() => setCreateModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button>
             </div>
             <form onSubmit={handleCreateAdmin} className="p-6 space-y-4">
               <div>
                 <label className="admin-label">Display Name *</label>
-                <input required value={newAdminName} onChange={(e) => setNewAdminName(e.target.value)} className="admin-input" placeholder="Full name"/>
+                <input required value={newAdminName} onChange={(e) => setNewAdminName(e.target.value)} className="admin-input" placeholder="Full name" />
               </div>
               <div>
                 <label className="admin-label">Email *</label>
-                <input type="email" required value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)} className="admin-input" placeholder="admin@bridgitus.com"/>
+                <input type="email" required value={newAdminEmail} onChange={(e) => setNewAdminEmail(e.target.value)} className="admin-input" placeholder="admin@bridgitus.com" />
               </div>
               <div>
                 <label className="admin-label">Temporary Password *</label>
-                <input type="password" required minLength={8} value={newAdminPw} onChange={(e) => setNewAdminPw(e.target.value)} className="admin-input" placeholder="Min 8 characters"/>
+                <input type="password" required minLength={8} value={newAdminPw} onChange={(e) => setNewAdminPw(e.target.value)} className="admin-input" placeholder="Min 8 characters" />
               </div>
               <div>
                 <label className="admin-label">Role</label>
-                <select value={newAdminRole} onChange={(e) => setNewAdminRole(e.target.value as "admin"|"super")} className="admin-input">
+                <select value={newAdminRole} onChange={(e) => setNewAdminRole(e.target.value as "admin" | "super")} className="admin-input">
                   <option value="admin">Admin</option>
                   <option value="super">Super Admin</option>
                 </select>
