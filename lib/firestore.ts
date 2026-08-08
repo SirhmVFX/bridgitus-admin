@@ -639,6 +639,7 @@ export interface SitePricingPlan {
   highlighted: boolean;
   order: number;
   published: boolean;
+  amountKobo?: number;   // exact amount in kobo for Paystack
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }

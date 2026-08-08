@@ -93,12 +93,12 @@ function TestimonialsEditor() {
 }
 
 // ── Pricing Plans ──────────────────────────────────────────
-const P_EMPTY: Omit<SitePricingPlan, "id"> = { title: "", tagline: "", price: "", per: "", perks: [{ desc: "" }, { desc: "" }, { desc: "" }], freePerks: ["", "", ""], highlighted: false, order: 0, published: true };
+const P_EMPTY: Omit<SitePricingPlan, "id"> = { title: "", tagline: "", price: "", per: "", perks: [{ desc: "" }, { desc: "" }, { desc: "" }], freePerks: ["", "", ""], highlighted: false, order: 0, published: true, amountKobo: 0 };
 function PricingEditor() {
   const [items, setItems] = useState<SitePricingPlan[]>([]); const [modal, setModal] = useState(false); const [editing, setEditing] = useState<SitePricingPlan | null>(null);
   const [f, setF] = useState(P_EMPTY); const [sv, setSv] = useState(false);
   useEffect(() => { getAllPricingPlans().then(setItems); }, []);
-  function open(p?: SitePricingPlan) { setEditing(p ?? null); setF(p ? { title: p.title, tagline: p.tagline, price: p.price, per: p.per, perks: p.perks, freePerks: p.freePerks, highlighted: p.highlighted, order: p.order, published: p.published } : P_EMPTY); setModal(true); }
+  function open(p?: SitePricingPlan) { setEditing(p ?? null); setF(p ? { title: p.title, tagline: p.tagline, price: p.price, per: p.per, perks: p.perks, freePerks: p.freePerks, highlighted: p.highlighted, order: p.order, published: p.published, amountKobo: p.amountKobo ?? 0 } : P_EMPTY); setModal(true); }
   async function save(e: React.FormEvent) { e.preventDefault(); setSv(true); if (editing?.id) await updatePricingPlan(editing.id, f); else await createPricingPlan(f); setItems(await getAllPricingPlans()); setModal(false); setSv(false); }
   async function del(id: string) { if (!confirm("Delete?")) return; await deletePricingPlan(id); setItems(await getAllPricingPlans()); }
   return (<div className="space-y-4">
@@ -115,8 +115,13 @@ function PricingEditor() {
           <div className="grid sm:grid-cols-2 gap-4">
             <div><label className="admin-label">Title *</label><input required value={f.title} onChange={e => setF({ ...f, title: e.target.value })} className="admin-input" /></div>
             <div><label className="admin-label">Tagline</label><input value={f.tagline} onChange={e => setF({ ...f, tagline: e.target.value })} className="admin-input" /></div>
-            <div><label className="admin-label">Price *</label><input required value={f.price} onChange={e => setF({ ...f, price: e.target.value })} className="admin-input" placeholder="$50" /></div>
+            <div><label className="admin-label">Display Price (text)</label><input required value={f.price} onChange={e => setF({ ...f, price: e.target.value })} className="admin-input" placeholder="$50" /></div>
             <div><label className="admin-label">Per label</label><input value={f.per} onChange={e => setF({ ...f, per: e.target.value })} className="admin-input" placeholder="/hour lesson" /></div>
+            <div>
+              <label className="admin-label">Paystack Amount (kobo / smallest unit) *</label>
+              <input type="number" min={0} required value={f.amountKobo ?? 0} onChange={e => setF({ ...f, amountKobo: Number(e.target.value) })} className="admin-input" placeholder="e.g. 5000000 for ₦50,000" />
+              <p className="text-xs text-gray-400 mt-1">NGN: multiply by 100 (₦50,000 = 5000000). This is the exact amount Paystack will charge.</p>
+            </div>
           </div>
           <div><label className="admin-label">Key Perks (3)</label>{f.perks.map((pk, i) => (<input key={i} value={pk.desc} onChange={e => { const p = [...f.perks]; p[i] = { desc: e.target.value }; setF({ ...f, perks: p }); }} className="admin-input mb-2" placeholder={`Perk ${i + 1}`} />))}</div>
           <div><label className="admin-label">Free Perks</label>{f.freePerks.map((fp, i) => (<input key={i} value={fp} onChange={e => { const p = [...f.freePerks]; p[i] = e.target.value; setF({ ...f, freePerks: p }); }} className="admin-input mb-2" placeholder={`Free perk ${i + 1}`} />))}</div>
