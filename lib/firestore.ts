@@ -7,7 +7,7 @@ import { db } from "./firebase";
 export const ADMIN_SECTIONS = [
   "dashboard", "students", "materials", "tests",
   "assignments", "announcements", "website", "messages",
-  "account", "permissions",
+  "parent-messages", "account", "permissions",
 ] as const;
 export type AdminSection = (typeof ADMIN_SECTIONS)[number];
 
@@ -662,6 +662,23 @@ export interface ContactMessage {
   createdAt?: Timestamp;
 }
 
+export interface ParentMessage {
+  id?: string;
+  title: string;
+  body: string;
+  recipientType: "all" | "specific";
+  recipientIds?: string[];
+  recipientGrades?: string[];
+  sendVia: "email" | "sms" | "both";
+  sentAt?: Timestamp;
+  sentByEmail?: boolean;
+  sentBySms?: boolean;
+  emailCount?: number;
+  smsCount?: number;
+  createdAt?: Timestamp;
+  createdBy?: string;
+}
+
 // ── CMS helpers ─────────────────────────────────────────────
 
 export async function getSiteContent(section: string): Promise<SiteContent | null> {
@@ -843,4 +860,42 @@ export async function updatePartner(id: string, data: Partial<SitePartner>): Pro
 }
 export async function deletePartner(id: string): Promise<void> {
   await deleteDoc(doc(db, "sitePartners", id));
+}
+
+// ─────────────────────────────────────────────────────────────
+// PARENT MESSAGES
+// ─────────────────────────────────────────────────────────────
+
+export async function getAllParentMessages(): Promise<ParentMessage[]> {
+  const snap = await getDocs(collection(db, "parentMessages"));
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as ParentMessage) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
+}
+
+export async function getParentMessageById(id: string): Promise<ParentMessage | null> {
+  const snap = await getDoc(doc(db, "parentMessages", id));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...(snap.data() as ParentMessage) };
+}
+
+export async function createParentMessage(
+  data: Omit<ParentMessage, "id">
+): Promise<string> {
+  const ref = await addDoc(collection(db, "parentMessages"), {
+    ...data,
+    createdAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateParentMessage(
+  id: string,
+  data: Partial<ParentMessage>
+): Promise<void> {
+  await updateDoc(doc(db, "parentMessages", id), data);
+}
+
+export async function deleteParentMessage(id: string): Promise<void> {
+  await deleteDoc(doc(db, "parentMessages", id));
 }

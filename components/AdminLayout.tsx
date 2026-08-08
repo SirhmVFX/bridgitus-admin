@@ -11,7 +11,7 @@ import {
   MdSchool, MdNotifications, MdClose, MdShield,
   MdLock, MdCampaign, MdWeb, MdEmail,
   MdExpandMore, MdExpandLess, MdImage, MdInfo,
-  MdGavel, MdSettings, MdBarChart,
+  MdGavel, MdSettings, MdBarChart, MdSend,
 } from "react-icons/md";
 
 interface NavItem {
@@ -37,6 +37,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/admin/tests", label: "Tests & Exams", icon: MdQuiz, section: "tests" },
   { href: "/admin/assignments", label: "Assignments", icon: MdAssignment, section: "assignments" },
   { href: "/admin/announcements", label: "Announcements", icon: MdCampaign, section: "announcements" },
+  { href: "/admin/parent-messages", label: "Parent Messages", icon: MdSend, section: "parent-messages" },
   { href: "/admin/messages", label: "Contact Messages", icon: MdEmail, section: "messages" },
 ];
 
