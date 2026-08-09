@@ -7,11 +7,12 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import {
   getAllAssignments, createAssignment, updateAssignment, deleteAssignment,
   getAllStudents, getSubmissionsByAssignment, gradeSubmission, getAllMaterials,
-  type Assignment, type Student, type AssignmentSubmission, type LearningMaterial,
+  getAllQuestionSets,
+  type Assignment, type Student, type AssignmentSubmission, type LearningMaterial, type QuestionSet,
 } from "@/lib/firestore";
 import {
   MdAdd, MdEdit, MdDelete, MdClose, MdSearch, MdVisibility,
-  MdOpenInNew, MdUpload, MdGrade,
+  MdOpenInNew, MdUpload, MdGrade, MdAutoAwesome, MdLibraryBooks,
 } from "react-icons/md";
 
 const GRADES = ["Pre-K", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
@@ -41,6 +42,9 @@ export default function AssignmentsPage() {
   const [gradeScore, setGradeScore] = useState("");
   const [gradeFeedback, setGradeFeedback] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
+  const [libModal, setLibModal] = useState(false);
+  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const [libLoading, setLibLoading] = useState(false);
 
   async function load() {
     try {
@@ -94,6 +98,47 @@ export default function AssignmentsPage() {
   async function handleDelete(id: string) {
     if (!confirm("Delete this assignment?")) return;
     await deleteAssignment(id); await load();
+  }
+
+  async function openLibrary() {
+    setLibLoading(true);
+    setLibModal(true);
+    try {
+      const sets = await getAllQuestionSets();
+      setQuestionSets(sets);
+    } finally {
+      setLibLoading(false);
+    }
+  }
+
+  function importSetAsContent(set: QuestionSet) {
+    // Build HTML worksheet from the question set
+    const lines: string[] = [
+      `<h3>${set.title}</h3>`,
+      `<p><strong>Subject:</strong> ${set.subject} &nbsp;|&nbsp; <strong>Topic:</strong> ${set.topic}${set.subtopic ? ` › ${set.subtopic}` : ""} &nbsp;|&nbsp; <strong>Difficulty:</strong> ${set.difficulty}</p>`,
+      `<hr/>`,
+    ];
+    set.questions.forEach((q, i) => {
+      lines.push(`<p><strong>Q${i + 1}.</strong> ${q.text}</p>`);
+      if (q.type === "multiple_choice" && q.options) {
+        lines.push(`<ul>${q.options.map((o) => `<li>${o}</li>`).join("")}</ul>`);
+      } else if (q.type === "true_false") {
+        lines.push(`<p><em>True &nbsp;/&nbsp; False</em></p>`);
+      } else {
+        lines.push(`<p>Answer: _______________________________________________</p>`);
+      }
+    });
+
+    const html = lines.join("\n");
+    setForm((f) => ({
+      ...f,
+      type: "custom",
+      title: f.title || set.title,
+      subject: f.subject || set.subject,
+      content: (f.content ? f.content + "\n" : "") + html,
+      description: f.description || `${set.subject} worksheet — ${set.topic} (${set.difficulty})`,
+    }));
+    setLibModal(false);
   }
 
   async function openSubmissions(a: Assignment) {
@@ -258,9 +303,11 @@ export default function AssignmentsPage() {
         </div>
       )}
 
+
+
       {/* Create/Edit modal */}
       {modalOpen && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
+        <div className="modal-overlay " onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
           <div className="modal-box" style={{ maxWidth: 760 }}>
             <div className="modal-header">
               <h2 className="font-semibold">{editing ? "Edit Assignment" : "Add Assignment"}</h2>
@@ -305,7 +352,13 @@ export default function AssignmentsPage() {
 
               {/* Description */}
               <div>
-                <label className="admin-label">Instructions / Description</label>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="admin-label mb-0">Instructions / Description</label>
+                  <button type="button" onClick={openLibrary}
+                    className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1 hover:bg-purple-100 transition-colors">
+                    <MdAutoAwesome size={12} /> Import from AI Library
+                  </button>
+                </div>
                 <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="admin-input resize-none" placeholder="Assignment instructions…" />
               </div>
 
@@ -396,6 +449,69 @@ export default function AssignmentsPage() {
                 <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">Cancel</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Library Picker Modal — rendered after Create modal so it stacks on top */}
+      {libModal && (
+        <div className="modal-overlay" style={{ zIndex: 99999999 }} onClick={(e) => e.target === e.currentTarget && setLibModal(false)}>
+          <div className="modal-box" style={{ maxWidth: 680 }}>
+            <div className="modal-header">
+              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                <MdAutoAwesome size={16} className="text-purple-600" /> Import from Question Library
+              </h2>
+              <button onClick={() => setLibModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button>
+            </div>
+            <div className="p-4 bg-amber-50 border-b border-amber-100 text-xs text-amber-800 flex items-start gap-2">
+              <MdAutoAwesome size={14} className="shrink-0 mt-0.5 text-amber-600" />
+              Questions will be added as formatted content in the assignment. Students see it as a worksheet to complete.
+            </div>
+            <div className="p-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
+              {libLoading ? (
+                <div className="py-12 text-center text-gray-400 text-sm">Loading library…</div>
+              ) : questionSets.length === 0 ? (
+                <div className="py-12 text-center">
+                  <MdLibraryBooks size={36} className="mx-auto text-gray-300 mb-3" />
+                  <p className="text-gray-500 font-medium">No question sets saved yet.</p>
+                  <p className="text-xs text-gray-400 mt-1">Generate questions in the AI Generator and save them to the library first.</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {questionSets.map((set) => (
+                    <div key={set.id} className="border border-gray-200 p-4 hover:border-purple-300 hover:bg-purple-50/30 transition-all">
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="font-semibold text-gray-900">{set.title}</p>
+                          <div className="flex flex-wrap gap-2 mt-1">
+                            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 font-medium">{set.subject}</span>
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">{set.curriculum}</span>
+                            <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">{set.year}</span>
+                            <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5">{set.difficulty}</span>
+                            <span className="text-xs text-gray-400">{set.questions.length} questions</span>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">{set.topic}{set.subtopic ? ` › ${set.subtopic}` : ""}</p>
+                        </div>
+                        <button type="button" onClick={() => importSetAsContent(set)}
+                          className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800 transition-colors">
+                          <MdAdd size={15} /> Use
+                        </button>
+                      </div>
+                      <div className="mt-3 space-y-1.5">
+                        {set.questions.slice(0, 2).map((q, i) => (
+                          <p key={i} className="text-xs text-gray-500 pl-2 border-l-2 border-gray-200 line-clamp-1">
+                            Q{i + 1}: {q.text}
+                          </p>
+                        ))}
+                        {set.questions.length > 2 && (
+                          <p className="text-xs text-gray-400 pl-2">+ {set.questions.length - 2} more…</p>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}

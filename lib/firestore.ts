@@ -428,6 +428,48 @@ export async function reviewAttempt(
     adminComment: adminComment ?? "",
     reviewedAt: serverTimestamp(),
   });
+
+  // When approving, run learning-gap detection
+  if (status === "approved") {
+    try {
+      const attemptSnap = await getDoc(doc(db, "testAttempts", id));
+      if (!attemptSnap.exists()) return;
+      const attempt = { id: attemptSnap.id, ...(attemptSnap.data() as TestAttempt) };
+
+      const test = await getTestById(attempt.testId);
+      if (!test) return;
+
+      // Group questions by topic (fall back to test.subject when no topic field)
+      const topicGroups: Record<string, { correct: number; total: number }> = {};
+      for (const q of test.questions) {
+        const topic = (q as Question & { topic?: string }).topic ?? test.subject;
+        if (!topicGroups[topic]) topicGroups[topic] = { correct: 0, total: 0 };
+        topicGroups[topic].total += 1;
+        const given = (attempt.answers[q.id] ?? "").trim().toLowerCase();
+        const correct = q.correctAnswer.trim().toLowerCase();
+        const isCorrect =
+          q.type === "short_answer" ? given.includes(correct) : given === correct;
+        if (isCorrect) topicGroups[topic].correct += 1;
+      }
+
+      // Write a LearningGap for every topic below 60 % accuracy; resolve above 80 %
+      await Promise.all(
+        Object.entries(topicGroups).map(([topic, { correct, total }]) => {
+          const accuracy = Math.round((correct / total) * 100);
+          return upsertLearningGap(attempt.studentId, {
+            studentId: attempt.studentId,
+            subject: test.subject,
+            topic,
+            accuracy,
+            attemptCount: 1,
+            resolved: accuracy >= 80,
+          });
+        })
+      );
+    } catch {
+      // Gap detection is best-effort — never fail the review itself
+    }
+  }
 }
 
 export async function getPendingAttemptCount(): Promise<number> {
@@ -634,12 +676,20 @@ export interface SitePricingPlan {
   tagline: string;
   price: string;
   per: string;
+  badge?: string;
+  description?: string;
+  icon?: string;
+  ctaLabel?: string;
+  ctaHref?: string;
   perks: Array<{ desc: string }>;
   freePerks: string[];
+  features?: Array<{ icon: string; title: string; desc: string }>;
+  bottomNote1?: string;
+  bottomNote2?: string;
   highlighted: boolean;
   order: number;
   published: boolean;
-  amountKobo?: number;   // exact amount in kobo for Paystack
+  amountKobo?: number;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -899,4 +949,159 @@ export async function updateParentMessage(
 
 export async function deleteParentMessage(id: string): Promise<void> {
   await deleteDoc(doc(db, "parentMessages", id));
+}
+
+// ─────────────────────────────────────────────────────────────
+// AI QUESTION SETS
+// ─────────────────────────────────────────────────────────────
+
+export interface AIQuestion {
+  id: string;
+  type: "multiple_choice" | "true_false" | "short_answer" | "extended_response";
+  text: string;
+  options?: string[];
+  correctAnswer: string;
+  points: number;
+  explanation?: string;
+  workedSolution?: string;
+  topic?: string;
+  subtopic?: string;
+  difficulty?: string;
+}
+
+export interface QuestionSet {
+  id?: string;
+  title: string;
+  curriculum: string;
+  subject: string;
+  year: string;
+  topic: string;
+  subtopic?: string;
+  difficulty: string;
+  format: string;
+  context: string;
+  questionCount: number;
+  questions: AIQuestion[];
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface LearningGap {
+  id?: string;
+  studentId: string;
+  subject: string;
+  topic: string;
+  subtopic?: string;
+  accuracy: number;
+  attemptCount: number;
+  lastAttemptAt?: Timestamp;
+  resolved: boolean;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface PracticeAttempt {
+  id?: string;
+  studentId: string;
+  studentUid: string;
+  questionSetId?: string;
+  questions: AIQuestion[];
+  answers: Record<string, string>;
+  score: number;
+  totalPoints: number;
+  percentage: number;
+  subject: string;
+  topic: string;
+  difficulty: string;
+  submittedAt?: Timestamp;
+}
+
+// ── Question Sets ────────────────────────────────────────────────────────
+
+export async function getAllQuestionSets(): Promise<QuestionSet[]> {
+  const snap = await getDocs(collection(db, "questionSets"));
+  return snap.docs
+    .map(d => ({ id: d.id, ...(d.data() as QuestionSet) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
+}
+
+export async function getQuestionSetById(id: string): Promise<QuestionSet | null> {
+  const snap = await getDoc(doc(db, "questionSets", id));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...(snap.data() as QuestionSet) };
+}
+
+export async function createQuestionSet(data: Omit<QuestionSet, "id">): Promise<string> {
+  const ref = await addDoc(collection(db, "questionSets"), {
+    ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateQuestionSet(id: string, data: Partial<QuestionSet>): Promise<void> {
+  await updateDoc(doc(db, "questionSets", id), { ...data, updatedAt: serverTimestamp() });
+}
+
+export async function deleteQuestionSet(id: string): Promise<void> {
+  await deleteDoc(doc(db, "questionSets", id));
+}
+
+// ── Learning Gaps (admin read) ───────────────────────────────────────────
+
+export async function getAllLearningGaps(): Promise<LearningGap[]> {
+  const snap = await getDocs(collection(db, "learningGaps"));
+  return snap.docs.map(d => ({ id: d.id, ...(d.data() as LearningGap) }));
+}
+
+export async function getLearningGapsByStudent(studentId: string): Promise<LearningGap[]> {
+  const snap = await getDocs(query(collection(db, "learningGaps"), where("studentId", "==", studentId)));
+  return snap.docs
+    .map(d => ({ id: d.id, ...(d.data() as LearningGap) }))
+    .sort((a, b) => a.accuracy - b.accuracy);
+}
+
+/** Upsert a learning gap record for a student+subject+topic. Used by reviewAttempt. */
+export async function upsertLearningGap(
+  studentId: string,
+  data: Omit<LearningGap, "id" | "createdAt" | "updatedAt">
+): Promise<void> {
+  const q = query(
+    collection(db, "learningGaps"),
+    where("studentId", "==", studentId),
+    where("subject", "==", data.subject),
+    where("topic", "==", data.topic),
+    limit(1)
+  );
+  const snap = await getDocs(q);
+  if (snap.empty) {
+    await addDoc(collection(db, "learningGaps"), {
+      ...data,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  } else {
+    const existing = snap.docs[0];
+    const prev = existing.data() as LearningGap;
+    const newCount = (prev.attemptCount ?? 0) + data.attemptCount;
+    // Rolling average accuracy
+    const newAccuracy = Math.round(
+      ((prev.accuracy ?? 0) * (prev.attemptCount ?? 0) + data.accuracy * data.attemptCount) / newCount
+    );
+    await updateDoc(doc(db, "learningGaps", existing.id), {
+      accuracy: newAccuracy,
+      attemptCount: newCount,
+      resolved: newAccuracy >= 80,
+      lastAttemptAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+  }
+}
+
+// ── Practice Attempts (admin read) ───────────────────────────────────────
+
+export async function getPracticeAttemptsByStudent(studentId: string): Promise<PracticeAttempt[]> {
+  const snap = await getDocs(query(collection(db, "practiceAttempts"), where("studentId", "==", studentId)));
+  return snap.docs
+    .map(d => ({ id: d.id, ...(d.data() as PracticeAttempt) }))
+    .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
 }

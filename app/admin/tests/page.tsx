@@ -5,12 +5,12 @@ import AdminLayout from "@/components/AdminLayout";
 import WysiwygEditor from "@/components/WysiwygEditor";
 import {
   getAllTests, createTest, updateTest, deleteTest,
-  getAllAttempts, reviewAttempt, getAllMaterials,
-  type Test, type TestAttempt, type Question, type QuestionType, type LearningMaterial,
+  getAllAttempts, reviewAttempt, getAllMaterials, getAllQuestionSets,
+  type Test, type TestAttempt, type Question, type QuestionType, type LearningMaterial, type QuestionSet,
 } from "@/lib/firestore";
 import {
   MdAdd, MdEdit, MdDelete, MdClose, MdCheck, MdCancel,
-  MdQuiz, MdVisibility, MdVisibilityOff, MdPending
+  MdQuiz, MdVisibility, MdVisibilityOff, MdPending, MdLibraryBooks, MdAutoAwesome,
 } from "react-icons/md";
 
 const GRADES = ["Pre-K", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
@@ -47,6 +47,9 @@ export default function TestsPage() {
   const [reviewModal, setReviewModal] = useState<TestAttempt | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [reviewing, setReviewing] = useState(false);
+  const [libraryModal, setLibraryModal] = useState(false);
+  const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
+  const [libLoading, setLibLoading] = useState(false);
 
   async function load() {
     try {
@@ -100,6 +103,33 @@ export default function TestsPage() {
     setForm((f) => ({ ...f, questions: qs, totalPoints: calcTotal(qs) }));
   }
 
+  async function openLibrary() {
+    setLibLoading(true);
+    setLibraryModal(true);
+    try {
+      const sets = await getAllQuestionSets();
+      setQuestionSets(sets);
+    } finally {
+      setLibLoading(false);
+    }
+  }
+
+  function importFromSet(set: QuestionSet) {
+    // Convert AIQuestion → Question (they share all needed fields)
+    const imported: Question[] = set.questions.map((aq) => ({
+      id: crypto.randomUUID(),
+      type: (aq.type === "extended_response" ? "short_answer" : aq.type) as QuestionType,
+      text: aq.text,
+      options: aq.options,
+      correctAnswer: aq.correctAnswer,
+      points: aq.points ?? 1,
+      explanation: aq.explanation ?? "",
+    }));
+    const merged = [...form.questions.filter((q) => q.text.trim() !== ""), ...imported];
+    setForm((f) => ({ ...f, questions: merged, totalPoints: calcTotal(merged) }));
+    setLibraryModal(false);
+  }
+
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setSaving(true);
     try {
@@ -134,9 +164,14 @@ export default function TestsPage() {
             <h1 className="text-xl font-bold text-gray-900">Tests &amp; Exams</h1>
             <p className="text-gray-500 text-sm mt-0.5">Create assessments and review student results</p>
           </div>
-          <button onClick={openCreate} className="btn-primary flex items-center gap-2">
-            <MdAdd size={18} /> Create Test
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={openCreate} className="btn-primary flex items-center gap-2">
+              <MdAdd size={18} /> Create Test
+            </button>
+            <a href="/admin/question-library" className="btn-secondary flex items-center gap-2 text-sm">
+              <MdLibraryBooks size={16} /> Question Library
+            </a>
+          </div>
         </div>
 
         {/* Tabs */}
@@ -287,6 +322,68 @@ export default function TestsPage() {
       {/* Create/Edit Test Modal */}
       {modalOpen && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
+
+          {/* Library Picker Modal */}
+          {libraryModal && (
+            <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setLibraryModal(false)}>
+              <div className="modal-box" style={{ maxWidth: 680 }}>
+                <div className="modal-header">
+                  <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                    <MdAutoAwesome size={16} className="text-purple-600" /> Import from Question Library
+                  </h2>
+                  <button onClick={() => setLibraryModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button>
+                </div>
+                <div className="p-6 overflow-y-auto" style={{ maxHeight: "65vh" }}>
+                  {libLoading ? (
+                    <div className="py-12 text-center text-gray-400 text-sm">Loading library…</div>
+                  ) : questionSets.length === 0 ? (
+                    <div className="py-12 text-center">
+                      <MdLibraryBooks size={36} className="mx-auto text-gray-300 mb-3" />
+                      <p className="text-gray-500 font-medium">No question sets saved yet.</p>
+                      <p className="text-xs text-gray-400 mt-1">Generate questions in the AI Generator and save them to the library first.</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {questionSets.map((set) => (
+                        <div key={set.id} className="border border-gray-200 p-4 hover:border-purple-300 hover:bg-purple-50/30 transition-all">
+                          <div className="flex items-start justify-between gap-4">
+                            <div>
+                              <p className="font-semibold text-gray-900">{set.title}</p>
+                              <div className="flex flex-wrap gap-2 mt-1">
+                                <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 font-medium">{set.subject}</span>
+                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">{set.curriculum}</span>
+                                <span className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5">{set.year}</span>
+                                <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5">{set.difficulty}</span>
+                                <span className="text-xs text-gray-400">{set.questions.length} questions</span>
+                              </div>
+                              <p className="text-xs text-gray-500 mt-1">{set.topic}{set.subtopic ? ` › ${set.subtopic}` : ""}</p>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => importFromSet(set)}
+                              className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800 transition-colors">
+                              <MdAdd size={15} /> Import
+                            </button>
+                          </div>
+                          {/* Preview first 2 questions */}
+                          <div className="mt-3 space-y-1.5">
+                            {set.questions.slice(0, 2).map((q, i) => (
+                              <p key={i} className="text-xs text-gray-500 pl-2 border-l-2 border-gray-200 line-clamp-1">
+                                Q{i + 1}: {q.text}
+                              </p>
+                            ))}
+                            {set.questions.length > 2 && (
+                              <p className="text-xs text-gray-400 pl-2">+ {set.questions.length - 2} more questions…</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
           <div className="modal-box" style={{ maxWidth: 860 }}>
             <div className="modal-header">
               <h2 className="font-semibold text-gray-900">{editing ? "Edit Test" : "Create Test / Exam"}</h2>
@@ -349,6 +446,10 @@ export default function TestsPage() {
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold text-gray-800">Questions <span className="text-gray-400 font-normal text-sm">({form.questions.length} · {calcTotal(form.questions)} pts total)</span></h3>
                   <div className="flex gap-2">
+                    <button type="button" onClick={openLibrary}
+                      className="btn-secondary text-xs flex items-center gap-1 py-1 border-purple-300 text-purple-700 hover:bg-purple-50">
+                      <MdAutoAwesome size={12} /> Import from Library
+                    </button>
                     {(["multiple_choice", "true_false", "short_answer"] as QuestionType[]).map((t) => (
                       <button key={t} type="button" onClick={() => addQuestion(t)}
                         className="btn-secondary text-xs flex items-center gap-1 py-1">

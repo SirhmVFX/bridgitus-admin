@@ -93,40 +93,113 @@ function TestimonialsEditor() {
 }
 
 // ── Pricing Plans ──────────────────────────────────────────
-const P_EMPTY: Omit<SitePricingPlan, "id"> = { title: "", tagline: "", price: "", per: "", perks: [{ desc: "" }, { desc: "" }, { desc: "" }], freePerks: ["", "", ""], highlighted: false, order: 0, published: true, amountKobo: 0 };
+const P_EMPTY: Omit<SitePricingPlan, "id"> = { title: "", tagline: "", price: "", per: "", badge: "", description: "", icon: "", ctaLabel: "Book your lesson now", ctaHref: "/register", perks: [{ desc: "" }, { desc: "" }, { desc: "" }], freePerks: ["", "", ""], features: [{ icon: "🎯", title: "", desc: "" }], bottomNote1: "", bottomNote2: "Cancel or pause anytime", highlighted: false, order: 0, published: true, amountKobo: 0 };
 function PricingEditor() {
   const [items, setItems] = useState<SitePricingPlan[]>([]); const [modal, setModal] = useState(false); const [editing, setEditing] = useState<SitePricingPlan | null>(null);
   const [f, setF] = useState(P_EMPTY); const [sv, setSv] = useState(false);
   useEffect(() => { getAllPricingPlans().then(setItems); }, []);
-  function open(p?: SitePricingPlan) { setEditing(p ?? null); setF(p ? { title: p.title, tagline: p.tagline, price: p.price, per: p.per, perks: p.perks, freePerks: p.freePerks, highlighted: p.highlighted, order: p.order, published: p.published, amountKobo: p.amountKobo ?? 0 } : P_EMPTY); setModal(true); }
+  function open(p?: SitePricingPlan) {
+    setEditing(p ?? null);
+    setF(p ? { title: p.title, tagline: p.tagline, price: p.price, per: p.per, badge: p.badge ?? "", description: p.description ?? "", icon: p.icon ?? "", ctaLabel: p.ctaLabel ?? "Book your lesson now", ctaHref: p.ctaHref ?? "/register", perks: p.perks, freePerks: p.freePerks, features: p.features ?? [], bottomNote1: p.bottomNote1 ?? "", bottomNote2: p.bottomNote2 ?? "", highlighted: p.highlighted, order: p.order, published: p.published, amountKobo: p.amountKobo ?? 0 } : P_EMPTY);
+    setModal(true);
+  }
   async function save(e: React.FormEvent) { e.preventDefault(); setSv(true); if (editing?.id) await updatePricingPlan(editing.id, f); else await createPricingPlan(f); setItems(await getAllPricingPlans()); setModal(false); setSv(false); }
   async function del(id: string) { if (!confirm("Delete?")) return; await deletePricingPlan(id); setItems(await getAllPricingPlans()); }
+
+  function updateFeature(i: number, patch: Partial<{ icon: string; title: string; desc: string }>) {
+    const features = [...(f.features ?? [])];
+    features[i] = { ...features[i], ...patch };
+    setF({ ...f, features });
+  }
+
   return (<div className="space-y-4">
     <div className="flex justify-between"><p className="text-sm text-gray-500">{items.length} plan{items.length !== 1 ? "s" : ""}</p><button onClick={() => open()} className="btn-primary flex items-center gap-2"><MdAdd size={16} />Add Plan</button></div>
     <div className="space-y-2">{items.map(p => (<div key={p.id} className="flex items-center justify-between border border-gray-200 px-4 py-3 bg-white">
-      <div><p className="font-medium text-gray-800">{p.title} <span className="text-gray-400 text-sm">· {p.price}</span></p><p className="text-xs text-gray-400">{p.tagline}</p></div>
+      <div><p className="font-medium text-gray-800">{p.icon} {p.title} <span className="text-gray-400 text-sm">· {p.price}</span></p><p className="text-xs text-gray-400">{p.tagline} {p.badge ? `· ${p.badge}` : ""}</p></div>
       <div className="flex items-center gap-2"><span className={`badge ${p.published ? "badge-green" : "badge-yellow"}`}>{p.published ? "Live" : "Draft"}</span>
         <button onClick={() => open(p)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={15} /></button>
         <button onClick={() => del(p.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={15} /></button></div>
     </div>))}</div>
     {modal && (<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
-      <div className="modal-box max-w-lg"><div className="modal-header"><h2 className="font-semibold">{editing ? "Edit" : "Add"} Plan</h2><button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button></div>
-        <form onSubmit={save} className="p-6 space-y-4 overflow-y-auto" style={{ maxHeight: "75vh" }}>
-          <div className="grid sm:grid-cols-2 gap-4">
-            <div><label className="admin-label">Title *</label><input required value={f.title} onChange={e => setF({ ...f, title: e.target.value })} className="admin-input" /></div>
-            <div><label className="admin-label">Tagline</label><input value={f.tagline} onChange={e => setF({ ...f, tagline: e.target.value })} className="admin-input" /></div>
-            <div><label className="admin-label">Display Price (text)</label><input required value={f.price} onChange={e => setF({ ...f, price: e.target.value })} className="admin-input" placeholder="$50" /></div>
-            <div><label className="admin-label">Per label</label><input value={f.per} onChange={e => setF({ ...f, per: e.target.value })} className="admin-input" placeholder="/hour lesson" /></div>
-            <div>
-              <label className="admin-label">Paystack Amount (kobo / smallest unit) *</label>
-              <input type="number" min={0} required value={f.amountKobo ?? 0} onChange={e => setF({ ...f, amountKobo: Number(e.target.value) })} className="admin-input" placeholder="e.g. 5000000 for ₦50,000" />
-              <p className="text-xs text-gray-400 mt-1">NGN: multiply by 100 (₦50,000 = 5000000). This is the exact amount Paystack will charge.</p>
+      <div className="modal-box max-w-2xl"><div className="modal-header"><h2 className="font-semibold">{editing ? "Edit" : "Add"} Plan</h2><button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button></div>
+        <form onSubmit={save} className="p-6 space-y-5 overflow-y-auto" style={{ maxHeight: "80vh" }}>
+
+          {/* Basic info */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">Plan Info</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div><label className="admin-label">Title *</label><input required value={f.title} onChange={e => setF({ ...f, title: e.target.value })} className="admin-input" /></div>
+              <div><label className="admin-label">Tagline (shown in brackets)</label><input value={f.tagline} onChange={e => setF({ ...f, tagline: e.target.value })} className="admin-input" placeholder="e.g. Best Value for Families" /></div>
+              <div><label className="admin-label">Icon (emoji)</label><input value={f.icon ?? ""} onChange={e => setF({ ...f, icon: e.target.value })} className="admin-input" placeholder="👨‍👩‍👧‍👦" /></div>
+              <div><label className="admin-label">Badge text</label><input value={f.badge ?? ""} onChange={e => setF({ ...f, badge: e.target.value })} className="admin-input" placeholder="e.g. 1 to 4 Children" /></div>
+              <div><label className="admin-label">Display Price *</label><input required value={f.price} onChange={e => setF({ ...f, price: e.target.value })} className="admin-input" placeholder="$49.99" /></div>
+              <div><label className="admin-label">Per label</label><input value={f.per} onChange={e => setF({ ...f, per: e.target.value })} className="admin-input" placeholder="/week" /></div>
+            </div>
+            <div className="mt-3"><label className="admin-label">Description (shown under badge)</label><textarea value={f.description ?? ""} onChange={e => setF({ ...f, description: e.target.value })} rows={2} className="admin-input resize-none" placeholder="Short plan description…" /></div>
+          </div>
+
+          {/* CTA */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">Button</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div><label className="admin-label">Button Label</label><input value={f.ctaLabel ?? ""} onChange={e => setF({ ...f, ctaLabel: e.target.value })} className="admin-input" placeholder="Book your family plan now" /></div>
+              <div><label className="admin-label">Button Link</label><input value={f.ctaHref ?? ""} onChange={e => setF({ ...f, ctaHref: e.target.value })} className="admin-input" placeholder="/register" /></div>
             </div>
           </div>
-          <div><label className="admin-label">Key Perks (3)</label>{f.perks.map((pk, i) => (<input key={i} value={pk.desc} onChange={e => { const p = [...f.perks]; p[i] = { desc: e.target.value }; setF({ ...f, perks: p }); }} className="admin-input mb-2" placeholder={`Perk ${i + 1}`} />))}</div>
-          <div><label className="admin-label">Free Perks</label>{f.freePerks.map((fp, i) => (<input key={i} value={fp} onChange={e => { const p = [...f.freePerks]; p[i] = e.target.value; setF({ ...f, freePerks: p }); }} className="admin-input mb-2" placeholder={`Free perk ${i + 1}`} />))}</div>
-          <div className="flex gap-6"><label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={f.highlighted} onChange={e => setF({ ...f, highlighted: e.target.checked })} />Highlighted (Popular)</label>
-            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={f.published} onChange={e => setF({ ...f, published: e.target.checked })} />Published</label></div>
+
+          {/* Payment */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">Payment (Paystack)</p>
+            <div>
+              <label className="admin-label">Amount in kobo (smallest currency unit)</label>
+              <input type="number" min={0} value={f.amountKobo ?? 0} onChange={e => setF({ ...f, amountKobo: Number(e.target.value) })} className="admin-input" placeholder="e.g. 5000000 for ₦50,000" />
+              <p className="text-xs text-gray-400 mt-1">NGN: ₦50,000 = 5000000 kobo. Used when student pays for this plan via Paystack.</p>
+            </div>
+          </div>
+
+          {/* Features grid (What's Included) */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">What&apos;s Included (feature grid)</p>
+            <div className="space-y-2">
+              {(f.features ?? []).map((feat, i) => (
+                <div key={i} className="grid grid-cols-6 gap-2 items-center">
+                  <input value={feat.icon} onChange={e => updateFeature(i, { icon: e.target.value })} className="admin-input col-span-1 text-center text-xl" placeholder="🎯" />
+                  <input value={feat.title} onChange={e => updateFeature(i, { title: e.target.value })} className="admin-input col-span-2" placeholder="Title" />
+                  <input value={feat.desc} onChange={e => updateFeature(i, { desc: e.target.value })} className="admin-input col-span-2" placeholder="Description" />
+                  <button type="button" onClick={() => setF({ ...f, features: (f.features ?? []).filter((_, j) => j !== i) })} className="text-red-400 hover:text-red-600 text-sm">✕</button>
+                </div>
+              ))}
+              <button type="button" onClick={() => setF({ ...f, features: [...(f.features ?? []), { icon: "✨", title: "", desc: "" }] })} className="text-xs text-[#00369b] hover:underline">+ Add feature</button>
+            </div>
+          </div>
+
+          {/* Classic perks */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">Key Perks (checklist)</p>
+            {f.perks.map((pk, i) => (<input key={i} value={pk.desc} onChange={e => { const p = [...f.perks]; p[i] = { desc: e.target.value }; setF({ ...f, perks: p }); }} className="admin-input mb-2" placeholder={`Perk ${i + 1}`} />))}
+          </div>
+
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">Free Perks (included benefits)</p>
+            {f.freePerks.map((fp, i) => (<input key={i} value={fp} onChange={e => { const p = [...f.freePerks]; p[i] = e.target.value; setF({ ...f, freePerks: p }); }} className="admin-input mb-2" placeholder={`Free perk ${i + 1}`} />))}
+          </div>
+
+          {/* Bottom notes */}
+          <div>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">Bottom Notes</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div><label className="admin-label">Note 1 (left)</label><input value={f.bottomNote1 ?? ""} onChange={e => setF({ ...f, bottomNote1: e.target.value })} className="admin-input" placeholder="More learning. More progress." /></div>
+              <div><label className="admin-label">Note 2 (right)</label><input value={f.bottomNote2 ?? ""} onChange={e => setF({ ...f, bottomNote2: e.target.value })} className="admin-input" placeholder="Cancel or pause anytime" /></div>
+            </div>
+          </div>
+
+          {/* Flags */}
+          <div className="flex gap-6">
+            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={f.highlighted} onChange={e => setF({ ...f, highlighted: e.target.checked })} />Highlighted (Most Popular)</label>
+            <label className="flex items-center gap-2 text-sm cursor-pointer"><input type="checkbox" checked={f.published} onChange={e => setF({ ...f, published: e.target.checked })} />Published</label>
+            <div><label className="admin-label">Order</label><input type="number" min={0} value={f.order} onChange={e => setF({ ...f, order: Number(e.target.value) })} className="admin-input w-20" /></div>
+          </div>
+
           <div className="flex gap-3 pt-2 border-t border-gray-100"><button type="submit" disabled={sv} className="btn-primary disabled:opacity-60">{sv ? "Saving…" : editing ? "Save" : "Create"}</button><button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancel</button></div>
         </form></div></div>)}
   </div>);
