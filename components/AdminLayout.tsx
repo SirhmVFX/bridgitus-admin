@@ -35,7 +35,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: MdDashboard, section: "dashboard" },
   { href: "/admin/students", label: "Students", icon: MdPeople, section: "students" },
   { href: "/admin/materials", label: "Materials", icon: MdMenuBook, section: "materials" },
-  { href: "/admin/tests", label: "Write Assesments", icon: MdQuiz, section: "tests" },
+  { href: "/admin/tests", label: "Assesments", icon: MdQuiz, section: "tests" },
   { href: "/admin/assignments", label: "Assignments", icon: MdAssignment, section: "assignments" },
   { href: "/admin/ai-generator", label: "AI Generator", icon: MdAutoAwesome, section: "materials" },
   { href: "/admin/question-library", label: "Question Library", icon: MdLibraryBooks, section: "materials" },
