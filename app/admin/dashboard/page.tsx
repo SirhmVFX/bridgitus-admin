@@ -5,12 +5,14 @@ import Link from "next/link";
 import AdminLayout from "@/components/AdminLayout";
 import {
   getDashboardStats, getAllPendingAttempts, getAllStudents, getAllAnnouncements,
-  type TestAttempt, type Student, type Announcement,
+  getAdminAlerts, markAlertRead, markAllAlertsRead, deleteAlert,
+  type TestAttempt, type Student, type Announcement, type AdminAlert,
 } from "@/lib/firestore";
 import FirebaseStatus from "@/components/FirebaseStatus";
 import {
   MdPeople, MdMenuBook, MdQuiz, MdPending, MdArrowForward,
   MdCheckCircle, MdTrendingUp, MdCampaign, MdPushPin,
+  MdWarning, MdPayment, MdClose, MdDoneAll,
 } from "react-icons/md";
 
 interface Stats { students: number; materials: number; tests: number; pendingReviews: number; }
@@ -20,21 +22,24 @@ export default function DashboardPage() {
   const [pending, setPending] = useState<TestAttempt[]>([]);
   const [recentStudents, setRecentStudents] = useState<Student[]>([]);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function load() {
       try {
-        const [s, p, students, ann] = await Promise.all([
+        const [s, p, students, ann, al] = await Promise.all([
           getDashboardStats(),
           getAllPendingAttempts(),
           getAllStudents(),
           getAllAnnouncements(),
+          getAdminAlerts(true), // unread only
         ]);
         setStats(s);
         setPending(p.slice(0, 5));
         setRecentStudents(students.slice(0, 5));
         setAnnouncements(ann.filter((a) => a.published).slice(0, 3));
+        setAlerts(al.slice(0, 10));
       } catch (err) {
         console.error("Dashboard load error:", err);
       } finally {
@@ -43,6 +48,34 @@ export default function DashboardPage() {
     }
     load();
   }, []);
+
+  async function handleMarkAlertRead(id: string) {
+    await markAlertRead(id);
+    setAlerts(prev => prev.filter(a => a.id !== id));
+  }
+
+  async function handleMarkAllRead() {
+    await markAllAlertsRead();
+    setAlerts([]);
+  }
+
+  async function handleDeleteAlert(id: string) {
+    await deleteAlert(id);
+    setAlerts(prev => prev.filter(a => a.id !== id));
+  }
+
+  async function handleRunPaymentCheck() {
+    try {
+      const res = await fetch("/api/check-payments", { method: "POST" });
+      const data = await res.json();
+      if (data.ok) {
+        // Reload alerts
+        const al = await getAdminAlerts(true);
+        setAlerts(al.slice(0, 10));
+        alert(`Payment check complete. ${data.alertsCreated} new alert(s) created.`);
+      }
+    } catch { /* silent */ }
+  }
 
   const statCards = stats ? [
     { label: "Total Students", value: stats.students, icon: MdPeople, color: "bg-[#00369b]", href: "/admin/students" },
@@ -61,6 +94,56 @@ export default function DashboardPage() {
 
         {/* Firebase connection status — only shows if there's an issue */}
         <FirebaseStatus />
+
+        {/* Payment alerts banner */}
+        {!loading && alerts.length > 0 && (
+          <div className="border border-amber-300 bg-amber-50 p-4 space-y-3">
+            <div className="flex items-center justify-between flex-wrap gap-2">
+              <h2 className="font-semibold text-amber-900 flex items-center gap-2">
+                <MdWarning size={18} className="text-amber-600" />
+                Payment Alerts <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">{alerts.length}</span>
+              </h2>
+              <div className="flex items-center gap-2">
+                <button onClick={handleRunPaymentCheck}
+                  className="text-xs text-amber-700 font-semibold hover:underline flex items-center gap-1">
+                  <MdPayment size={13} /> Run Check
+                </button>
+                <button onClick={handleMarkAllRead}
+                  className="text-xs text-amber-700 font-semibold hover:underline flex items-center gap-1">
+                  <MdDoneAll size={13} /> Mark All Read
+                </button>
+              </div>
+            </div>
+            <div className="space-y-2">
+              {alerts.map(alert => (
+                <div key={alert.id}
+                  className={`flex items-start justify-between gap-3 px-4 py-3 border text-sm ${alert.type === "payment_expired" ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}>
+                  <div className="flex items-start gap-2">
+                    <MdPayment size={15} className={`shrink-0 mt-0.5 ${alert.type === "payment_expired" ? "text-red-500" : "text-amber-600"}`} />
+                    <div>
+                      <p className={`font-medium text-sm ${alert.type === "payment_expired" ? "text-red-800" : "text-amber-800"}`}>
+                        {alert.message}
+                      </p>
+                      <Link href={`/admin/students`} className="text-xs text-[#00369b] hover:underline mt-0.5 inline-block">
+                        View student →
+                      </Link>
+                    </div>
+                  </div>
+                  <div className="flex gap-1 shrink-0">
+                    <button onClick={() => handleMarkAlertRead(alert.id!)}
+                      className="p-1 text-gray-400 hover:text-emerald-600" title="Mark read">
+                      <MdCheckCircle size={15} />
+                    </button>
+                    <button onClick={() => handleDeleteAlert(alert.id!)}
+                      className="p-1 text-gray-400 hover:text-red-500" title="Dismiss">
+                      <MdClose size={15} />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Stat cards */}
         {loading ? (
@@ -173,10 +256,10 @@ export default function DashboardPage() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <span className={`badge ${s.paymentStatus === "paid" || s.paymentStatus === "waived" ? "badge-green" : "badge-yellow"}`}>
-                        {s.paymentStatus === "paid" ? "Paid" : s.paymentStatus === "waived" ? "Waived" : "Unpaid"}
+                      <span className={`badge ${s.paymentStatus === "paid" || s.paymentStatus === "waived" ? "badge-green" : s.paymentStatus === "expired" ? "badge-red" : "badge-yellow"}`}>
+                        {s.paymentStatus === "paid" ? "Paid" : s.paymentStatus === "waived" ? "Waived" : s.paymentStatus === "expired" ? "Expired" : "Unpaid"}
                       </span>
-                      <span className={`badge ${s.status === "active" ? "badge-blue" : "badge-gray"}`}>{s.status}</span>
+                      <span className={`badge ${s.status === "active" ? "badge-blue" : s.status === "suspended" ? "badge-red" : "badge-gray"}`}>{s.status}</span>
                     </div>
                   </div>
                 ))}

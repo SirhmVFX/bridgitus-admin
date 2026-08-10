@@ -7,12 +7,14 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import {
   getAllAssignments, createAssignment, updateAssignment, deleteAssignment,
   getAllStudents, getSubmissionsByAssignment, gradeSubmission, getAllMaterials,
-  getAllQuestionSets,
-  type Assignment, type Student, type AssignmentSubmission, type LearningMaterial, type QuestionSet,
+  getAllQuestionSets, createAnnouncement,
+  type Assignment, type Student, type AssignmentSubmission,
+  type LearningMaterial, type QuestionSet, type Question, type QuestionType,
 } from "@/lib/firestore";
 import {
   MdAdd, MdEdit, MdDelete, MdClose, MdSearch, MdVisibility,
   MdOpenInNew, MdUpload, MdGrade, MdAutoAwesome, MdLibraryBooks,
+  MdQuiz, MdCheckCircle, MdCancel,
 } from "react-icons/md";
 
 const GRADES = ["Pre-K", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
@@ -21,8 +23,10 @@ const EMPTY: Omit<Assignment, "id"> = {
   title: "", description: "", grade: "1", subject: "",
   type: "custom", platformUrl: "", platform: "other",
   content: "", fileUrl: "", fileName: "", dueDate: "",
-  maxScore: 100, linkedMaterialId: "", targetGrades: ["1"], targetStudentIds: [],
-  published: false,
+  maxScore: 100, linkedMaterialId: "", targetGrades: ["1"],
+  targetStudentIds: [], published: false,
+  questions: [], totalPoints: 0, passMark: 60,
+  timeLimit: 0, maxAttempts: 1,
 };
 
 export default function AssignmentsPage() {
@@ -37,12 +41,13 @@ export default function AssignmentsPage() {
   const [fileUploading, setFileUploading] = useState(false);
   const [gradeFilter, setGradeFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const [subModal, setSubModal] = useState<{ a: Assignment, subs: AssignmentSubmission[] } | null>(null);
+  const [subModal, setSubModal] = useState<{ a: Assignment; subs: AssignmentSubmission[] } | null>(null);
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeScore, setGradeScore] = useState("");
   const [gradeFeedback, setGradeFeedback] = useState("");
   const fileRef = useRef<HTMLInputElement>(null);
   const [libModal, setLibModal] = useState(false);
+  const [libMode, setLibMode] = useState<"worksheet" | "quiz">("quiz");
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [libLoading, setLibLoading] = useState(false);
 
@@ -50,17 +55,13 @@ export default function AssignmentsPage() {
     try {
       const [a, s, mats] = await Promise.all([getAllAssignments(), getAllStudents(), getAllMaterials()]);
       setAssignments(a); setStudents(s); setMaterials(mats);
-    } catch (err) {
-      console.error("Assignments load error:", err);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { console.error("Assignments load error:", err); }
+    finally { setLoading(false); }
   }
   useEffect(() => { load(); }, []);
 
-  function openCreate() {
-    setEditing(null); setForm(EMPTY); setModalOpen(true);
-  }
+  function openCreate() { setEditing(null); setForm(EMPTY); setModalOpen(true); }
+
   function openEdit(a: Assignment) {
     setEditing(a);
     setForm({
@@ -72,8 +73,45 @@ export default function AssignmentsPage() {
       linkedMaterialId: a.linkedMaterialId ?? "",
       targetGrades: a.targetGrades, targetStudentIds: a.targetStudentIds ?? [],
       published: a.published,
+      questions: a.questions ?? [], totalPoints: a.totalPoints ?? 0,
+      passMark: a.passMark ?? 60, timeLimit: a.timeLimit ?? 0,
+      maxAttempts: a.maxAttempts ?? 1,
     });
     setModalOpen(true);
+  }
+
+  function newQuestion(type: QuestionType = "multiple_choice"): Question {
+    const base = {
+      id: crypto.randomUUID(),
+      type,
+      text: "",
+      correctAnswer: "",
+      points: 1,
+      explanation: "",
+    };
+
+    return type === "multiple_choice"
+      ? { ...base, options: ["", "", "", ""] }
+      : base;
+  }
+
+  function updateQuestion(index: number, patch: Partial<Question>) {
+    const qs = [...(form.questions ?? [])];
+    qs[index] = { ...qs[index], ...patch };
+    const total = qs.reduce((sum, q) => sum + (q.points ?? 0), 0);
+    setForm((current) => ({ ...current, questions: qs, totalPoints: total, maxScore: total }));
+  }
+
+  function addQuestion(type: QuestionType) {
+    const qs = [...(form.questions ?? []), newQuestion(type)];
+    const total = qs.reduce((sum, q) => sum + (q.points ?? 0), 0);
+    setForm((current) => ({ ...current, questions: qs, totalPoints: total, maxScore: total, type: "quiz" }));
+  }
+
+  function removeQuestion(index: number) {
+    const qs = (form.questions ?? []).filter((_, i) => i !== index);
+    const total = qs.reduce((sum, q) => sum + (q.points ?? 0), 0);
+    setForm((current) => ({ ...current, questions: qs, totalPoints: total, maxScore: total }));
   }
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
@@ -89,8 +127,26 @@ export default function AssignmentsPage() {
   async function handleSave(e: React.FormEvent) {
     e.preventDefault(); setSaving(true);
     try {
-      if (editing?.id) await updateAssignment(editing.id, form);
-      else await createAssignment(form);
+      const data = { ...form };
+      if (data.type === "quiz") {
+        data.totalPoints = (data.questions ?? []).reduce((s, q) => s + (q.points ?? 1), 0);
+        data.maxScore = data.totalPoints;
+      }
+      if (editing?.id) {
+        await updateAssignment(editing.id, data);
+      } else {
+        await createAssignment(data);
+      }
+      if (data.published) {
+        await createAnnouncement({
+          title: editing ? `Updated assignment: ${data.title}` : `New assignment: ${data.title}`,
+          body: `A new ${data.type === "quiz" ? "quiz assignment" : "assignment"} has been published for Grade ${data.targetGrades.join(", ")}. Check your portal to start it now.
+${data.description ? `\n\n${data.description}` : ""}`,
+          targetGrades: data.targetGrades,
+          pinned: false,
+          published: true,
+        });
+      }
       await load(); setModalOpen(false);
     } finally { setSaving(false); }
   }
@@ -100,42 +156,54 @@ export default function AssignmentsPage() {
     await deleteAssignment(id); await load();
   }
 
-  async function openLibrary() {
+  async function openLibrary(mode: "worksheet" | "quiz") {
+    setLibMode(mode);
     setLibLoading(true);
     setLibModal(true);
-    try {
-      const sets = await getAllQuestionSets();
-      setQuestionSets(sets);
-    } finally {
-      setLibLoading(false);
-    }
+    try { setQuestionSets(await getAllQuestionSets()); }
+    finally { setLibLoading(false); }
   }
 
+  /** Import as interactive quiz — stores actual Question[] on the assignment */
+  function importSetAsQuiz(set: QuestionSet) {
+    const qs: Question[] = set.questions.map((aq) => ({
+      id: aq.id ?? crypto.randomUUID(),
+      type: (aq.type === "extended_response" ? "short_answer" : aq.type) as Question["type"],
+      text: aq.text, options: aq.options,
+      correctAnswer: aq.correctAnswer, points: aq.points ?? 1,
+      explanation: (aq.explanation ?? "") as string,
+      workedSolution: (aq.workedSolution ?? "") as string,
+    }));
+    const total = qs.reduce((s, q) => s + q.points, 0);
+    setForm((f) => ({
+      ...f, type: "quiz",
+      title: f.title || set.title,
+      subject: f.subject || set.subject,
+      description: f.description || `${set.subject} — ${set.topic} (${set.difficulty})`,
+      questions: [...(f.questions ?? []), ...qs],
+      totalPoints: (f.totalPoints ?? 0) + total,
+      maxScore: (f.totalPoints ?? 0) + total,
+    }));
+    setLibModal(false);
+  }
+
+  /** Import as worksheet (original behaviour) */
   function importSetAsContent(set: QuestionSet) {
-    // Build HTML worksheet from the question set
     const lines: string[] = [
       `<h3>${set.title}</h3>`,
-      `<p><strong>Subject:</strong> ${set.subject} &nbsp;|&nbsp; <strong>Topic:</strong> ${set.topic}${set.subtopic ? ` › ${set.subtopic}` : ""} &nbsp;|&nbsp; <strong>Difficulty:</strong> ${set.difficulty}</p>`,
-      `<hr/>`,
+      `<p><strong>Subject:</strong> ${set.subject} &nbsp;|&nbsp; <strong>Topic:</strong> ${set.topic}${set.subtopic ? ` › ${set.subtopic}` : ""} &nbsp;|&nbsp; <strong>Difficulty:</strong> ${set.difficulty}</p><hr/>`,
     ];
     set.questions.forEach((q, i) => {
       lines.push(`<p><strong>Q${i + 1}.</strong> ${q.text}</p>`);
-      if (q.type === "multiple_choice" && q.options) {
+      if (q.type === "multiple_choice" && q.options)
         lines.push(`<ul>${q.options.map((o) => `<li>${o}</li>`).join("")}</ul>`);
-      } else if (q.type === "true_false") {
-        lines.push(`<p><em>True &nbsp;/&nbsp; False</em></p>`);
-      } else {
-        lines.push(`<p>Answer: _______________________________________________</p>`);
-      }
+      else if (q.type === "true_false") lines.push(`<p><em>True &nbsp;/&nbsp; False</em></p>`);
+      else lines.push(`<p>Answer: _______________________________________________</p>`);
     });
-
-    const html = lines.join("\n");
     setForm((f) => ({
-      ...f,
-      type: "custom",
-      title: f.title || set.title,
-      subject: f.subject || set.subject,
-      content: (f.content ? f.content + "\n" : "") + html,
+      ...f, type: "custom",
+      title: f.title || set.title, subject: f.subject || set.subject,
+      content: (f.content ? f.content + "\n" : "") + lines.join("\n"),
       description: f.description || `${set.subject} worksheet — ${set.topic} (${set.difficulty})`,
     }));
     setLibModal(false);
@@ -180,7 +248,7 @@ export default function AssignmentsPage() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Assignments</h1>
-            <p className="text-gray-500 text-sm mt-0.5">IXL, DeltaMath, and custom assignments per grade</p>
+            <p className="text-gray-500 text-sm mt-0.5">IXL, DeltaMath, custom and auto-graded quiz assignments</p>
           </div>
           <button onClick={openCreate} className="btn-primary flex items-center gap-2"><MdAdd size={18} />Add Assignment</button>
         </div>
@@ -199,49 +267,41 @@ export default function AssignmentsPage() {
 
         <div className="admin-card p-0 overflow-hidden">
           {loading ? <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
-            : filtered.length === 0 ? (
-              <div className="p-12 text-center text-gray-400">No assignments yet.</div>
-            ) : (
-              <table className="admin-table">
-                <thead><tr>
-                  <th>Title</th><th>Type</th><th>Subject</th><th>Grades</th><th>Due</th><th>Status</th><th>Actions</th>
-                </tr></thead>
-                <tbody>
-                  {filtered.map((a) => (
-                    <tr key={a.id}>
-                      <td><p className="font-medium text-gray-800">{a.title}</p></td>
-                      <td>
-                        <span className={`badge text-white ${a.type === "ixl" ? "bg-orange-500" : a.type === "deltamath" ? "bg-blue-600" : "badge-gray"}`}>
-                          {a.type === "ixl" ? "IXL" : a.type === "deltamath" ? "DeltaMath" : a.type}
-                        </span>
-                      </td>
-                      <td className="text-gray-600">{a.subject}</td>
-                      <td className="text-gray-500 text-xs">{a.targetGrades.map(g => `G${g}`).join(", ")}</td>
-                      <td className="text-gray-500 text-xs">{a.dueDate || "—"}</td>
-                      <td><span className={`badge ${a.published ? "badge-green" : "badge-yellow"}`}>{a.published ? "Live" : "Draft"}</span></td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          {a.platformUrl && (
-                            <a href={a.platformUrl} target="_blank" rel="noopener noreferrer"
-                              className="p-1.5 text-gray-400 hover:text-[#00369b]" title="Open platform"><MdOpenInNew size={16} /></a>
-                          )}
-                          <button onClick={() => openSubmissions(a)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="View submissions"><MdVisibility size={16} /></button>
-                          <a href={`/admin/analytics/assignment/${a.id}`} className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex" title="Analytics">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
-                          </a>
-                          <button onClick={() => openEdit(a)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={16} /></button>
-                          <button onClick={() => handleDelete(a.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={16} /></button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
+            : filtered.length === 0 ? <div className="p-12 text-center text-gray-400">No assignments yet.</div>
+              : (
+                <table className="admin-table">
+                  <thead><tr>
+                    <th>Title</th><th>Type</th><th>Subject</th><th>Grades</th><th>Due</th><th>Status</th><th>Actions</th>
+                  </tr></thead>
+                  <tbody>
+                    {filtered.map((a) => (
+                      <tr key={a.id}>
+                        <td><p className="font-medium text-gray-800">{a.title}</p></td>
+                        <td>
+                          <span className={`badge text-white ${a.type === "ixl" ? "bg-orange-500" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}>
+                            {a.type === "ixl" ? "IXL" : a.type === "deltamath" ? "DeltaMath" : a.type === "quiz" ? "Quiz" : a.type}
+                          </span>
+                        </td>
+                        <td className="text-gray-600">{a.subject}</td>
+                        <td className="text-gray-500 text-xs">{a.targetGrades.map(g => `G${g}`).join(", ")}</td>
+                        <td className="text-gray-500 text-xs">{a.dueDate || "—"}</td>
+                        <td><span className={`badge ${a.published ? "badge-green" : "badge-yellow"}`}>{a.published ? "Live" : "Draft"}</span></td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            {a.platformUrl && <a href={a.platformUrl} target="_blank" rel="noopener noreferrer" className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdOpenInNew size={16} /></a>}
+                            <button onClick={() => openSubmissions(a)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="View submissions"><MdVisibility size={16} /></button>
+                            <button onClick={() => openEdit(a)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={16} /></button>
+                            <button onClick={() => handleDelete(a.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={16} /></button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
         </div>
-      </div>
 
-      {/* Submissions modal */}
+        {/* Submissions modal */}
       {subModal && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setSubModal(null)}>
           <div className="modal-box">
@@ -321,10 +381,20 @@ export default function AssignmentsPage() {
                 </div>
                 <div>
                   <label className="admin-label">Type *</label>
-                  <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as Assignment["type"] })} className="admin-input">
+                  <select value={form.type} onChange={(e) => {
+                    const nextType = e.target.value as Assignment["type"];
+                    if (nextType === "quiz" && !(form.questions?.length ?? 0)) {
+                      const initial = newQuestion();
+                      setForm({ ...form, type: nextType, questions: [initial], totalPoints: initial.points, maxScore: initial.points });
+                    } else {
+                      setForm({ ...form, type: nextType });
+                    }
+                  }} className="admin-input">
+                    <option value="">Select Type</option>
+                    <option value="quiz">Quiz</option>
                     <option value="ixl">IXL</option>
                     <option value="deltamath">DeltaMath</option>
-                    <option value="custom">Custom</option>
+                    
                     <option value="document">Document</option>
                   </select>
                 </div>
@@ -350,25 +420,123 @@ export default function AssignmentsPage() {
                 </div>
               )}
 
-              {/* Description */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="admin-label mb-0">Instructions / Description</label>
-                  <button type="button" onClick={openLibrary}
-                    className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 bg-purple-50 border border-purple-200 px-3 py-1 hover:bg-purple-100 transition-colors">
-                    <MdAutoAwesome size={12} /> Import from AI Library
-                  </button>
-                </div>
-                <textarea value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} rows={3} className="admin-input resize-none" placeholder="Assignment instructions…" />
-              </div>
+              {form.type === "quiz" && (
+                <div className="space-y-4">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-gray-900">Questions</p>
+                      <p className="text-xs text-gray-500">{(form.questions?.length ?? 0)} · {form.totalPoints ?? 0} pts total</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => openLibrary("quiz")} className="btn-secondary text-sm">Import from Library</button>
+                      <button type="button" onClick={() => addQuestion("multiple_choice")} className="btn-secondary text-sm">+ multiple choice</button>
+                      <button type="button" onClick={() => addQuestion("true_false")} className="btn-secondary text-sm">+ true false</button>
+                      <button type="button" onClick={() => addQuestion("short_answer")} className="btn-secondary text-sm">+ short answer</button>
+                    </div>
+                  </div>
 
-              {/* Rich content */}
-              {(form.type === "custom" || form.type === "document") && (
-                <div>
-                  <label className="admin-label">Full Content (optional)</label>
-                  <WysiwygEditor content={form.content ?? ""} onChange={(html) => setForm({ ...form, content: html })} placeholder="Detailed instructions, questions…" />
+                  <div className="space-y-4 p-4 border border-gray-200 rounded-xl bg-gray-50">
+                    <div className="grid sm:grid-cols-3 gap-4">
+                      <div>
+                        <label className="admin-label">Pass mark (%)</label>
+                        <input type="number" min={0} max={100} value={form.passMark ?? 60}
+                          onChange={(e) => setForm({ ...form, passMark: Number(e.target.value) })}
+                          className="admin-input" />
+                      </div>
+                      <div>
+                        <label className="admin-label">Time limit (mins)</label>
+                        <input type="number" min={0} value={form.timeLimit ?? 0}
+                          onChange={(e) => setForm({ ...form, timeLimit: Number(e.target.value) })}
+                          className="admin-input" />
+                      </div>
+                      <div>
+                        <label className="admin-label">Max attempts</label>
+                        <input type="number" min={1} value={form.maxAttempts ?? 1}
+                          onChange={(e) => setForm({ ...form, maxAttempts: Number(e.target.value) })}
+                          className="admin-input" />
+                      </div>
+                    </div>
+
+                    {(form.questions ?? []).map((question, qIndex) => (
+                      <div key={question.id} className="border border-gray-200 rounded-xl p-4 bg-white">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <div className="flex-1 space-y-2">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="font-semibold text-sm text-gray-900">Question {qIndex + 1}</p>
+                              <button type="button" onClick={() => removeQuestion(qIndex)} className="text-red-500 text-sm font-semibold hover:underline">Remove</button>
+                            </div>
+                            <textarea value={question.text} onChange={(e) => updateQuestion(qIndex, { text: e.target.value })}
+                              className="admin-input resize-none" rows={2} placeholder="Question text" />
+                          </div>
+                          <div className="grid gap-3 w-full sm:w-52">
+                            <div>
+                              <label className="admin-label">Type</label>
+                              <select value={question.type} onChange={(e) => updateQuestion(qIndex, { type: e.target.value as QuestionType })} className="admin-input">
+                                <option value="multiple_choice">Multiple Choice</option>
+                                <option value="true_false">True / False</option>
+                                <option value="short_answer">Short Answer</option>
+                              </select>
+                            </div>
+                            <div>
+                              <label className="admin-label">Points</label>
+                              <input type="number" min={0} value={question.points ?? 1}
+                                onChange={(e) => updateQuestion(qIndex, { points: Number(e.target.value) })}
+                                className="admin-input" />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="grid sm:grid-cols-2 gap-4 mt-4">
+                          <div>
+                            <label className="admin-label">Correct answer</label>
+                            {question.type === "multiple_choice" && (
+                              <select value={question.correctAnswer} onChange={(e) => updateQuestion(qIndex, { correctAnswer: e.target.value })} className="admin-input">
+                                <option value="">Select correct option</option>
+                                {(question.options ?? []).map((option, optionIndex) => (
+                                  <option key={optionIndex} value={option}>{option || `Option ${optionIndex + 1}`}</option>
+                                ))}
+                              </select>
+                            )}
+                            {question.type === "true_false" && (
+                              <select value={question.correctAnswer} onChange={(e) => updateQuestion(qIndex, { correctAnswer: e.target.value })} className="admin-input">
+                                <option value="">Select correct answer</option>
+                                <option value="true">True</option>
+                                <option value="false">False</option>
+                              </select>
+                            )}
+                            {question.type === "short_answer" && (
+                              <input value={question.correctAnswer} onChange={(e) => updateQuestion(qIndex, { correctAnswer: e.target.value })}
+                                className="admin-input" placeholder="Answer text" />
+                            )}
+                          </div>
+                          {question.type === "multiple_choice" && (
+                            <div className="space-y-2">
+                              <label className="admin-label">Options</label>
+                              {(question.options ?? []).map((option, optionIndex) => (
+                                <input key={optionIndex} value={option} onChange={(e) => {
+                                  const options = [...(question.options ?? [])];
+                                  options[optionIndex] = e.target.value;
+                                  updateQuestion(qIndex, { options });
+                                }} className="admin-input" placeholder={`Option ${optionIndex + 1}`} />
+                              ))}
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="mt-4">
+                          <label className="admin-label">Explanation (optional)</label>
+                          <textarea value={question.explanation ?? ""} onChange={(e) => updateQuestion(qIndex, { explanation: e.target.value })} rows={2} className="admin-input resize-none" placeholder="Solution notes or feedback" />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
+
+              <div>
+                <label className="admin-label">Full Content / Instructions (optional)</label>
+                <WysiwygEditor content={form.content ?? ""} onChange={(html) => setForm({ ...form, content: html })} placeholder="Detailed instructions, questions…" />
+              </div>
 
               {/* File upload */}
               {form.type === "document" && (
@@ -465,7 +633,9 @@ export default function AssignmentsPage() {
             </div>
             <div className="p-4 bg-amber-50 border-b border-amber-100 text-xs text-amber-800 flex items-start gap-2">
               <MdAutoAwesome size={14} className="shrink-0 mt-0.5 text-amber-600" />
-              Questions will be added as formatted content in the assignment. Students see it as a worksheet to complete.
+              {libMode === "quiz"
+                ? "Imported questions will be added as quiz items, ready for students to take inside the portal."
+                : "Imported questions will be added as formatted worksheet content for students to complete."}
             </div>
             <div className="p-6 overflow-y-auto" style={{ maxHeight: "60vh" }}>
               {libLoading ? (
@@ -492,10 +662,16 @@ export default function AssignmentsPage() {
                           </div>
                           <p className="text-xs text-gray-500 mt-1">{set.topic}{set.subtopic ? ` › ${set.subtopic}` : ""}</p>
                         </div>
-                        <button type="button" onClick={() => importSetAsContent(set)}
-                          className="shrink-0 flex items-center gap-1.5 px-4 py-2 bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800 transition-colors">
-                          <MdAdd size={15} /> Use
-                        </button>
+                        <div className="flex flex-col gap-2 shrink-0">
+                          <button type="button" onClick={() => importSetAsContent(set)}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-purple-700 text-white text-sm font-semibold hover:bg-purple-800 transition-colors">
+                            <MdAdd size={15} /> Import as Worksheet
+                          </button>
+                          <button type="button" onClick={() => importSetAsQuiz(set)}
+                            className="flex items-center gap-1.5 px-4 py-2 bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition-colors">
+                            <MdQuiz size={15} /> Import as Quiz
+                          </button>
+                        </div>
                       </div>
                       <div className="mt-3 space-y-1.5">
                         {set.questions.slice(0, 2).map((q, i) => (
@@ -515,6 +691,7 @@ export default function AssignmentsPage() {
           </div>
         </div>
       )}
+      </div>
     </AdminLayout>
-  );
+  )
 }

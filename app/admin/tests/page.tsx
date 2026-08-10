@@ -6,6 +6,7 @@ import WysiwygEditor from "@/components/WysiwygEditor";
 import {
   getAllTests, createTest, updateTest, deleteTest,
   getAllAttempts, reviewAttempt, getAllMaterials, getAllQuestionSets,
+  createAnnouncement,
   type Test, type TestAttempt, type Question, type QuestionType, type LearningMaterial, type QuestionSet,
 } from "@/lib/firestore";
 import {
@@ -16,15 +17,18 @@ import {
 const GRADES = ["Pre-K", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
 
 function newQuestion(type: QuestionType = "multiple_choice"): Question {
-  return {
+  const base = {
     id: crypto.randomUUID(),
     type,
     text: "",
-    options: type === "multiple_choice" ? ["", "", "", ""] : undefined,
     correctAnswer: "",
     points: 1,
     explanation: "",
   };
+
+  return type === "multiple_choice"
+    ? { ...base, options: ["", "", "", ""] }
+    : base;
 }
 
 const EMPTY_TEST: Omit<Test, "id"> = {
@@ -116,15 +120,20 @@ export default function TestsPage() {
 
   function importFromSet(set: QuestionSet) {
     // Convert AIQuestion → Question (they share all needed fields)
-    const imported: Question[] = set.questions.map((aq) => ({
-      id: crypto.randomUUID(),
-      type: (aq.type === "extended_response" ? "short_answer" : aq.type) as QuestionType,
-      text: aq.text,
-      options: aq.options,
-      correctAnswer: aq.correctAnswer,
-      points: aq.points ?? 1,
-      explanation: aq.explanation ?? "",
-    }));
+    const imported: Question[] = set.questions.map((aq) => {
+      const type = (aq.type === "extended_response" ? "short_answer" : aq.type) as QuestionType;
+      const base = {
+        id: crypto.randomUUID(),
+        type,
+        text: aq.text,
+        correctAnswer: aq.correctAnswer,
+        points: aq.points ?? 1,
+        explanation: aq.explanation ?? "",
+      };
+      return type === "multiple_choice"
+        ? { ...base, options: aq.options ?? ["", "", "", ""] }
+        : base;
+    });
     const merged = [...form.questions.filter((q) => q.text.trim() !== ""), ...imported];
     setForm((f) => ({ ...f, questions: merged, totalPoints: calcTotal(merged) }));
     setLibraryModal(false);
@@ -136,6 +145,15 @@ export default function TestsPage() {
       const data = { ...form, totalPoints: calcTotal(form.questions) };
       if (editing?.id) await updateTest(editing.id, data);
       else await createTest(data);
+      if (data.published) {
+        await createAnnouncement({
+          title: editing ? `Updated ${data.type}: ${data.title}` : `New ${data.type}: ${data.title}`,
+          body: `A new ${data.type === "exam" ? "exam" : "test"} is now published for Grade ${data.grade}. Check your portal to start it now.`,
+          targetGrades: [data.grade],
+          pinned: false,
+          published: true,
+        });
+      }
       await load(); setModalOpen(false);
     } finally { setSaving(false); }
   }

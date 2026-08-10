@@ -371,15 +371,57 @@ export function getYears(curriculumId: string, subject: string): string[] {
 }
 
 export function getTopics(curriculumId: string, subject: string, year: string): CurriculumTopic[] {
-  return getCurriculum(curriculumId)?.subjects
-    .find(s => s.name === subject)?.years
-    .find(y => y.year === year)?.topics ?? [];
+  const subjectData = getCurriculum(curriculumId)?.subjects.find(s => s.name === subject);
+  if (!subjectData) return [];
+
+  const yearTopics = subjectData.years.find(y => y.year === year)?.topics;
+  if (yearTopics && yearTopics.length > 0) {
+    return yearTopics;
+  }
+
+  // If the selected year isn't defined for this subject, fall back to all topics across the subject.
+  const allTopics = subjectData.years.flatMap(y => y.topics);
+  const uniqueTopics: CurriculumTopic[] = [];
+  const seen = new Set<string>();
+
+  allTopics.forEach((topic) => {
+    if (!seen.has(topic.name)) {
+      seen.add(topic.name);
+      uniqueTopics.push(topic);
+    }
+  });
+
+  return uniqueTopics;
 }
 
 export function getSubtopics(curriculumId: string, subject: string, year: string, topic: string): string[] {
-  return getTopics(curriculumId, subject, year)
-    .find(t => t.name === topic)?.subtopics ?? [];
+  const topics = getTopics(curriculumId, subject, year);
+  return topics.find(t => t.name === topic)?.subtopics ?? [];
 }
+
+// All Australian school year levels — used by the AI generator dropdown
+export const ALL_YEARS = [
+  // Early childhood / Foundation
+  "Kindergarten / Pre-K",
+  "Foundation (Prep)",
+  // Primary
+  "Year 1", "Year 2", "Year 3", "Year 4", "Year 5", "Year 6",
+  // Junior Secondary
+  "Year 7", "Year 8", "Year 9", "Year 10",
+  // Senior Secondary
+  "Year 11", "Year 12",
+  // VCE units
+  "VCE Unit 1/2", "VCE Unit 3/4",
+  // VCE subjects
+  "Further Mathematics", "Mathematical Methods", "Specialist Mathematics",
+  "VCE Chemistry", "VCE Biology", "VCE Physics",
+  "VCE English", "VCE English Language",
+  // NAPLAN
+  "NAPLAN Year 3", "NAPLAN Year 5", "NAPLAN Year 7", "NAPLAN Year 9",
+  // International / other
+  "Grade 1", "Grade 2", "Grade 3", "Grade 4", "Grade 5", "Grade 6",
+  "Grade 7", "Grade 8", "Grade 9", "Grade 10", "Grade 11", "Grade 12",
+] as const;
 
 export const DIFFICULTY_LEVELS = ["Support", "Core", "Extension"] as const;
 export type DifficultyLevel = typeof DIFFICULTY_LEVELS[number];
@@ -390,4 +432,4 @@ export type QuestionFormat = typeof QUESTION_FORMATS[number];
 export const CONTEXTS = ["Real-life", "Abstract", "Exam-style", "Problem-solving", "Worded problems"] as const;
 export type QuestionContext = typeof CONTEXTS[number];
 
-export const QUESTION_COUNTS = [5, 10, 15, 20, 25, 30] as const;
+export const QUESTION_COUNTS = [5, 10, 15, 20, 25, 30, 40, 50] as const;

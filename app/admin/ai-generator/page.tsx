@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import {
   CURRICULA, getSubjects, getYears, getTopics, getSubtopics,
-  DIFFICULTY_LEVELS, QUESTION_FORMATS, CONTEXTS, QUESTION_COUNTS,
+  DIFFICULTY_LEVELS, QUESTION_FORMATS, CONTEXTS, QUESTION_COUNTS, ALL_YEARS,
 } from "@/lib/curriculum";
 import { createQuestionSet, type AIQuestion } from "@/lib/firestore";
 import {
@@ -173,11 +173,12 @@ export default function AIGeneratorPage() {
   const [difficulty, setDifficulty] = useState<string>("Core");
   const [format, setFormat] = useState<string>("Mixed");
   const [context, setContext] = useState<string>("Real-life");
+  const [prompt, setPrompt] = useState<string>("Include diagrams, images, and shape descriptions using correct mathematical notation, symbols, and labels whenever relevant.");
   const [title, setTitle] = useState("");
 
   // Derived options
   const subjects = getSubjects(curriculum);
-  const years = year !== "" || subject ? getYears(curriculum, subject) : [];
+  const years = ALL_YEARS; // show all grade years for all subjects
   const topics = topic !== "" || (subject && year) ? getTopics(curriculum, subject, year) : [];
   const subtopics = subtopic !== "" || (subject && year && topic) ? getSubtopics(curriculum, subject, year, topic) : [];
 
@@ -208,7 +209,7 @@ export default function AIGeneratorPage() {
       const res = await fetch("/api/generate-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ curriculum, subject, year, topic, subtopic, count, difficulty, format, context }),
+        body: JSON.stringify({ curriculum, subject, year, topic, subtopic, count, difficulty, format, context, prompt }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
@@ -333,7 +334,7 @@ export default function AIGeneratorPage() {
                   <label className="admin-label">Year Level</label>
                   <select value={year} onChange={e => setYear(e.target.value)} className="admin-input w-full" disabled={!subject}>
                     <option value="">Select…</option>
-                    {getYears(curriculum, subject).map(y => <option key={y}>{y}</option>)}
+                    {years.map(y => <option key={y} value={y}>{y}</option>)}
                   </select>
                 </div>
               </div>
@@ -389,6 +390,14 @@ export default function AIGeneratorPage() {
               </div>
 
               {/* Title */}
+              <div>
+                <label className="admin-label">Prompt / Extra Instructions</label>
+                <textarea value={prompt} onChange={e => setPrompt(e.target.value)} rows={4}
+                  className="admin-input resize-none w-full"
+                  placeholder="Ask the generator to include diagrams, geometry shapes, image descriptions, or precise math notation." />
+                <p className="text-xs text-gray-400 mt-1">You can request images, shapes, coordinate grids, graphs, correct symbols, and formatted math notation.</p>
+              </div>
+
               <div>
                 <label className="admin-label">Set Title (for library)</label>
                 <input value={title} onChange={e => setTitle(e.target.value)} className="admin-input w-full" placeholder="Auto-filled when topic is selected" />

@@ -50,10 +50,13 @@ export interface Student {
   bio?: string;
   credentialsSent?: boolean;
   // Payment
-  paymentStatus: "pending" | "paid" | "failed" | "waived";
+  paymentStatus: "pending" | "paid" | "failed" | "waived" | "expired";
   paymentReference?: string;
   paymentAmount?: number;
   paidAt?: Timestamp;
+  planId?: string;
+  planTitle?: string;
+  planExpiresAt?: Timestamp;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -133,7 +136,7 @@ export interface Assignment {
   description: string;
   grade: string;
   subject: string;
-  type: "ixl" | "deltamath" | "custom" | "document";
+  type: "ixl" | "deltamath" | "custom" | "document" | "quiz";
   platformUrl?: string;
   platform?: "ixl" | "deltamath" | "other";
   content?: string;
@@ -142,6 +145,11 @@ export interface Assignment {
   dueDate?: string;
   maxScore?: number;
   linkedMaterialId?: string;
+  questions?: Question[];
+  totalPoints?: number;
+  passMark?: number;
+  timeLimit?: number;
+  maxAttempts?: number;
   targetGrades: string[];
   targetStudentIds?: string[];
   published: boolean;
@@ -156,10 +164,25 @@ export interface AssignmentSubmission {
   studentUid: string;
   studentName?: string;
   status: "not_started" | "in_progress" | "submitted" | "graded";
+  answers?: Record<string, string>;
   score?: number;
+  totalPoints?: number;
+  percentage?: number;
+  passed?: boolean;
+  attemptNumber?: number;
   feedback?: string;
   submittedAt?: Timestamp;
   gradedAt?: Timestamp;
+}
+
+export interface AdminAlert {
+  id?: string;
+  type: "payment_expired" | "payment_expiring";
+  studentId: string;
+  studentName: string;
+  message: string;
+  read: boolean;
+  createdAt?: Timestamp;
 }
 
 export interface StudentProgress {
@@ -215,11 +238,26 @@ export async function getAllAdmins(): Promise<AdminUser[]> {
     .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
 }
 
+function sanitizeFirestoreData<T extends unknown>(value: T): T {
+  if (Array.isArray(value)) {
+    return value.map((item) => sanitizeFirestoreData(item)) as T;
+  }
+  if (value && typeof value === "object") {
+    return Object.entries(value)
+      .filter(([, v]) => v !== undefined)
+      .reduce((acc, [key, v]) => ({
+        ...acc,
+        [key]: sanitizeFirestoreData(v),
+      }), {} as Record<string, unknown>) as T;
+  }
+  return value;
+}
+
 export async function createAdmin(
   data: Omit<AdminUser, "id">
 ): Promise<string> {
   const ref = await addDoc(collection(db, "admins"), {
-    ...data,
+    ...sanitizeFirestoreData(data),
     createdAt: serverTimestamp(),
   });
   return ref.id;
@@ -230,7 +268,7 @@ export async function updateAdmin(
   data: Partial<AdminUser>
 ): Promise<void> {
   await updateDoc(doc(db, "admins", id), {
-    ...data,
+    ...sanitizeFirestoreData(data as AdminUser),
     updatedAt: serverTimestamp(),
   });
 }
@@ -313,7 +351,7 @@ export async function createMaterial(
   data: Omit<LearningMaterial, "id">
 ): Promise<string> {
   const ref = await addDoc(collection(db, "learningMaterials"), {
-    ...data,
+    ...sanitizeFirestoreData(data),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -325,7 +363,7 @@ export async function updateMaterial(
   data: Partial<LearningMaterial>
 ): Promise<void> {
   await updateDoc(doc(db, "learningMaterials", id), {
-    ...data,
+    ...sanitizeFirestoreData(data as LearningMaterial),
     updatedAt: serverTimestamp(),
   });
 }
@@ -364,8 +402,9 @@ export async function getTestById(id: string): Promise<Test | null> {
 }
 
 export async function createTest(data: Omit<Test, "id">): Promise<string> {
+  const payload = sanitizeFirestoreData(data) as Omit<Test, "id">;
   const ref = await addDoc(collection(db, "tests"), {
-    ...data,
+    ...payload,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -376,8 +415,9 @@ export async function updateTest(
   id: string,
   data: Partial<Test>
 ): Promise<void> {
+  const payload = sanitizeFirestoreData(data) as Partial<Test>;
   await updateDoc(doc(db, "tests", id), {
-    ...data,
+    ...payload,
     updatedAt: serverTimestamp(),
   });
 }
@@ -504,7 +544,7 @@ export async function createAssignment(
   data: Omit<Assignment, "id">
 ): Promise<string> {
   const ref = await addDoc(collection(db, "assignments"), {
-    ...data,
+    ...sanitizeFirestoreData(data),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -516,7 +556,7 @@ export async function updateAssignment(
   data: Partial<Assignment>
 ): Promise<void> {
   await updateDoc(doc(db, "assignments", id), {
-    ...data,
+    ...sanitizeFirestoreData(data as Assignment),
     updatedAt: serverTimestamp(),
   });
 }
@@ -625,7 +665,7 @@ export async function createAnnouncement(
   data: Omit<Announcement, "id">
 ): Promise<string> {
   const ref = await addDoc(collection(db, "announcements"), {
-    ...data,
+    ...sanitizeFirestoreData(data),
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
   });
@@ -637,7 +677,7 @@ export async function updateAnnouncement(
   data: Partial<Announcement>
 ): Promise<void> {
   await updateDoc(doc(db, "announcements", id), {
-    ...data,
+    ...sanitizeFirestoreData(data as Announcement),
     updatedAt: serverTimestamp(),
   });
 }
@@ -743,10 +783,11 @@ export async function getSiteContent(section: string): Promise<SiteContent | nul
 export async function upsertSiteContent(section: string, data: Record<string, unknown>): Promise<void> {
   const q = query(collection(db, "siteContent"), where("section", "==", section), limit(1));
   const snap = await getDocs(q);
+  const cleanData = sanitizeFirestoreData(data as Record<string, unknown>);
   if (!snap.empty) {
-    await updateDoc(snap.docs[0].ref, { data, updatedAt: serverTimestamp() });
+    await updateDoc(snap.docs[0].ref, { data: cleanData, updatedAt: serverTimestamp() });
   } else {
-    await addDoc(collection(db, "siteContent"), { section, data, updatedAt: serverTimestamp() });
+    await addDoc(collection(db, "siteContent"), { section, data: cleanData, updatedAt: serverTimestamp() });
   }
 }
 
@@ -756,11 +797,18 @@ export async function getAllTestimonials(): Promise<SiteTestimonial[]> {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteTestimonial) })).sort((a, b) => a.order - b.order);
 }
 export async function createTestimonial(data: Omit<SiteTestimonial, "id">): Promise<string> {
-  const ref = await addDoc(collection(db, "siteTestimonials"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, "siteTestimonials"), {
+    ...sanitizeFirestoreData(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
   return ref.id;
 }
 export async function updateTestimonial(id: string, data: Partial<SiteTestimonial>): Promise<void> {
-  await updateDoc(doc(db, "siteTestimonials", id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, "siteTestimonials", id), {
+    ...sanitizeFirestoreData(data as SiteTestimonial),
+    updatedAt: serverTimestamp(),
+  });
 }
 export async function deleteTestimonial(id: string): Promise<void> {
   await deleteDoc(doc(db, "siteTestimonials", id));
@@ -772,11 +820,18 @@ export async function getAllPricingPlans(): Promise<SitePricingPlan[]> {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SitePricingPlan) })).sort((a, b) => a.order - b.order);
 }
 export async function createPricingPlan(data: Omit<SitePricingPlan, "id">): Promise<string> {
-  const ref = await addDoc(collection(db, "sitePricingPlans"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, "sitePricingPlans"), {
+    ...sanitizeFirestoreData(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
   return ref.id;
 }
 export async function updatePricingPlan(id: string, data: Partial<SitePricingPlan>): Promise<void> {
-  await updateDoc(doc(db, "sitePricingPlans", id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, "sitePricingPlans", id), {
+    ...sanitizeFirestoreData(data as SitePricingPlan),
+    updatedAt: serverTimestamp(),
+  });
 }
 export async function deletePricingPlan(id: string): Promise<void> {
   await deleteDoc(doc(db, "sitePricingPlans", id));
@@ -788,11 +843,18 @@ export async function getAllFaqs(): Promise<SiteFaq[]> {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteFaq) })).sort((a, b) => a.order - b.order);
 }
 export async function createFaq(data: Omit<SiteFaq, "id">): Promise<string> {
-  const ref = await addDoc(collection(db, "siteFaqs"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, "siteFaqs"), {
+    ...sanitizeFirestoreData(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
   return ref.id;
 }
 export async function updateFaq(id: string, data: Partial<SiteFaq>): Promise<void> {
-  await updateDoc(doc(db, "siteFaqs", id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, "siteFaqs", id), {
+    ...sanitizeFirestoreData(data as SiteFaq),
+    updatedAt: serverTimestamp(),
+  });
 }
 export async function deleteFaq(id: string): Promise<void> {
   await deleteDoc(doc(db, "siteFaqs", id));
@@ -840,11 +902,18 @@ export async function getAllClasses(): Promise<SiteClass[]> {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteClass) })).sort((a, b) => a.order - b.order);
 }
 export async function createClass(data: Omit<SiteClass, "id">): Promise<string> {
-  const ref = await addDoc(collection(db, "siteClasses"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, "siteClasses"), {
+    ...sanitizeFirestoreData(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
   return ref.id;
 }
 export async function updateClass(id: string, data: Partial<SiteClass>): Promise<void> {
-  await updateDoc(doc(db, "siteClasses", id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, "siteClasses", id), {
+    ...sanitizeFirestoreData(data as SiteClass),
+    updatedAt: serverTimestamp(),
+  });
 }
 export async function deleteClass(id: string): Promise<void> {
   await deleteDoc(doc(db, "siteClasses", id));
@@ -873,11 +942,18 @@ export async function getAllServices(): Promise<SiteService[]> {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SiteService) })).sort((a, b) => a.order - b.order);
 }
 export async function createService(data: Omit<SiteService, "id">): Promise<string> {
-  const ref = await addDoc(collection(db, "siteServices"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, "siteServices"), {
+    ...sanitizeFirestoreData(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
   return ref.id;
 }
 export async function updateService(id: string, data: Partial<SiteService>): Promise<void> {
-  await updateDoc(doc(db, "siteServices", id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, "siteServices", id), {
+    ...sanitizeFirestoreData(data as SiteService),
+    updatedAt: serverTimestamp(),
+  });
 }
 export async function deleteService(id: string): Promise<void> {
   await deleteDoc(doc(db, "siteServices", id));
@@ -903,11 +979,18 @@ export async function getAllPartners(): Promise<SitePartner[]> {
   return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SitePartner) })).sort((a, b) => a.order - b.order);
 }
 export async function createPartner(data: Omit<SitePartner, "id">): Promise<string> {
-  const ref = await addDoc(collection(db, "sitePartners"), { ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp() });
+  const ref = await addDoc(collection(db, "sitePartners"), {
+    ...sanitizeFirestoreData(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
   return ref.id;
 }
 export async function updatePartner(id: string, data: Partial<SitePartner>): Promise<void> {
-  await updateDoc(doc(db, "sitePartners", id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, "sitePartners", id), {
+    ...sanitizeFirestoreData(data as SitePartner),
+    updatedAt: serverTimestamp(),
+  });
 }
 export async function deletePartner(id: string): Promise<void> {
   await deleteDoc(doc(db, "sitePartners", id));
@@ -934,7 +1017,7 @@ export async function createParentMessage(
   data: Omit<ParentMessage, "id">
 ): Promise<string> {
   const ref = await addDoc(collection(db, "parentMessages"), {
-    ...data,
+    ...sanitizeFirestoreData(data),
     createdAt: serverTimestamp(),
   });
   return ref.id;
@@ -944,7 +1027,7 @@ export async function updateParentMessage(
   id: string,
   data: Partial<ParentMessage>
 ): Promise<void> {
-  await updateDoc(doc(db, "parentMessages", id), data);
+  await updateDoc(doc(db, "parentMessages", id), sanitizeFirestoreData(data as { [key: string]: unknown }));
 }
 
 export async function deleteParentMessage(id: string): Promise<void> {
@@ -974,6 +1057,7 @@ export interface QuestionSet {
   title: string;
   curriculum: string;
   subject: string;
+  subjectFolder?: string;   // explicit folder/subject grouping
   year: string;
   topic: string;
   subtopic?: string;
@@ -1033,13 +1117,18 @@ export async function getQuestionSetById(id: string): Promise<QuestionSet | null
 
 export async function createQuestionSet(data: Omit<QuestionSet, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "questionSets"), {
-    ...data, createdAt: serverTimestamp(), updatedAt: serverTimestamp(),
+    ...sanitizeFirestoreData(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
   });
   return ref.id;
 }
 
 export async function updateQuestionSet(id: string, data: Partial<QuestionSet>): Promise<void> {
-  await updateDoc(doc(db, "questionSets", id), { ...data, updatedAt: serverTimestamp() });
+  await updateDoc(doc(db, "questionSets", id), {
+    ...sanitizeFirestoreData(data as QuestionSet),
+    updatedAt: serverTimestamp(),
+  });
 }
 
 export async function deleteQuestionSet(id: string): Promise<void> {
@@ -1075,7 +1164,7 @@ export async function upsertLearningGap(
   const snap = await getDocs(q);
   if (snap.empty) {
     await addDoc(collection(db, "learningGaps"), {
-      ...data,
+      ...sanitizeFirestoreData(data),
       createdAt: serverTimestamp(),
       updatedAt: serverTimestamp(),
     });
@@ -1104,4 +1193,104 @@ export async function getPracticeAttemptsByStudent(studentId: string): Promise<P
   return snap.docs
     .map(d => ({ id: d.id, ...(d.data() as PracticeAttempt) }))
     .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
+}
+
+// ─────────────────────────────────────────────────────────────
+// ADMIN ALERTS (payment notifications)
+// ─────────────────────────────────────────────────────────────
+
+export async function getAdminAlerts(unreadOnly = false): Promise<AdminAlert[]> {
+  const q = unreadOnly
+    ? query(collection(db, "adminAlerts"), where("read", "==", false))
+    : query(collection(db, "adminAlerts"));
+  const snap = await getDocs(q);
+  return snap.docs
+    .map(d => ({ id: d.id, ...(d.data() as AdminAlert) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
+}
+
+export async function getUnreadAlertCount(): Promise<number> {
+  const q = query(collection(db, "adminAlerts"), where("read", "==", false));
+  const snap = await getDocs(q);
+  return snap.size;
+}
+
+export async function markAlertRead(id: string): Promise<void> {
+  await updateDoc(doc(db, "adminAlerts", id), { read: true });
+}
+
+export async function markAllAlertsRead(): Promise<void> {
+  const snap = await getDocs(query(collection(db, "adminAlerts"), where("read", "==", false)));
+  await Promise.all(snap.docs.map(d => updateDoc(d.ref, { read: true })));
+}
+
+export async function deleteAlert(id: string): Promise<void> {
+  await deleteDoc(doc(db, "adminAlerts", id));
+}
+
+/** Creates a payment alert if one doesn't already exist for this student + type combo this week */
+export async function createPaymentAlert(
+  type: AdminAlert["type"],
+  studentId: string,
+  studentName: string,
+  message: string
+): Promise<void> {
+  // Avoid duplicate alerts — check if we created one in the last 7 days
+  const weekAgo = Timestamp.fromMillis(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  const q = query(
+    collection(db, "adminAlerts"),
+    where("type", "==", type),
+    where("studentId", "==", studentId)
+  );
+  const snap = await getDocs(q);
+  const recent = snap.docs.find(d => {
+    const ts = (d.data() as AdminAlert).createdAt as Timestamp;
+    return ts && ts.toMillis() > weekAgo.toMillis();
+  });
+  if (recent) return; // Already alerted recently
+
+  await addDoc(collection(db, "adminAlerts"), {
+    type, studentId, studentName, message,
+    read: false, createdAt: serverTimestamp(),
+  });
+}
+
+/**
+ * Run this server-side (e.g. from a cron route) to check all students
+ * and fire payment expiry / expiring-soon alerts.
+ */
+export async function checkAndCreatePaymentAlerts(): Promise<number> {
+  const snap = await getDocs(collection(db, "students"));
+  const students = snap.docs.map(d => ({ id: d.id, ...(d.data() as Student) }));
+  const now = Date.now();
+  const soon = now + 7 * 24 * 60 * 60 * 1000; // 7 days from now
+  let created = 0;
+
+  for (const s of students) {
+    if (!s.planExpiresAt) continue;
+    const name = `${s.firstName} ${s.lastName}`;
+    const expiresMs = (s.planExpiresAt as Timestamp).toMillis();
+
+    if (expiresMs <= now && s.paymentStatus !== "expired") {
+      // Mark student as expired
+      await updateDoc(doc(db, "students", s.id!), {
+        paymentStatus: "expired",
+        status: "suspended",
+        updatedAt: serverTimestamp(),
+      });
+      await createPaymentAlert(
+        "payment_expired", s.id!, name,
+        `${name}'s ${s.planTitle ?? "plan"} expired. Account has been suspended.`
+      );
+      created++;
+    } else if (expiresMs > now && expiresMs <= soon) {
+      const daysLeft = Math.ceil((expiresMs - now) / (24 * 60 * 60 * 1000));
+      await createPaymentAlert(
+        "payment_expiring", s.id!, name,
+        `${name}'s ${s.planTitle ?? "plan"} expires in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}. Renewal needed soon.`
+      );
+      created++;
+    }
+  }
+  return created;
 }
