@@ -93,14 +93,14 @@ function TestimonialsEditor() {
 }
 
 // ── Pricing Plans ──────────────────────────────────────────
-const P_EMPTY: Omit<SitePricingPlan, "id"> = { title: "", tagline: "", price: "", per: "", badge: "", description: "", icon: "", ctaLabel: "Book your lesson now", ctaHref: "/register", perks: [{ desc: "" }, { desc: "" }, { desc: "" }], freePerks: ["", "", ""], features: [{ icon: "🎯", title: "", desc: "" }], bottomNote1: "", bottomNote2: "Cancel or pause anytime", highlighted: false, order: 0, published: true, amountKobo: 0 };
+const P_EMPTY: Omit<SitePricingPlan, "id"> = { title: "", tagline: "", price: "", per: "", badge: "", description: "", icon: "", ctaLabel: "Book your lesson now", ctaHref: "/register", perks: [{ desc: "" }, { desc: "" }, { desc: "" }], freePerks: ["", "", ""], features: [{ icon: "🎯", title: "", desc: "" }], bottomNote1: "", bottomNote2: "Cancel or pause anytime", highlighted: false, order: 0, published: true, amountCents: 0, durationDays: 0 };
 function PricingEditor() {
   const [items, setItems] = useState<SitePricingPlan[]>([]); const [modal, setModal] = useState(false); const [editing, setEditing] = useState<SitePricingPlan | null>(null);
   const [f, setF] = useState(P_EMPTY); const [sv, setSv] = useState(false);
   useEffect(() => { getAllPricingPlans().then(setItems); }, []);
   function open(p?: SitePricingPlan) {
     setEditing(p ?? null);
-    setF(p ? { title: p.title, tagline: p.tagline, price: p.price, per: p.per, badge: p.badge ?? "", description: p.description ?? "", icon: p.icon ?? "", ctaLabel: p.ctaLabel ?? "Book your lesson now", ctaHref: p.ctaHref ?? "/register", perks: p.perks, freePerks: p.freePerks, features: p.features ?? [], bottomNote1: p.bottomNote1 ?? "", bottomNote2: p.bottomNote2 ?? "", highlighted: p.highlighted, order: p.order, published: p.published, amountKobo: p.amountKobo ?? 0 } : P_EMPTY);
+    setF(p ? { title: p.title, tagline: p.tagline, price: p.price, per: p.per, badge: p.badge ?? "", description: p.description ?? "", icon: p.icon ?? "", ctaLabel: p.ctaLabel ?? "Book your lesson now", ctaHref: p.ctaHref ?? "/register", perks: p.perks, freePerks: p.freePerks, features: p.features ?? [], bottomNote1: p.bottomNote1 ?? "", bottomNote2: p.bottomNote2 ?? "", highlighted: p.highlighted, order: p.order, published: p.published, amountCents: p.amountCents ?? p.amountKobo ?? 0, durationDays: p.durationDays ?? 0 } : P_EMPTY);
     setModal(true);
   }
   async function save(e: React.FormEvent) { e.preventDefault(); setSv(true); if (editing?.id) await updatePricingPlan(editing.id, f); else await createPricingPlan(f); setItems(await getAllPricingPlans()); setModal(false); setSv(false); }
@@ -131,7 +131,7 @@ function PricingEditor() {
               <div><label className="admin-label">Title *</label><input required value={f.title} onChange={e => setF({ ...f, title: e.target.value })} className="admin-input" /></div>
               <div><label className="admin-label">Tagline (shown in brackets)</label><input value={f.tagline} onChange={e => setF({ ...f, tagline: e.target.value })} className="admin-input" placeholder="e.g. Best Value for Families" /></div>
               <div><label className="admin-label">Icon (emoji)</label><input value={f.icon ?? ""} onChange={e => setF({ ...f, icon: e.target.value })} className="admin-input" placeholder="👨‍👩‍👧‍👦" /></div>
-              <div><label className="admin-label">Badge text</label><input value={f.badge ?? ""} onChange={e => setF({ ...f, badge: e.target.value })} className="admin-input" placeholder="e.g. 1 to 4 Children" /></div>
+              <div><label className="admin-label">Badge text</label><input value={f.badge ?? ""} onChange={e => setF({ ...f, badge: e.target.value })} className="admin-input" placeholder="e.g. 1 to 3 Children" /></div>
               <div><label className="admin-label">Display Price *</label><input required value={f.price} onChange={e => setF({ ...f, price: e.target.value })} className="admin-input" placeholder="$49.99" /></div>
               <div><label className="admin-label">Per label</label><input value={f.per} onChange={e => setF({ ...f, per: e.target.value })} className="admin-input" placeholder="/week" /></div>
             </div>
@@ -149,11 +149,18 @@ function PricingEditor() {
 
           {/* Payment */}
           <div>
-            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">Payment (Paystack)</p>
-            <div>
-              <label className="admin-label">Amount in kobo (smallest currency unit)</label>
-              <input type="number" min={0} value={f.amountKobo ?? 0} onChange={e => setF({ ...f, amountKobo: Number(e.target.value) })} className="admin-input" placeholder="e.g. 5000000 for ₦50,000" />
-              <p className="text-xs text-gray-400 mt-1">NGN: ₦50,000 = 5000000 kobo. Used when student pays for this plan via Paystack.</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3 border-b border-gray-100 pb-2">Payment (Stripe · AUD)</p>
+            <div className="grid sm:grid-cols-2 gap-4">
+              <div>
+                <label className="admin-label">Amount in cents (AUD)</label>
+                <input type="number" min={0} value={f.amountCents ?? 0} onChange={e => setF({ ...f, amountCents: Number(e.target.value) })} className="admin-input" placeholder="e.g. 5000 for $50.00" />
+                <p className="text-xs text-gray-400 mt-1">$50.00 = 5000 cents · $49.99 = 4999 cents. Used for Stripe Checkout.</p>
+              </div>
+              <div>
+                <label className="admin-label">Duration (days)</label>
+                <input type="number" min={0} value={f.durationDays ?? 0} onChange={e => setF({ ...f, durationDays: Number(e.target.value) })} className="admin-input" placeholder="e.g. 70 for 10 weeks" />
+                <p className="text-xs text-gray-400 mt-1">Optional plan expiry after payment (0 = no auto-expiry).</p>
+              </div>
             </div>
           </div>
 

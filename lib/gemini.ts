@@ -220,6 +220,125 @@ export async function generateQuestions(params: GenerateQuestionsParams): Promis
   }));
 }
 
+// ── Student performance analysis ───────────────────────────────────────────
+
+export interface StudentAnalysisPayload {
+  studentName: string;
+  grade: string;
+  totals: {
+    questionsAnswered: number;
+    correct: number;
+    timeSpentMinutes: number;
+  };
+  topicStats: Array<{
+    subject: string;
+    topic: string;
+    accuracy: number;      // 0–100
+    questionsAnswered: number;
+  }>;
+  recentQuestions: Array<{
+    subject: string;
+    topic: string;
+    question: string;
+    studentAnswer: string;
+    correctAnswer: string;
+    correct: boolean;
+  }>;
+}
+
+export interface StudentSubjectAnalysis {
+  subject: string;
+  strengths: string[];
+  weakAreas: string[];
+  support: string[];       // what is required to support the student
+}
+
+export interface StudentQuestionInsight {
+  question: string;
+  issue: string;           // what the answer reveals about the misunderstanding
+  recommendation: string;  // how to address it
+}
+
+export interface StudentAnalysis {
+  overview: string;
+  subjects: StudentSubjectAnalysis[];
+  questionInsights: StudentQuestionInsight[];
+  priorityActions: string[];
+}
+
+export async function analyzeStudentPerformance(payload: StudentAnalysisPayload): Promise<StudentAnalysis> {
+  const model = genAI.getGenerativeModel({
+    model: geminiModel,
+    generationConfig: { temperature: 0.4, topP: 0.9, maxOutputTokens: 8192 },
+  }, {
+    apiVersion: geminiApiVersion,
+  });
+
+  const prompt = `You are an expert educational data analyst and tutor. Analyse this student's learning data and identify where they are lacking, where they need help, and what is required to support them — per subject and per answered question.
+
+STUDENT: ${payload.studentName} (Grade ${payload.grade})
+TOTALS: ${payload.totals.questionsAnswered} questions answered, ${payload.totals.correct} correct, ${payload.totals.timeSpentMinutes} minutes of learning time tracked.
+
+TOPIC PERFORMANCE (subject | topic | accuracy % | questions answered):
+${payload.topicStats.map(t => `- ${t.subject} | ${t.topic} | ${t.accuracy}% | ${t.questionsAnswered}`).join("\n") || "- No topic data yet"}
+
+RECENT ANSWERED QUESTIONS (most recent first):
+${payload.recentQuestions.map((q, i) =>
+    `${i + 1}. [${q.subject} · ${q.topic}] ${q.correct ? "CORRECT" : "INCORRECT"}
+   Q: ${q.question}
+   Student answered: ${q.studentAnswer || "(no answer)"}
+   Correct answer: ${q.correctAnswer}`).join("\n") || "No answered questions yet"}
+
+Return ONLY a valid JSON object (no markdown, no code fences) with this exact structure:
+{
+  "overview": "2-3 sentence plain-English summary of the student's overall performance and engagement.",
+  "subjects": [
+    {
+      "subject": "Mathematics",
+      "strengths": ["specific strength 1", "..."],
+      "weakAreas": ["specific area the student is lacking, with topic names", "..."],
+      "support": ["concrete action required to support them (e.g. scaffolded fraction worksheets, revisit place value)", "..."]
+    }
+  ],
+  "questionInsights": [
+    {
+      "question": "short quote or paraphrase of an incorrectly answered question",
+      "issue": "what the student's answer reveals about their misunderstanding",
+      "recommendation": "how a tutor should address this"
+    }
+  ],
+  "priorityActions": ["top 3-5 prioritised actions for tutors/parents"]
+}
+
+Rules:
+- Base every claim on the data provided; do not invent results.
+- Cover EVERY subject that appears in the data.
+- questionInsights should cover the incorrect answers (up to 10, most important first).
+- Be specific and practical — name topics and suggest concrete resources or strategies.
+
+Return the JSON object now:`;
+
+  const result = await model.generateContent(prompt);
+  const text = result.response.text().trim()
+    .replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim();
+
+  let parsed: StudentAnalysis;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("Gemini did not return valid JSON. Please try again.");
+    parsed = JSON.parse(match[0]);
+  }
+
+  return {
+    overview: parsed.overview ?? "",
+    subjects: Array.isArray(parsed.subjects) ? parsed.subjects : [],
+    questionInsights: Array.isArray(parsed.questionInsights) ? parsed.questionInsights : [],
+    priorityActions: Array.isArray(parsed.priorityActions) ? parsed.priorityActions : [],
+  };
+}
+
 export interface CreateSimilarParams {
   question: AIQuestion;
   count?: number;

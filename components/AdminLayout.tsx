@@ -13,6 +13,7 @@ import {
   MdExpandMore, MdExpandLess, MdImage, MdInfo,
   MdGavel, MdSettings, MdBarChart, MdSend,
   MdAutoAwesome, MdLibraryBooks,
+  MdPayment,
 } from "react-icons/md";
 
 interface NavItem {
@@ -34,9 +35,11 @@ interface NavGroup {
 const MAIN_NAV: NavItem[] = [
   { href: "/admin/dashboard", label: "Dashboard", icon: MdDashboard, section: "dashboard" },
   { href: "/admin/students", label: "Students", icon: MdPeople, section: "students" },
+  { href: "/admin/payments", label: "Payments", icon: MdPayment, section: "payments" },
   { href: "/admin/materials", label: "Materials", icon: MdMenuBook, section: "materials" },
   { href: "/admin/tests", label: "Assesments", icon: MdQuiz, section: "tests" },
   { href: "/admin/assignments", label: "Assignments", icon: MdAssignment, section: "assignments" },
+  { href: "/admin/analytics/students", label: "Student Analytics", icon: MdBarChart, section: "students" },
   { href: "/admin/ai-generator", label: "AI Generator", icon: MdAutoAwesome, section: "materials" },
   { href: "/admin/question-library", label: "Question Library", icon: MdLibraryBooks, section: "materials" },
   { href: "/admin/announcements", label: "Announcements", icon: MdCampaign, section: "announcements" },
@@ -188,7 +191,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       </nav>
 
       {/* Sign out */}
-      <div className="p-4 border-t border-white/10">
+      <div className="p-4 border-t border-white/10 space-y-1">
         <button onClick={handleSignOut}
           className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-white/50 hover:text-white hover:bg-white/5 transition-all">
           <MdLogout size={16} /> Sign Out

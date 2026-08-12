@@ -70,19 +70,23 @@ body {
   background: #f8fafc;
 }
 
-/* ── Form inputs ── */
-.admin-input {
-  width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #e2e8f0;
-  background: #fff;
-  font-size: 0.875rem;
-  outline: none;
-  transition: border-color 0.2s;
-}
+/* ── Form inputs ──
+   In @layer components so Tailwind utilities (e.g. pl-9 for input icons)
+   can override the default padding. */
+@layer components {
+  .admin-input {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #e2e8f0;
+    background: #fff;
+    font-size: 0.875rem;
+    outline: none;
+    transition: border-color 0.2s;
+  }
 
-.admin-input:focus {
-  border-color: #00369b;
+  .admin-input:focus {
+    border-color: #00369b;
+  }
 }
 
 .admin-label {

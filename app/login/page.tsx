@@ -75,33 +75,34 @@ export default function LoginPage() {
               <div>
                 <label className="admin-label">Email Address</label>
                 <div className="relative">
-                  <MdEmail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <MdEmail size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" />
                   <input
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     required
                     placeholder="admin@bridgitus.com"
-                    className="admin-input pl-9" />
+                    className="w-full border border-gray-200 bg-white text-sm outline-none focus:border-[#00369b] transition-[border-color] py-2 pr-3 pl-10"
+                  />
                 </div>
               </div>
 
               <div>
                 <label className="admin-label">Password</label>
                 <div className="relative">
-                  <MdLock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                  <MdLock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none z-10" />
                   <input
                     type={showPw ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
                     placeholder="••••••••"
-                    className="admin-input pl-9 pr-10"
+                    className="w-full border border-gray-200 bg-white text-sm outline-none focus:border-[#00369b] transition-[border-color] py-2 pl-10 pr-10"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPw(!showPw)}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 z-10"
                   >
                     {showPw ? <MdVisibilityOff size={16} /> : <MdVisibility size={16} />}
                   </button>

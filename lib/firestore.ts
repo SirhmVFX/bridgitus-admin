@@ -7,7 +7,7 @@ import { db } from "./firebase";
 export const ADMIN_SECTIONS = [
   "dashboard", "students", "materials", "tests",
   "assignments", "announcements", "website", "messages",
-  "parent-messages", "account", "permissions",
+  "parent-messages", "payments", "account", "permissions",
 ] as const;
 export type AdminSection = (typeof ADMIN_SECTIONS)[number];
 
@@ -57,6 +57,37 @@ export interface Student {
   planId?: string;
   planTitle?: string;
   planExpiresAt?: Timestamp;
+  // Stripe payment data
+  stripeCustomerId?: string;
+  stripePaymentMethod?: {
+    paymentMethodId: string;
+    last4?: string;
+    brand?: string;
+    expMonth?: string;
+    expYear?: string;
+  };
+  // Legacy Paystack fields
+  paystackCustomerCode?: string;
+  paystackAuthorization?: {
+    authorizationCode: string;
+    last4?: string;
+    cardType?: string;
+    expMonth?: string;
+    expYear?: string;
+    bank?: string;
+  };
+  autoPay?: {
+    interval: "weekly" | "monthly";
+    amountCents?: number;
+    amountKobo?: number;
+    subscriptionId?: string;
+    planCode?: string;
+    subscriptionCode?: string;
+    emailToken?: string;
+    status: "active" | "cancelled";
+    createdAt?: Timestamp;
+    cancelledAt?: Timestamp;
+  };
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
 }
@@ -71,6 +102,7 @@ export interface Question {
   correctAnswer: string;
   points: number;
   explanation?: string;
+  imageUrl?: string;        // optional diagram/illustration for the question
 }
 
 export interface LearningMaterial {
@@ -729,9 +761,19 @@ export interface SitePricingPlan {
   highlighted: boolean;
   order: number;
   published: boolean;
+  /** Charge amount in cents (AUD) for Stripe Checkout. */
+  amountCents?: number;
+  /** @deprecated Legacy — treated as amountCents when amountCents is missing. */
   amountKobo?: number;
+  durationDays?: number;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
+}
+
+export function getPlanAmountCents(plan: Pick<{ amountCents?: number; amountKobo?: number }, "amountCents" | "amountKobo">): number {
+  if (typeof plan.amountCents === "number" && plan.amountCents > 0) return plan.amountCents;
+  if (typeof plan.amountKobo === "number" && plan.amountKobo > 0) return plan.amountKobo;
+  return 0;
 }
 
 export interface SiteFaq {
@@ -1050,6 +1092,7 @@ export interface AIQuestion {
   topic?: string;
   subtopic?: string;
   difficulty?: string;
+  imageUrl?: string;        // optional diagram/illustration for the question
 }
 
 export interface QuestionSet {
@@ -1137,6 +1180,28 @@ export async function deleteQuestionSet(id: string): Promise<void> {
 
 // ── Learning Gaps (admin read) ───────────────────────────────────────────
 
+// Matches internal machine ids that older records mistakenly stored as
+// topic/subtopic labels: "q3", "q12-sim1", UUIDs like
+// "9f8cb890-228c-4b20-b0bd-ee853947d531" (optionally with a -sim suffix),
+// and other long digit-containing ids (e.g. Firestore document ids).
+const ID_LIKE_LABEL = new RegExp(
+  [
+    /^q\d+([-_]?sim\d*)?$/.source,
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}([-_]?sim\d*)?$/.source,
+    /^(?=.*\d)[A-Za-z0-9_-]{18,}$/.source,
+  ].join("|"),
+  "i"
+);
+
+/** Returns a human-readable topic label, replacing internal question ids. */
+export function displayTopic(topic: string | undefined, subject?: string): string {
+  const t = (topic ?? "").trim();
+  if (!t || ID_LIKE_LABEL.test(t)) {
+    return subject ? `${subject} — General Practice` : "General Practice";
+  }
+  return t;
+}
+
 export async function getAllLearningGaps(): Promise<LearningGap[]> {
   const snap = await getDocs(collection(db, "learningGaps"));
   return snap.docs.map(d => ({ id: d.id, ...(d.data() as LearningGap) }));
@@ -1193,6 +1258,33 @@ export async function getPracticeAttemptsByStudent(studentId: string): Promise<P
   return snap.docs
     .map(d => ({ id: d.id, ...(d.data() as PracticeAttempt) }))
     .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
+}
+
+// ── Study Sessions (time-online tracking, written by the student portal) ──
+
+export interface StudySession {
+  id?: string;
+  studentId: string;
+  date: string;             // "YYYY-MM-DD"
+  seconds: number;
+  updatedAt?: Timestamp;
+}
+
+export async function getStudySessionsByStudent(studentId: string): Promise<StudySession[]> {
+  const snap = await getDocs(query(collection(db, "studySessions"), where("studentId", "==", studentId)));
+  return snap.docs
+    .map(d => ({ id: d.id, ...(d.data() as StudySession) }))
+    .sort((a, b) => b.date.localeCompare(a.date));
+}
+
+/** Formats seconds as e.g. "2 hr 8 min" or "45 min". */
+export function formatStudyTime(totalSeconds: number): string {
+  const mins = Math.round(totalSeconds / 60);
+  if (mins < 1) return totalSeconds > 0 ? "< 1 min" : "0 min";
+  if (mins < 60) return `${mins} min`;
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return m > 0 ? `${h} hr ${m} min` : `${h} hr`;
 }
 
 // ─────────────────────────────────────────────────────────────

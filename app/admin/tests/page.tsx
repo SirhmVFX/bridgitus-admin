@@ -129,6 +129,7 @@ export default function TestsPage() {
         correctAnswer: aq.correctAnswer,
         points: aq.points ?? 1,
         explanation: aq.explanation ?? "",
+        ...(aq.imageUrl ? { imageUrl: aq.imageUrl } : {}),
       };
       return type === "multiple_choice"
         ? { ...base, options: aq.options ?? ["", "", "", ""] }

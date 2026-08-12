@@ -12,8 +12,10 @@ import FirebaseStatus from "@/components/FirebaseStatus";
 import {
   MdPeople, MdMenuBook, MdQuiz, MdPending, MdArrowForward,
   MdCheckCircle, MdTrendingUp, MdCampaign, MdPushPin,
-  MdWarning, MdPayment, MdClose, MdDoneAll,
+  MdWarning, MdPayment, MdClose, MdDoneAll, MdOndemandVideo,
 } from "react-icons/md";
+
+const YOUTUBE_URL = "https://youtube.com/@BridgitusLearning";
 
 interface Stats { students: number; materials: number; tests: number; pendingReviews: number; }
 
@@ -87,9 +89,15 @@ export default function DashboardPage() {
   return (
     <AdminLayout>
       <div className="max-w-6xl mx-auto space-y-5">
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-          <p className="text-gray-500 text-sm mt-0.5">Bridgitus Learning Management Overview</p>
+        <div className="flex items-start justify-between flex-wrap gap-3">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
+            <p className="text-gray-500 text-sm mt-0.5">Bridgitus Learning Management Overview</p>
+          </div>
+          <a href={YOUTUBE_URL} target="_blank" rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2 transition-colors">
+            <MdOndemandVideo size={16} /> YouTube Channel
+          </a>
         </div>
 
         {/* Firebase connection status — only shows if there's an issue */}
