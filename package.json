@@ -11,8 +11,8 @@
     "deploy:indexes": "firebase deploy --only firestore:indexes"
   },
   "dependencies": {
+    "@aws-sdk/client-ses": "^3.1108.0",
     "@google/generative-ai": "^0.24.1",
-    "@sendgrid/mail": "^8.1.6",
     "@tiptap/extension-image": "^3.29.2",
     "@tiptap/extension-link": "^3.29.2",
     "@tiptap/extension-placeholder": "^3.29.2",

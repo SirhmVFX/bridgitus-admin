@@ -5,6 +5,12 @@ const geminiModel = process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
 const geminiApiVersion = process.env.GEMINI_API_VERSION ?? "v1";
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY ?? "");
 
+/** Temporary meta used during generation before diagrams are attached. */
+type QuestionWithDiagramMeta = AIQuestion & {
+  needsDiagram?: boolean;
+  diagramPrompt?: string;
+};
+
 function sanitizeJson(raw: string): string {
   const match = raw.match(/\[[\s\S]*\]/);
   const text = match ? match[0] : raw;
@@ -70,13 +76,10 @@ MATHEMATICS, SCIENCE & GEOMETRY NOTATION RULES — ALWAYS apply for relevant sub
 - Square roots: √16, √(3x+1). Cube root: ∛8. Use brackets for compound radicands.
 - Equations: use proper minus sign − (not hyphen -). Example: 3x² − 7x + 2 = 0
 - Geometry shapes: always describe with full measurements. Example: "a right-angled triangle with legs 3 cm and 4 cm and hypotenuse 5 cm"
-- DIAGRAMS: When a question naturally needs a visual (number line, coordinate grid, geometric figure, graph, circuit diagram, bar chart), include a clear text description in square brackets immediately after the question. Describe shapes with exact measurements and orientation. Format:
-  [DIAGRAM: A coordinate grid with x-axis from −5 to 5 and y-axis from −5 to 5. A straight line passes through points (−2, 1) and (2, 3).]
-  [DIAGRAM: A rectangle ABCD with AB = 8 cm and BC = 5 cm. M is the midpoint of AB.]
-  [DIAGRAM: A number line from 0 to 10 with an arrow pointing to the position 3.5.]
-  [DIAGRAM: A pie chart divided into 4 sectors: Red 40%, Blue 25%, Green 20%, Yellow 15%.]
-  [DIAGRAM: A circle with radius 6 cm and a shaded sector of 90° between the positive x-axis and a line through the center.]
-  [DIAGRAM: A triangle with vertices at (0,0), (4,0), and (4,3) shown on a coordinate grid.]
+- DIAGRAMS: When a question naturally needs a visual (number line, coordinate grid, geometric figure, graph, circuit diagram, bar chart, shapes, maps), set needsDiagram to true and provide diagramPrompt. Also include a short [DIAGRAM: ...] note in the question text. Only set needsDiagram true when a diagram genuinely helps — not for every question.
+  Examples of diagramPrompt:
+  "Clean educational diagram: a coordinate plane with axes from -5 to 5, line through (-2,1) and (2,3), labelled axes, white background, black lines, suitable for a Year 8 maths worksheet"
+  "Clean educational diagram: rectangle ABCD, AB=8cm BC=5cm, midpoint M on AB labelled, white background, black outlines"
 - DATA TABLES: Use pipe notation:
   | x | 1 | 2 | 3 | 4 |
   | y | 3 | 7 | 11 | 15 |
@@ -103,7 +106,9 @@ Every element must have ALL these exact fields:
     "subtopic": "${p.subtopic ?? p.topic}",
     "difficulty": "${p.difficulty}",
     "explanation": "Brief explanation of why this answer is correct (1-2 sentences).",
-    "workedSolution": "1. First step with symbols.\\n2. Second step.\\n3. Final answer."
+    "workedSolution": "1. First step with symbols.\\n2. Second step.\\n3. Final answer.",
+    "needsDiagram": false,
+    "diagramPrompt": ""
   }
 ]
 
@@ -114,6 +119,7 @@ STRICT RULES:
 - extended_response: omit options entirely. correctAnswer is a model answer outline.
 - All ${count} questions must test DIFFERENT aspects of the topic — no repetition.
 - Question ids must run from "q${startId}" to "q${endId}" sequentially.
+- needsDiagram: true only when a diagram/image materially helps understanding (geometry, graphs, charts, shapes, number lines). Otherwise false and diagramPrompt "".
 - Do NOT wrap in markdown code fences. Start the response with [ and end with ].
 
 Return the JSON array now:`;
@@ -163,6 +169,7 @@ export async function generateQuestions(params: GenerateQuestionsParams): Promis
 
       // Normalise and push
       batch.forEach((q, i) => {
+        const raw = q as QuestionWithDiagramMeta;
         allQuestions.push({
           id: q.id ?? `q${idOffset + i + 1}`,
           type: q.type ?? "multiple_choice",
@@ -175,7 +182,9 @@ export async function generateQuestions(params: GenerateQuestionsParams): Promis
           topic: q.topic ?? params.topic,
           subtopic: q.subtopic ?? params.subtopic ?? params.topic,
           difficulty: q.difficulty ?? params.difficulty,
-        });
+          ...(raw.needsDiagram ? { needsDiagram: true } : {}),
+          ...(raw.diagramPrompt ? { diagramPrompt: raw.diagramPrompt } : {}),
+        } as AIQuestion);
       });
 
       remaining -= batchCount;
@@ -205,19 +214,24 @@ export async function generateQuestions(params: GenerateQuestionsParams): Promis
 
   if (!Array.isArray(questions)) throw new Error("Expected an array of questions.");
 
-  return questions.map((q, i) => ({
-    id: q.id ?? `q${i + 1}`,
-    type: q.type ?? "multiple_choice",
-    text: q.text ?? "",
-    options: q.options,
-    correctAnswer: q.correctAnswer ?? "",
-    points: q.points ?? 1,
-    explanation: q.explanation ?? "",
-    workedSolution: q.workedSolution ?? "",
-    topic: q.topic ?? params.topic,
-    subtopic: q.subtopic ?? params.subtopic ?? params.topic,
-    difficulty: q.difficulty ?? params.difficulty,
-  }));
+  return questions.map((q, i) => {
+    const raw = q as QuestionWithDiagramMeta;
+    return {
+      id: q.id ?? `q${i + 1}`,
+      type: q.type ?? "multiple_choice",
+      text: q.text ?? "",
+      options: q.options,
+      correctAnswer: q.correctAnswer ?? "",
+      points: q.points ?? 1,
+      explanation: q.explanation ?? "",
+      workedSolution: q.workedSolution ?? "",
+      topic: q.topic ?? params.topic,
+      subtopic: q.subtopic ?? params.subtopic ?? params.topic,
+      difficulty: q.difficulty ?? params.difficulty,
+      ...(raw.needsDiagram ? { needsDiagram: true } : {}),
+      ...(raw.diagramPrompt ? { diagramPrompt: raw.diagramPrompt } : {}),
+    } as AIQuestion;
+  });
 }
 
 // ── Student performance analysis ───────────────────────────────────────────
@@ -411,4 +425,109 @@ Return the JSON array now:`;
     subtopic: q.subtopic ?? question.subtopic,
     difficulty: q.difficulty ?? question.difficulty,
   }));
+}
+
+// ── Diagram / image generation (Gemini image models) ───────────────────────
+// Uses Nano Banana / Gemini Flash Image models. Override with GEMINI_IMAGE_MODEL.
+// Recommended: gemini-2.5-flash-image (or gemini-2.0-flash-preview-image-generation)
+
+const DIAGRAM_TAG = /\[DIAGRAM:\s*([^\]]+)\]/i;
+
+function extractDiagramPrompt(q: QuestionWithDiagramMeta): string | null {
+  if (q.imageUrl) return null;
+  if (q.diagramPrompt && q.diagramPrompt.trim()) return q.diagramPrompt.trim();
+  const m = q.text?.match(DIAGRAM_TAG);
+  if (m?.[1]) return m[1].trim();
+  if (q.needsDiagram) {
+    return `Educational worksheet diagram that helps a student understand this question: ${q.text}`;
+  }
+  return null;
+}
+
+/** Generate one educational diagram via Gemini image model and upload to Cloudinary. */
+export async function generateQuestionDiagram(
+  question: AIQuestion
+): Promise<string | null> {
+  const promptText = extractDiagramPrompt(question as QuestionWithDiagramMeta);
+  if (!promptText) return null;
+
+  const imageModel =
+    process.env.GEMINI_IMAGE_MODEL ?? "gemini-2.5-flash-image";
+  const imageApiVersion = process.env.GEMINI_IMAGE_API_VERSION ?? "v1beta";
+
+  const model = genAI.getGenerativeModel(
+    {
+      model: imageModel,
+      // responseModalities is supported by Gemini image models
+      generationConfig: {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...( { responseModalities: ["TEXT", "IMAGE"] } as any ),
+      },
+    },
+    { apiVersion: imageApiVersion }
+  );
+
+  const fullPrompt = `Create a clear, simple educational diagram for a school worksheet.
+Style: clean black lines on white background, labelled where helpful, no photorealism, no watermarks, no decorative clutter.
+Diagram content: ${promptText}`;
+
+  const result = await model.generateContent(fullPrompt);
+  const parts = result.response.candidates?.[0]?.content?.parts ?? [];
+
+  for (const part of parts) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const inline = (part as any).inlineData as
+      | { data?: string; mimeType?: string }
+      | undefined;
+    if (inline?.data) {
+      const { uploadBase64ToCloudinary } = await import("./cloudinary");
+      return uploadBase64ToCloudinary(
+        inline.data,
+        inline.mimeType || "image/png",
+        "bridgitus/question-images"
+      );
+    }
+  }
+
+  return null;
+}
+
+/**
+ * For questions that need diagrams, generate images and attach imageUrl.
+ * Skips questions that already have an image. Failures are non-fatal per question.
+ */
+export async function attachDiagramsToQuestions(
+  questions: AIQuestion[]
+): Promise<{ questions: AIQuestion[]; generated: number; failed: number }> {
+  let generated = 0;
+  let failed = 0;
+  const out: AIQuestion[] = [];
+
+  for (const q of questions) {
+    const prompt = extractDiagramPrompt(q as QuestionWithDiagramMeta);
+    if (!prompt || q.imageUrl) {
+      // Drop ephemeral meta fields if present
+      const { needsDiagram: _n, diagramPrompt: _d, ...rest } = q as QuestionWithDiagramMeta;
+      out.push(rest);
+      continue;
+    }
+    try {
+      const imageUrl = await generateQuestionDiagram(q);
+      const { needsDiagram: _n, diagramPrompt: _d, ...rest } = q as QuestionWithDiagramMeta;
+      if (imageUrl) {
+        generated++;
+        out.push({ ...rest, imageUrl });
+      } else {
+        failed++;
+        out.push(rest);
+      }
+    } catch (err) {
+      console.error(`Diagram generation failed for ${q.id}:`, err);
+      failed++;
+      const { needsDiagram: _n, diagramPrompt: _d, ...rest } = q as QuestionWithDiagramMeta;
+      out.push(rest);
+    }
+  }
+
+  return { questions: out, generated, failed };
 }

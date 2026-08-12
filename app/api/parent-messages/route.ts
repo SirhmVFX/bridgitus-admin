@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAllStudents, createParentMessage, updateParentMessage, type ParentMessage } from "@/lib/firestore";
-import { serverTimestamp } from "firebase/firestore";
-import sgMail from "@sendgrid/mail";
+import { sendEmailToMany, brandedEmail, isSesConfigured } from "@/lib/email";
 import { Twilio } from "twilio";
 
 export async function POST(request: NextRequest) {
@@ -9,33 +8,24 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const { title, body: messageBody, recipientType, recipientIds, recipientGrades, sendVia, createdBy } = body;
 
-    // Validate required fields
     if (!title || !messageBody || !recipientType || !sendVia) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
     }
 
-    // Get all students to determine recipients
     const allStudents = await getAllStudents();
     let targetStudents = allStudents;
 
     if (recipientType === "specific") {
       if (recipientIds && recipientIds.length > 0) {
-        // Filter by specific student IDs
         targetStudents = allStudents.filter((s) => recipientIds!.includes(s.id!));
       } else if (recipientGrades && recipientGrades.length > 0) {
-        // Filter by grades
         targetStudents = allStudents.filter((s) => recipientGrades!.includes(s.grade));
       }
     }
 
-    // Extract unique parent emails and phone numbers
     const parentEmails = [...new Set(targetStudents.map((s) => s.parentEmail).filter(Boolean))];
     const parentPhones = [...new Set(targetStudents.map((s) => s.parentPhone).filter(Boolean))];
 
-    // Create the parent message record
     const parentMessageData: Omit<ParentMessage, "id"> = {
       title,
       body: messageBody,
@@ -52,46 +42,45 @@ export async function POST(request: NextRequest) {
 
     const messageId = await createParentMessage(parentMessageData);
 
-    // Initialize SendGrid
-    const sendGridApiKey = process.env.SENDGRID_API_KEY;
-    if (sendGridApiKey) {
-      sgMail.setApiKey(sendGridApiKey);
-    }
-
-    // Initialize Twilio
     const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
     const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
     const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-    const twilioClient = twilioAccountSid && twilioAuthToken 
-      ? new Twilio(twilioAccountSid, twilioAuthToken) 
+    const twilioClient = twilioAccountSid && twilioAuthToken
+      ? new Twilio(twilioAccountSid, twilioAuthToken)
       : null;
 
     let emailSent = false;
     let smsSent = false;
-    let emailErrors: string[] = [];
-    let smsErrors: string[] = [];
+    const emailErrors: string[] = [];
+    const smsErrors: string[] = [];
 
-    // Send emails if requested
-    if ((sendVia === "email" || sendVia === "both") && sendGridApiKey && parentEmails.length > 0) {
-      try {
-        const emailPromises = parentEmails.map((email) =>
-          sgMail.send({
-            to: email,
-            from: process.env.SENDGRID_FROM_EMAIL || "noreply@bridgitus.com",
+    // Send emails via Amazon SES
+    if ((sendVia === "email" || sendVia === "both") && parentEmails.length > 0) {
+      if (!isSesConfigured()) {
+        emailErrors.push("AWS SES is not configured (missing AWS credentials or EMAIL_FROM).");
+      } else {
+        try {
+          const result = await sendEmailToMany(parentEmails, {
             subject: title,
             text: messageBody,
-            html: `<p>${messageBody.replace(/\n/g, "<br>")}</p>`,
-          })
-        );
-        await Promise.allSettled(emailPromises);
-        emailSent = true;
-      } catch (error) {
-        console.error("SendGrid error:", error);
-        emailErrors.push(error instanceof Error ? error.message : "Unknown error");
+            html: brandedEmail(
+              title,
+              `<p>${String(messageBody).replace(/\n/g, "<br>")}</p>
+               <p style="margin-top:20px;font-size:13px;color:#64748b;">This message was sent by Bridgitus Learning to parents/guardians.</p>`
+            ),
+          });
+          emailSent = result.sent > 0;
+          if (result.failed > 0) {
+            emailErrors.push(...result.errors.slice(0, 5));
+          }
+        } catch (error) {
+          console.error("SES parent-message error:", error);
+          emailErrors.push(error instanceof Error ? error.message : "Unknown email error");
+        }
       }
     }
 
-    // Send SMS if requested
+    // SMS via Twilio (unchanged)
     if ((sendVia === "sms" || sendVia === "both") && twilioClient && twilioPhoneNumber && parentPhones.length > 0) {
       try {
         const smsPromises = parentPhones.map((phone) =>
@@ -109,7 +98,6 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Update the message record with send status
     await updateParentMessage(messageId, {
       sentByEmail: emailSent,
       sentBySms: smsSent,
@@ -128,21 +116,10 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error("Error sending parent message:", error);
-    return NextResponse.json(
-      { error: "Failed to send message" },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
   }
 }
 
 export async function GET() {
-  try {
-    // This could be used to fetch message history if needed
-    return NextResponse.json({ message: "GET not implemented" }, { status: 405 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch messages" },
-      { status: 500 }
-    );
-  }
+  return NextResponse.json({ message: "GET not implemented" }, { status: 405 });
 }

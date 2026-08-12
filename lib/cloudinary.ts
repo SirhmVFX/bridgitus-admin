@@ -39,3 +39,39 @@ export async function uploadToCloudinary(
   const data = await res.json();
   return data.secure_url as string;
 }
+
+/** Server-side upload of a base64 image (e.g. Gemini-generated diagram) to Cloudinary. */
+export async function uploadBase64ToCloudinary(
+  base64Data: string,
+  mimeType = "image/png",
+  folder = "bridgitus/question-images"
+): Promise<string> {
+  const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+  const uploadPreset = process.env.NEXT_PUBLIC_CLOUDINARY_UPLOAD_PRESET;
+
+  if (!cloudName || !uploadPreset) {
+    throw new Error("Cloudinary environment variables are not configured.");
+  }
+
+  const dataUri = base64Data.startsWith("data:")
+    ? base64Data
+    : `data:${mimeType};base64,${base64Data}`;
+
+  const formData = new FormData();
+  formData.append("file", dataUri);
+  formData.append("upload_preset", uploadPreset);
+  formData.append("folder", folder);
+
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+    { method: "POST", body: formData }
+  );
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error((err as { error?: { message?: string } }).error?.message || "Cloudinary upload failed.");
+  }
+
+  const data = await res.json();
+  return data.secure_url as string;
+}

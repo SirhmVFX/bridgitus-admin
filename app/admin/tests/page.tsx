@@ -154,6 +154,19 @@ export default function TestsPage() {
           pinned: false,
           published: true,
         });
+        // Email students + parents via Amazon SES
+        fetch("/api/notify-students", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: data.type === "exam" ? "exam" : "test",
+            title: data.title,
+            subject: data.subject,
+            description: data.description,
+            grades: [data.grade],
+            portalPath: "/portal/tests",
+          }),
+        }).catch((err) => console.error("Student notify failed:", err));
       }
       await load(); setModalOpen(false);
     } finally { setSaving(false); }

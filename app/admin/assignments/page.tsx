@@ -146,6 +146,20 @@ ${data.description ? `\n\n${data.description}` : ""}`,
           pinned: false,
           published: true,
         });
+        // Email students + parents via Amazon SES
+        fetch("/api/notify-students", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: data.type === "quiz" ? "quiz" : "assignment",
+            title: data.title,
+            subject: data.subject,
+            description: data.description,
+            grades: data.targetGrades,
+            studentIds: data.targetStudentIds?.length ? data.targetStudentIds : undefined,
+            portalPath: "/portal/assignments",
+          }),
+        }).catch((err) => console.error("Student notify failed:", err));
       }
       await load(); setModalOpen(false);
     } finally { setSaving(false); }

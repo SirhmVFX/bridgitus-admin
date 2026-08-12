@@ -19,6 +19,7 @@ const SECTION_LABELS: Record<AdminSection, string> = {
   website: "Website Content", messages: "Contact Messages",
   "parent-messages": "Parent Messages",
   payments: "Payment Management",
+  "online-sessions": "Online Sessions",
   account: "My Account", permissions: "Admin Permissions",
 };
 const SECTION_DESCRIPTIONS: Record<AdminSection, string> = {
@@ -32,6 +33,7 @@ const SECTION_DESCRIPTIONS: Record<AdminSection, string> = {
   messages: "View contact form enquiries",
   "parent-messages": "View messages from parents",
   payments: "View payments and manage automatic direct debits",
+  "online-sessions": "Post Microsoft Teams class links for students",
   account: "Manage own profile and password",
   permissions: "Manage admin accounts and access (super only)",
 };

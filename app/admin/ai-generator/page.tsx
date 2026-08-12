@@ -413,11 +413,13 @@ export default function AIGeneratorPage() {
 
   // Generation state
   const [generating, setGenerating] = useState(false);
+  const [generatingDiagrams, setGeneratingDiagrams] = useState(false);
   const [questions, setQuestions] = useState<AIQuestion[]>([]);
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [diagramMsg, setDiagramMsg] = useState("");
 
   // Create similar state
   const [creatingSimFor, setCreatingSimFor] = useState<string | null>(null);
@@ -429,6 +431,7 @@ export default function AIGeneratorPage() {
     }
     setGenerating(true);
     setError("");
+    setDiagramMsg("");
     setQuestions([]);
     setSaved(false);
     try {
@@ -451,10 +454,53 @@ export default function AIGeneratorPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
       setQuestions(data.questions);
+
+      // Auto-generate diagrams for questions that need them (Gemini image model)
+      setGenerating(false);
+      setGeneratingDiagrams(true);
+      try {
+        const dRes = await fetch("/api/generate-diagrams", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ questions: data.questions }),
+        });
+        const dData = await dRes.json();
+        if (dRes.ok && Array.isArray(dData.questions)) {
+          setQuestions(dData.questions);
+          setDiagramMsg(dData.message ?? "");
+        } else if (!dRes.ok) {
+          setDiagramMsg(dData.error ?? "Diagram generation skipped.");
+        }
+      } catch {
+        setDiagramMsg("Questions ready — diagram generation could not run. You can still upload images manually.");
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setGenerating(false);
+      setGeneratingDiagrams(false);
+    }
+  }
+
+  async function handleGenerateDiagrams() {
+    if (!questions.length) return;
+    setGeneratingDiagrams(true);
+    setDiagramMsg("");
+    setError("");
+    try {
+      const res = await fetch("/api/generate-diagrams", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ questions }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? "Diagram generation failed");
+      setQuestions(data.questions);
+      setDiagramMsg(data.message ?? "");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Diagram generation failed");
+    } finally {
+      setGeneratingDiagrams(false);
     }
   }
 
@@ -567,6 +613,14 @@ export default function AIGeneratorPage() {
           {questions.length > 0 && (
             <div className="flex gap-2 flex-wrap">
               <button
+                onClick={handleGenerateDiagrams}
+                disabled={generatingDiagrams}
+                className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-60"
+              >
+                <MdImage size={16} />
+                {generatingDiagrams ? "Generating diagrams…" : "Generate AI Diagrams"}
+              </button>
+              <button
                 onClick={handlePrint}
                 className="btn-secondary flex items-center gap-2 text-sm"
               >
@@ -583,6 +637,16 @@ export default function AIGeneratorPage() {
             </div>
           )}
         </div>
+
+        {diagramMsg && (
+          <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2">{diagramMsg}</p>
+        )}
+        {generatingDiagrams && (
+          <p className="text-sm text-purple-700 bg-purple-50 border border-purple-200 px-3 py-2 flex items-center gap-2">
+            <span className="w-3.5 h-3.5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+            Creating educational diagrams with Gemini for questions that need them…
+          </p>
+        )}
 
         <div className="grid lg:grid-cols-5 gap-5">
           {/* ── Left: Form ── */}

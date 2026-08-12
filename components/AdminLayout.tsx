@@ -13,7 +13,7 @@ import {
   MdExpandMore, MdExpandLess, MdImage, MdInfo,
   MdGavel, MdSettings, MdBarChart, MdSend,
   MdAutoAwesome, MdLibraryBooks,
-  MdPayment,
+  MdPayment, MdVideocam,
 } from "react-icons/md";
 
 interface NavItem {
@@ -43,6 +43,7 @@ const MAIN_NAV: NavItem[] = [
   { href: "/admin/ai-generator", label: "AI Generator", icon: MdAutoAwesome, section: "materials" },
   { href: "/admin/question-library", label: "Question Library", icon: MdLibraryBooks, section: "materials" },
   { href: "/admin/announcements", label: "Announcements", icon: MdCampaign, section: "announcements" },
+  { href: "/admin/online-sessions", label: "Online Sessions", icon: MdVideocam, section: "online-sessions" },
   { href: "/admin/parent-messages", label: "Parent Messages", icon: MdSend, section: "parent-messages" },
   { href: "/admin/messages", label: "Contact Messages", icon: MdEmail, section: "messages" },
 ];

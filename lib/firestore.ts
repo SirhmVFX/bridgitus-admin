@@ -7,7 +7,7 @@ import { db } from "./firebase";
 export const ADMIN_SECTIONS = [
   "dashboard", "students", "materials", "tests",
   "assignments", "announcements", "website", "messages",
-  "parent-messages", "payments", "account", "permissions",
+  "parent-messages", "payments", "online-sessions", "account", "permissions",
 ] as const;
 export type AdminSection = (typeof ADMIN_SECTIONS)[number];
 
@@ -1385,4 +1385,69 @@ export async function checkAndCreatePaymentAlerts(): Promise<number> {
     }
   }
   return created;
+}
+
+// ── Online Sessions (Microsoft Teams) ────────────────────────────────────
+
+export interface OnlineSession {
+  id?: string;
+  title: string;
+  teamsUrl: string;
+  startsAt: string;          // ISO datetime local string from admin
+  durationMinutes: number;
+  endsAt: string;            // ISO computed
+  targetGrades: string[];    // empty = all grades
+  createdBy?: string;
+  notified?: boolean;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export function isOnlineSessionLive(session: OnlineSession, now = new Date()): boolean {
+  const start = new Date(session.startsAt).getTime();
+  const end = new Date(session.endsAt).getTime();
+  const t = now.getTime();
+  return t >= start && t <= end;
+}
+
+export async function getAllOnlineSessions(): Promise<OnlineSession[]> {
+  const snap = await getDocs(collection(db, "onlineSessions"));
+  return snap.docs
+    .map(d => ({ id: d.id, ...(d.data() as OnlineSession) }))
+    .sort((a, b) => new Date(b.startsAt).getTime() - new Date(a.startsAt).getTime());
+}
+
+export async function getActiveOnlineSession(grade?: string): Promise<OnlineSession | null> {
+  const sessions = await getAllOnlineSessions();
+  const now = new Date();
+  return sessions.find(s => {
+    if (!isOnlineSessionLive(s, now)) return false;
+    if (!s.targetGrades?.length) return true;
+    if (!grade) return true;
+    return s.targetGrades.includes(grade);
+  }) ?? null;
+}
+
+export async function createOnlineSession(
+  data: Omit<OnlineSession, "id" | "createdAt" | "updatedAt" | "endsAt"> & { endsAt?: string }
+): Promise<string> {
+  const startsAt = data.startsAt;
+  const endsAt = data.endsAt || new Date(new Date(startsAt).getTime() + data.durationMinutes * 60_000).toISOString();
+  const ref = await addDoc(collection(db, "onlineSessions"), {
+    ...data,
+    endsAt,
+    notified: data.notified ?? false,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updateOnlineSession(id: string, data: Partial<OnlineSession>): Promise<void> {
+  const { id: _id, ...rest } = data;
+  await updateDoc(doc(db, "onlineSessions", id), { ...rest, updatedAt: serverTimestamp() });
+}
+
+export async function deleteOnlineSession(id: string): Promise<void> {
+  await deleteDoc(doc(db, "onlineSessions", id));
 }
