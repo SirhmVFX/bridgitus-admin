@@ -1433,13 +1433,20 @@ export async function createOnlineSession(
 ): Promise<string> {
   const startsAt = data.startsAt;
   const endsAt = data.endsAt || new Date(new Date(startsAt).getTime() + data.durationMinutes * 60_000).toISOString();
-  const ref = await addDoc(collection(db, "onlineSessions"), {
-    ...data,
+  // Firestore rejects `undefined` field values — only include defined fields.
+  const payload: Record<string, unknown> = {
+    title: data.title,
+    teamsUrl: data.teamsUrl,
+    startsAt,
+    durationMinutes: data.durationMinutes,
     endsAt,
+    targetGrades: data.targetGrades ?? [],
     notified: data.notified ?? false,
     createdAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
-  });
+  };
+  if (data.createdBy) payload.createdBy = data.createdBy;
+  const ref = await addDoc(collection(db, "onlineSessions"), payload);
   return ref.id;
 }
 

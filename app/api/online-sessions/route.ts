@@ -48,7 +48,7 @@ export async function POST(request: Request) {
       durationMinutes: Number(durationMinutes),
       endsAt,
       targetGrades: targetGrades ?? [],
-      createdBy,
+      createdBy: createdBy || "admin",
       notified: false,
     });
 
