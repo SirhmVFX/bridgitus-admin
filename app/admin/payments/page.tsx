@@ -209,7 +209,7 @@ export default function PaymentsPage() {
           ) : (
             <table className="admin-table">
               <thead><tr>
-                <th>Student</th><th>Plan</th><th>Status</th><th>Last Payment</th>
+                <th>Student</th><th>Grade</th><th>Plan</th><th>Status</th><th>Last Payment</th>
                 <th>Expires</th><th>Card on File</th><th>Auto-pay</th><th>Actions</th>
               </tr></thead>
               <tbody>
@@ -227,6 +227,7 @@ export default function PaymentsPage() {
                           <p className="text-xs text-gray-400 font-mono">{s.studentId}</p>
                         </div>
                       </td>
+                      <td><span className="badge badge-blue">Grade {s.grade || "—"}</span></td>
                       <td className="text-sm text-gray-600">{s.planTitle ?? "—"}</td>
                       <td><span className={`badge ${STATUS_BADGE[s.paymentStatus] ?? "badge-gray"}`}>{s.paymentStatus}</span></td>
                       <td>
