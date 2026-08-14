@@ -10,7 +10,7 @@ import {
 } from "@/lib/firestore";
 import {
   MdPeople, MdEdit, MdDelete, MdClose, MdSearch,
-  MdVisibility, MdBadge, MdSchool, MdEmail,
+  MdVisibility, MdBadge, MdSchool, MdEmail, MdOutgoingMail,
 } from "react-icons/md";
 
 const GRADES = ["Pre-K", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
@@ -31,6 +31,8 @@ export default function StudentsPage() {
   const [saving, setSaving] = useState(false);
   const [statusEdit, setStatusEdit] = useState<Student["status"]>("active");
   const [gradeEdit, setGradeEdit] = useState("");
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [actionMsg, setActionMsg] = useState<{ type: "ok" | "error"; text: string } | null>(null);
 
   const [loadError, setLoadError] = useState<string | null>(null);
 
@@ -88,6 +90,38 @@ export default function StudentsPage() {
     await deleteStudent(id); await load();
   }
 
+  async function handleResendOnboarding(s: Student) {
+    if (!s.id) return;
+    if (!confirm(`Resend onboarding email for ${s.firstName} ${s.lastName}?\n\nThis emails login details (Student ID + portal link) and triggers a Firebase password-reset email.`)) {
+      return;
+    }
+    setResendingId(s.id);
+    setActionMsg(null);
+    try {
+      const res = await fetch("/api/students/resend-credentials", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: s.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to resend");
+      }
+      setActionMsg({
+        type: "ok",
+        text: `${data.message} · Student ID: ${data.studentId} · Email: ${data.email}`,
+      });
+      await load();
+    } catch (err: unknown) {
+      setActionMsg({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to resend onboarding email",
+      });
+    } finally {
+      setResendingId(null);
+    }
+  }
+
   const filtered = students.filter((s) => {
     const sMatch = !search || `${s.firstName} ${s.lastName} ${s.studentId} ${s.email}`.toLowerCase().includes(search.toLowerCase());
     const gMatch = gradeFilter === "all" || s.grade === gradeFilter;
@@ -132,6 +166,16 @@ export default function StudentsPage() {
           </div>
           <span className="text-xs text-gray-400">{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
         </div>
+
+        {actionMsg && (
+          <div className={`px-4 py-3 text-sm border ${actionMsg.type === "ok"
+            ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+            : "bg-red-50 border-red-200 text-red-700"
+            }`}>
+            {actionMsg.text}
+            <button type="button" className="ml-3 underline" onClick={() => setActionMsg(null)}>Dismiss</button>
+          </div>
+        )}
 
         {/* Table */}
         <div className="admin-card p-0 overflow-hidden">
@@ -185,13 +229,26 @@ export default function StudentsPage() {
                     <td className="text-gray-600 text-sm">{s.parentEmail}</td>
                     <td><span className={`badge ${s.status === "active" ? "badge-green" : s.status === "suspended" ? "badge-red" : "badge-gray"}`}>{s.status}</span></td>
                     <td>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
                         <button onClick={() => openView(s)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="Quick view"><MdVisibility size={16} /></button>
                         <a href={`/admin/students/${s.id}`} className="p-1.5 text-gray-400 hover:text-[#00369b] inline-flex" title="Full details">
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
                         </a>
                         <button onClick={() => openEdit(s)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="Edit"><MdEdit size={16} /></button>
                         <button onClick={() => handleDelete(s.id!)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete"><MdDelete size={16} /></button>
+                        <button
+                          onClick={() => handleResendOnboarding(s)}
+                          disabled={resendingId === s.id}
+                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold border border-[#00369b]/30 text-[#00369b] hover:bg-[#00369b] hover:text-white disabled:opacity-40 transition-colors"
+                          title="Resend onboarding email"
+                        >
+                          {resendingId === s.id ? (
+                            <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                          ) : (
+                            <MdOutgoingMail size={13} />
+                          )}
+                          Resend onboarding email
+                        </button>
                       </div>
                     </td>
                   </tr>
