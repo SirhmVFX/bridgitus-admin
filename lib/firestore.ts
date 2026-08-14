@@ -608,6 +608,15 @@ export async function getSubmissionsByAssignment(assignmentId: string): Promise<
     .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
 }
 
+export async function getSubmissionsByStudent(studentId: string): Promise<AssignmentSubmission[]> {
+  const snap = await getDocs(
+    query(collection(db, "assignmentSubmissions"), where("studentId", "==", studentId))
+  );
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as AssignmentSubmission) }))
+    .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
+}
+
 export async function gradeSubmission(
   id: string,
   score: number,

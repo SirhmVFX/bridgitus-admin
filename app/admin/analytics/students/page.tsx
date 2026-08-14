@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import {
-  getAllStudents, getAllTests, getAttemptsByStudent,
+  getAllStudents, getAllTests, getAllAssignments, getAttemptsByStudent,
   getPracticeAttemptsByStudent, getLearningGapsByStudent,
-  getStudySessionsByStudent, formatStudyTime, displayTopic,
+  getStudySessionsByStudent, getSubmissionsByStudent, formatStudyTime, displayTopic,
   type Student, type Test, type TestAttempt, type PracticeAttempt,
   type LearningGap, type StudySession, type AIQuestion, type Question,
+  type Assignment, type AssignmentSubmission,
 } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import type { StudentAnalysis, StudentAnalysisPayload } from "@/lib/gemini";
@@ -46,11 +47,13 @@ function isAnswerCorrect(q: AIQuestion | Question, given: string): boolean {
   return g === c;
 }
 
-/** Flattens test + practice attempts into a single list of answered questions. */
+/** Flattens test + practice + quiz assignment attempts into answered questions. */
 function collectAnsweredQuestions(
   attempts: TestAttempt[],
   practice: PracticeAttempt[],
-  testsById: Map<string, Test>
+  testsById: Map<string, Test>,
+  quizSubs: AssignmentSubmission[] = [],
+  assignmentsById: Map<string, Assignment> = new Map()
 ): AnsweredQuestion[] {
   const rows: AnsweredQuestion[] = [];
 
@@ -81,6 +84,26 @@ function collectAnsweredQuestions(
       rows.push({
         subject: pa.subject,
         topic: displayTopic(q.topic || pa.topic, pa.subject),
+        question: q.text,
+        studentAnswer: given,
+        correctAnswer: q.correctAnswer,
+        correct: isAnswerCorrect(q, given),
+        answeredAt,
+      });
+    }
+  }
+
+  for (const sub of quizSubs) {
+    const assignment = assignmentsById.get(sub.assignmentId);
+    if (!assignment || assignment.type !== "quiz" || !assignment.questions?.length) continue;
+    if (sub.status !== "graded" && sub.status !== "submitted") continue;
+    const answeredAt = tsToDate(sub.submittedAt);
+    for (const q of assignment.questions) {
+      const given = sub.answers?.[q.id];
+      if (given === undefined) continue;
+      rows.push({
+        subject: assignment.subject,
+        topic: assignment.title,
         question: q.text,
         studentAnswer: given,
         correctAnswer: q.correctAnswer,
@@ -284,11 +307,13 @@ export default function StudentAnalyticsPage() {
   const [practice, setPractice] = useState<PracticeAttempt[]>([]);
   const [gaps, setGaps] = useState<LearningGap[]>([]);
   const [sessions, setSessions] = useState<StudySession[]>([]);
+  const [assignments, setAssignments] = useState<Assignment[]>([]);
+  const [quizSubs, setQuizSubs] = useState<AssignmentSubmission[]>([]);
 
   useEffect(() => {
-    Promise.all([getAllStudents(), getAllTests()])
-      .then(([s, t]) => {
-        setStudents(s); setTests(t);
+    Promise.all([getAllStudents(), getAllTests(), getAllAssignments()])
+      .then(([s, t, a]) => {
+        setStudents(s); setTests(t); setAssignments(a.filter((x) => x.type === "quiz"));
         if (s.length > 0) setSelectedId(s[0].id!);
       })
       .finally(() => setLoading(false));
@@ -302,19 +327,21 @@ export default function StudentAnalyticsPage() {
       getPracticeAttemptsByStudent(selectedId),
       getLearningGapsByStudent(selectedId),
       getStudySessionsByStudent(selectedId),
+      getSubmissionsByStudent(selectedId),
     ])
-      .then(([att, pa, g, ss]) => {
-        setAttempts(att); setPractice(pa); setGaps(g); setSessions(ss);
+      .then(([att, pa, g, ss, subs]) => {
+        setAttempts(att); setPractice(pa); setGaps(g); setSessions(ss); setQuizSubs(subs);
       })
       .finally(() => setDetailLoading(false));
   }, [selectedId]);
 
   const student = students.find(s => s.id === selectedId) ?? null;
   const testsById = useMemo(() => new Map(tests.map(t => [t.id!, t])), [tests]);
+  const assignmentsById = useMemo(() => new Map(assignments.map(a => [a.id!, a])), [assignments]);
 
   const answered = useMemo(
-    () => collectAnsweredQuestions(attempts, practice, testsById),
-    [attempts, practice, testsById]
+    () => collectAnsweredQuestions(attempts, practice, testsById, quizSubs, assignmentsById),
+    [attempts, practice, testsById, quizSubs, assignmentsById]
   );
 
   const currentYear = new Date().getFullYear();
@@ -458,7 +485,7 @@ export default function StudentAnalyticsPage() {
                     </div>
                   ))}
                 </div>
-                <p className="text-xs text-gray-400 mt-3 text-center">Questions answered per month</p>
+                <p className="text-xs text-gray-400 mt-3 text-center">Questions from tests, quiz assignments &amp; AI practice</p>
               </div>
             </div>
 
