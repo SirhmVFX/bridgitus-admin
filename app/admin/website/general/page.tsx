@@ -26,21 +26,34 @@ function HeaderEditor() {
 
 // ── Contact Info ───────────────────────────────────────────
 function ContactEditor() {
-  const E = { email:"", phone:"", altPhone:"", facebook:"", instagram:"", linkedin:"" };
+  const E = { email:"", phone:"", altPhone:"0434742393", facebook:"", instagram:"", linkedin:"" };
   const [f,setF]=useState(E); const [sv,setSv]=useState(false); const [ok,setOk]=useState(false);
-  useEffect(()=>{getSiteContent("contact_info").then(d=>{if(d)setF(d.data as typeof E)});},[]);
-  async function save(e:React.FormEvent){e.preventDefault();setSv(true);await upsertSiteContent("contact_info",f);setSv(false);setOk(true);setTimeout(()=>setOk(false),3000);}
-  const fields=[{k:"email",l:"Email"},{k:"phone",l:"Primary Phone"},{k:"altPhone",l:"Alternate Phone"},{k:"facebook",l:"Facebook URL"},{k:"instagram",l:"Instagram URL"},{k:"linkedin",l:"LinkedIn URL"}];
+  const [err,setErr]=useState<string|null>(null);
+  useEffect(()=>{getSiteContent("contact_info").then(d=>{if(d)setF({...E,...(d.data as typeof E)});});},[]);
+  async function save(e:React.FormEvent){
+    e.preventDefault(); setSv(true); setOk(false); setErr(null);
+    try {
+      await upsertSiteContent("contact_info", f);
+      const verify = await getSiteContent("contact_info");
+      if (verify?.data) setF({...E,...(verify.data as typeof E)});
+      setOk(true); setTimeout(()=>setOk(false),3000);
+    } catch (ex: unknown) {
+      setErr(ex instanceof Error ? ex.message : "Save failed — check you are logged in and Firestore rules allow writes.");
+    } finally { setSv(false); }
+  }
+  const fields=[{k:"email",l:"Email"},{k:"phone",l:"Primary Phone"},{k:"altPhone",l:"Alternate Phone (contact page)"},{k:"facebook",l:"Facebook URL"},{k:"instagram",l:"Instagram URL"},{k:"linkedin",l:"LinkedIn URL"}];
   return (<form onSubmit={save} className="space-y-4">
+    <p className="text-xs text-gray-500 bg-blue-50 border border-blue-200 px-3 py-2">Shown on the public Contact page. Use <strong>Alternate Phone</strong> for the third card (default 0434742393).</p>
     <div className="grid sm:grid-cols-2 gap-4">
       {fields.map(({k,l})=>(
         <div key={k}><label className="admin-label">{l}</label>
-          <input value={f[k as keyof typeof E]} onChange={e=>setF({...f,[k]:e.target.value})} className="admin-input"/></div>
+          <input value={f[k as keyof typeof E]} onChange={e=>setF({...f,[k]:e.target.value})} className="admin-input" placeholder={k==="altPhone"?"0434742393":undefined}/></div>
       ))}
     </div>
-    <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
+    <div className="flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100">
       <button type="submit" disabled={sv} className="btn-primary flex items-center gap-2 disabled:opacity-60"><MdSave size={15}/>{sv?"Saving…":"Save Contact Info"}</button>
-      {ok&&<span className="text-sm text-emerald-600 flex items-center gap-1"><MdCheckCircle size={14}/>Saved</span>}
+      {ok&&<span className="text-sm text-emerald-600 flex items-center gap-1"><MdCheckCircle size={14}/>Saved — refresh the contact page to confirm</span>}
+      {err&&<span className="text-sm text-red-600">{err}</span>}
     </div>
   </form>);
 }

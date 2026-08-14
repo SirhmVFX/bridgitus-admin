@@ -123,8 +123,16 @@ export default function StudentsPage() {
   }
 
   const filtered = students.filter((s) => {
-    const sMatch = !search || `${s.firstName} ${s.lastName} ${s.studentId} ${s.email}`.toLowerCase().includes(search.toLowerCase());
-    const gMatch = gradeFilter === "all" || s.grade === gradeFilter;
+    const q = search.trim().toLowerCase();
+    const gradeNorm = (s.grade || "").toString().replace(/^grade\s*/i, "").trim().toLowerCase();
+    const sMatch =
+      !q ||
+      `${s.firstName} ${s.lastName} ${s.studentId} ${s.email} ${s.parentEmail || ""} ${s.school || ""} grade ${s.grade} ${gradeNorm}`
+        .toLowerCase()
+        .includes(q) ||
+      gradeNorm === q.replace(/^grade\s*/i, "").trim();
+    const filterGrade = gradeFilter === "all" ? "" : gradeFilter.replace(/^grade\s*/i, "").trim().toLowerCase();
+    const gMatch = !filterGrade || gradeNorm === filterGrade;
     const stMatch = statusFilter === "all" || s.status === statusFilter;
     return sMatch && gMatch && stMatch;
   });
@@ -151,9 +159,9 @@ export default function StudentsPage() {
             <div className="relative flex-1 min-w-48">
               <MdSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
               <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, ID, email…" className="admin-input pl-8" />
+                placeholder="Search by name, ID, email, or grade…" className="admin-input pl-8" />
             </div>
-            <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="admin-input w-auto">
+            <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="admin-input w-auto min-w-[9rem]" title="Filter by grade">
               <option value="all">All Grades</option>
               {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
             </select>

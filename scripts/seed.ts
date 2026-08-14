@@ -74,7 +74,7 @@ async function main() {
   await upsertSection("contact_info", {
     email: "info@bridgitus.com",
     phone: "+61 433 600 592",
-    altPhone: "",
+    altPhone: "0434742393",
     abn: "16146552112",
     facebook: "https://www.facebook.com/profile.php?id=61579279874406",
     instagram: "https://www.instagram.com/bridgitus/",

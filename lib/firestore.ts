@@ -815,22 +815,43 @@ export interface ParentMessage {
 // ── CMS helpers ─────────────────────────────────────────────
 
 export async function getSiteContent(section: string): Promise<SiteContent | null> {
-  const q = query(collection(db, "siteContent"), where("section", "==", section), limit(1));
+  const q = query(collection(db, "siteContent"), where("section", "==", section));
   const snap = await getDocs(q);
   if (snap.empty) return null;
-  const d = snap.docs[0];
-  return { id: d.id, ...(d.data() as SiteContent) };
+  const docs = [...snap.docs].sort((a, b) => {
+    const aMs = (a.data().updatedAt as Timestamp | undefined)?.toMillis?.() ?? 0;
+    const bMs = (b.data().updatedAt as Timestamp | undefined)?.toMillis?.() ?? 0;
+    return bMs - aMs;
+  });
+  const d = docs[0];
+  const raw = d.data() as SiteContent & Record<string, unknown>;
+  // Normalize legacy flat documents into { data: {...} }
+  if (!raw.data || typeof raw.data !== "object") {
+    const { section: _s, updatedAt: _u, ...flat } = raw;
+    return { id: d.id, section, data: flat as Record<string, unknown>, updatedAt: raw.updatedAt };
+  }
+  return { id: d.id, ...(raw as SiteContent) };
 }
 
 export async function upsertSiteContent(section: string, data: Record<string, unknown>): Promise<void> {
-  const q = query(collection(db, "siteContent"), where("section", "==", section), limit(1));
+  const q = query(collection(db, "siteContent"), where("section", "==", section));
   const snap = await getDocs(q);
   const cleanData = sanitizeFirestoreData(data as Record<string, unknown>);
-  if (!snap.empty) {
-    await updateDoc(snap.docs[0].ref, { data: cleanData, updatedAt: serverTimestamp() });
-  } else {
+
+  if (snap.empty) {
     await addDoc(collection(db, "siteContent"), { section, data: cleanData, updatedAt: serverTimestamp() });
+    return;
   }
+
+  // Update the newest doc, and clean up duplicate section docs so the public site can't read a stale one
+  const docs = [...snap.docs].sort((a, b) => {
+    const aMs = (a.data().updatedAt as Timestamp | undefined)?.toMillis?.() ?? 0;
+    const bMs = (b.data().updatedAt as Timestamp | undefined)?.toMillis?.() ?? 0;
+    return bMs - aMs;
+  });
+  const [primary, ...dupes] = docs;
+  await updateDoc(primary.ref, { section, data: cleanData, updatedAt: serverTimestamp() });
+  await Promise.all(dupes.map((d) => deleteDoc(d.ref)));
 }
 
 // Testimonials
