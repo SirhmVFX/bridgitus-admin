@@ -1,7 +1,7 @@
 import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 
-/** Set to `false` to temporarily disable all outbound email. */
-export const EMAIL_ENABLED = true;
+/** Set to `false` to temporarily disable all outbound email. Flip to `true` when SES production is approved. */
+export const EMAIL_ENABLED = false;
 
 export interface SendEmailOptions {
   to: string | string[];
