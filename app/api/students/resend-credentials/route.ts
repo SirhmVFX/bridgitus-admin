@@ -1,16 +1,14 @@
 import { NextResponse } from "next/server";
-import { sendPasswordResetEmail } from "firebase/auth";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase";
+import { db } from "@/lib/firebase";
 import { sendEmail, brandedEmail, isSesConfigured } from "@/lib/email";
 
 /**
  * POST /api/students/resend-credentials
  * Body: { studentId: string }  // Firestore document id
  *
- * Resends onboarding details (Student ID + login email + portal link) via SES when possible,
- * and always triggers Firebase's password-reset email so the family can set a working password
- * even while SES is in sandbox / awaiting production access.
+ * Emails Student ID + portal link to the parent contact email.
+ * Login is Student ID + password (not email).
  */
 export async function POST(request: Request) {
   try {
@@ -26,8 +24,7 @@ export async function POST(request: Request) {
     }
 
     const student = snap.data();
-    const email = (student.email as string) || "";
-    const parentEmail = (student.parentEmail as string) || "";
+    const parentEmail = ((student.parentEmail as string) || (student.email as string) || "").trim();
     const studentIdCode = (student.studentId as string) || "";
     const firstName = (student.firstName as string) || "Student";
     const lastName = (student.lastName as string) || "";
@@ -35,19 +32,11 @@ export async function POST(request: Request) {
     const portalUrl =
       process.env.NEXT_PUBLIC_PORTAL_URL || "https://bridgitus.com/portal/login";
 
-    if (!email) {
-      return NextResponse.json({ error: "Student has no login email on file" }, { status: 400 });
+    if (!parentEmail) {
+      return NextResponse.json({ error: "Student has no parent/contact email on file" }, { status: 400 });
     }
-
-    // Firebase Auth password reset (uses Firebase's own mailer — works without SES production)
-    let passwordResetSent = false;
-    let passwordResetError: string | null = null;
-    try {
-      await sendPasswordResetEmail(auth, email);
-      passwordResetSent = true;
-    } catch (err: unknown) {
-      passwordResetError = err instanceof Error ? err.message : String(err);
-      console.error("Password reset email failed:", err);
+    if (!studentIdCode) {
+      return NextResponse.json({ error: "Student has no Student ID on file" }, { status: 400 });
     }
 
     const onboardingHtml = brandedEmail(
@@ -56,53 +45,46 @@ export async function POST(request: Request) {
        <p>Here are your Bridgitus Learning Portal login details:</p>
        <div style="background:#f0f7ff;border:2px solid #00369b;padding:20px;margin:20px 0;">
          <p style="margin:0 0 8px;"><strong>Student ID:</strong> <span style="font-family:monospace;color:#00369b;font-size:16px;">${studentIdCode}</span></p>
-         <p style="margin:0 0 8px;"><strong>Login email:</strong> ${email}</p>
-         <p style="margin:0;"><strong>Grade:</strong> ${grade}</p>
+         <p style="margin:0 0 8px;"><strong>Grade:</strong> ${grade}</p>
+         <p style="margin:0;"><strong>Parent email (contact only):</strong> ${parentEmail}</p>
        </div>
-       <p>For security, use the <strong>password reset email</strong> from Firebase (check inbox/spam) to set a new password, then sign in here:</p>
+       <p><strong>Log in with your Student ID and password</strong> — not with email.</p>
+       <p>If you no longer have the password from registration, contact Bridgitus support to reset it.</p>
        <div style="text-align:center;margin:28px 0;">
          <a href="${portalUrl}" style="display:inline-block;background:#00369b;color:#fff;text-decoration:none;padding:12px 28px;font-weight:600;">
            Open Learning Portal →
          </a>
-       </div>
-       <p style="font-size:13px;color:#64748b;">If you already know your password, you can log in with your Student ID or email without resetting.</p>`
+       </div>`
     );
 
-    let sesSent = false;
-    let sesError: string | null = null;
-    const recipients = [...new Set([email, parentEmail].filter(Boolean))];
-
-    if (isSesConfigured()) {
-      try {
-        for (const to of recipients) {
-          await sendEmail({
-            to,
-            subject: `Bridgitus Learning — login details for ${firstName}`,
-            html: onboardingHtml,
-          });
-        }
-        sesSent = true;
-        await updateDoc(doc(db, "students", studentDocId), {
-          credentialsSent: true,
-          credentialsResentAt: serverTimestamp(),
-          updatedAt: serverTimestamp(),
-        });
-      } catch (err: unknown) {
-        sesError = err instanceof Error ? err.message : String(err);
-        console.error("SES onboarding resend failed:", err);
-      }
-    } else {
-      sesError = "SES is not configured or email is disabled";
-    }
-
-    if (!sesSent && !passwordResetSent) {
+    if (!isSesConfigured()) {
       return NextResponse.json(
         {
-          error: "Could not send email",
-          sesError,
-          passwordResetError,
+          error: "Email is temporarily disabled. Share this Student ID with the family manually.",
           studentId: studentIdCode,
-          email,
+          parentEmail,
+        },
+        { status: 503 }
+      );
+    }
+
+    try {
+      await sendEmail({
+        to: parentEmail,
+        subject: `Bridgitus Learning — login details for ${firstName}`,
+        html: onboardingHtml,
+      });
+      await updateDoc(doc(db, "students", studentDocId), {
+        credentialsSent: true,
+        credentialsResentAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+    } catch (err: unknown) {
+      console.error("SES onboarding resend failed:", err);
+      return NextResponse.json(
+        {
+          error: err instanceof Error ? err.message : "Failed to send email",
+          studentId: studentIdCode,
           parentEmail,
         },
         { status: 502 }
@@ -111,16 +93,9 @@ export async function POST(request: Request) {
 
     return NextResponse.json({
       ok: true,
-      sesSent,
-      passwordResetSent,
-      sesError,
-      passwordResetError,
       studentId: studentIdCode,
-      email,
       parentEmail,
-      message: sesSent
-        ? `Onboarding email sent to ${recipients.join(", ")}${passwordResetSent ? " · password reset also sent" : ""}`
-        : `SES email could not send (${sesError}). ${passwordResetSent ? "A Firebase password-reset email was sent instead — share Student ID with the family." : ""}`,
+      message: `Onboarding email sent to ${parentEmail} · Student ID: ${studentIdCode}`,
     });
   } catch (error: unknown) {
     console.error("resend-credentials error:", error);
