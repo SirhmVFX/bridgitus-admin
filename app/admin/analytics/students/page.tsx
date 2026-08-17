@@ -14,7 +14,7 @@ import { Timestamp } from "firebase/firestore";
 import type { StudentAnalysis, StudentAnalysisPayload } from "@/lib/gemini";
 import {
   MdBarChart, MdQuiz, MdTimer, MdExtension, MdAutoAwesome,
-  MdCheckCircle, MdCancel, MdWarning, MdRefresh, MdPerson,
+  MdCheckCircle, MdCancel, MdWarning, MdRefresh, MdPerson, MdDownload,
 } from "react-icons/md";
 import { PracticePieChart, SkillMountainChart } from "@/components/AnalyticsCharts";
 
@@ -28,6 +28,7 @@ interface AnsweredQuestion {
   correctAnswer: string;
   correct: boolean;
   answeredAt: Date | null;
+  source: "quiz" | "assignment" | "practice";
 }
 
 const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -72,6 +73,7 @@ function collectAnsweredQuestions(
         correctAnswer: q.correctAnswer,
         correct: isAnswerCorrect(q, given),
         answeredAt,
+        source: "quiz",
       });
     }
   }
@@ -89,6 +91,7 @@ function collectAnsweredQuestions(
         correctAnswer: q.correctAnswer,
         correct: isAnswerCorrect(q, given),
         answeredAt,
+        source: "practice",
       });
     }
   }
@@ -109,6 +112,7 @@ function collectAnsweredQuestions(
         correctAnswer: q.correctAnswer,
         correct: isAnswerCorrect(q, given),
         answeredAt,
+        source: "assignment",
       });
     }
   }
@@ -358,20 +362,81 @@ export default function StudentAnalyticsPage() {
   const skillsProficient = gaps.filter(g => g.accuracy >= 80 && g.accuracy < 95).length;
   const skillsMastered = gaps.filter(g => g.accuracy >= 95).length;
 
-  // Practice by category (topic share)
-  const categoryRows = useMemo(() => {
+  function buildCategoryRows(items: AnsweredQuestion[]) {
     const agg: Record<string, { subject: string; count: number }> = {};
-    for (const a of answered) {
-      const key = a.topic;
-      agg[key] ??= { subject: a.subject, count: 0 };
-      agg[key].count++;
+    for (const a of items) {
+      agg[a.topic] ??= { subject: a.subject, count: 0 };
+      agg[a.topic].count++;
     }
-    const total = answered.length || 1;
+    const total = items.length || 1;
     return Object.entries(agg)
       .map(([topic, v]) => ({ topic, subject: v.subject, count: v.count, pct: Math.round((v.count / total) * 100) }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 10);
-  }, [answered]);
+  }
+
+  // Quizzes = portal tests + AI practice; Assignments = quiz assignments
+  const quizCategoryRows = useMemo(
+    () => buildCategoryRows(answered.filter((a) => a.source === "quiz" || a.source === "practice")),
+    [answered]
+  );
+  const assignmentCategoryRows = useMemo(
+    () => buildCategoryRows(answered.filter((a) => a.source === "assignment")),
+    [answered]
+  );
+
+  function downloadAnalyticsCsv() {
+    if (!student) return;
+    const lines = [
+      ["Bridgitus Learning — Student Analytics"],
+      ["Student", `${student.firstName} ${student.lastName}`],
+      ["Student ID", student.studentId],
+      ["Grade", student.grade],
+      ["Questions answered", String(answeredThisYear.length)],
+      ["Time spent", formatStudyTime(timeSpentSeconds)],
+      [],
+      ["Source", "Subject", "Topic", "Correct", "Answered at"],
+      ...answered.map((a) => [
+        a.source, a.subject, a.topic, a.correct ? "yes" : "no", a.answeredAt?.toISOString() || "",
+      ]),
+      [],
+      ["Quizzes by category (tests + AI practice)"],
+      ...quizCategoryRows.map((r) => [r.topic, r.subject, String(r.count), `${r.pct}%`]),
+      [],
+      ["Assignments by category"],
+      ...assignmentCategoryRows.map((r) => [r.topic, r.subject, String(r.count), `${r.pct}%`]),
+    ];
+    const csv = lines.map((row) => row.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${student.studentId}-analytics.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function printAnalyticsForParent() {
+    if (!student) return;
+    const w = window.open("", "_blank", "width=900,height=1000");
+    if (!w) return;
+    w.document.write(`<!DOCTYPE html><html><head><title>${student.firstName} Analytics</title>
+      <style>body{font-family:system-ui,sans-serif;padding:32px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f4f6fb}.stat{display:inline-block;margin:12px 24px 0 0}.stat b{display:block;font-size:22px}</style></head><body>
+      <h1>Bridgitus Learning — Progress Report</h1>
+      <p>${student.firstName} ${student.lastName} · ${student.studentId} · Grade ${student.grade}</p>
+      <div class="stat"><b>${answeredThisYear.length}</b>Questions (${currentYear})</div>
+      <div class="stat"><b>${formatStudyTime(timeSpentSeconds)}</b>Learning time</div>
+      <h2>Quizzes by category (portal tests + AI practice)</h2>
+      <table><tr><th>Topic</th><th>Subject</th><th>Count</th><th>%</th></tr>
+      ${quizCategoryRows.map((r) => `<tr><td>${r.topic}</td><td>${r.subject}</td><td>${r.count}</td><td>${r.pct}%</td></tr>`).join("") || "<tr><td colspan=4>No data</td></tr>"}
+      </table>
+      <h2>Assignments by category</h2>
+      <table><tr><th>Topic</th><th>Subject</th><th>Count</th><th>%</th></tr>
+      ${assignmentCategoryRows.map((r) => `<tr><td>${r.topic}</td><td>${r.subject}</td><td>${r.count}</td><td>${r.pct}%</td></tr>`).join("") || "<tr><td colspan=4>No data</td></tr>"}
+      </table>
+      <script>window.onload=()=>window.print()</script></body></html>`);
+    w.document.close();
+  }
 
   // Practice by month (current year)
   const monthCounts = useMemo(() => {
@@ -395,7 +460,7 @@ export default function StudentAnalyticsPage() {
               <p className="text-gray-500 text-sm">Usage, progress and AI learning analysis per student</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <MdPerson size={18} className="text-gray-400" />
             <select value={selectedId} onChange={e => setSelectedId(e.target.value)}
               className="admin-input w-64" disabled={loading}>
@@ -406,6 +471,18 @@ export default function StudentAnalyticsPage() {
                 </option>
               ))}
             </select>
+            {student && (
+              <>
+                <button type="button" onClick={downloadAnalyticsCsv}
+                  className="btn-secondary flex items-center gap-1.5 text-sm cursor-pointer">
+                  <MdDownload size={16} /> CSV
+                </button>
+                <button type="button" onClick={printAnalyticsForParent}
+                  className="btn-primary flex items-center gap-1.5 text-sm cursor-pointer">
+                  <MdDownload size={16} /> Print / PDF
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -466,12 +543,19 @@ export default function StudentAnalyticsPage() {
             </div>
 
             <div className="grid lg:grid-cols-2 gap-5">
-              {/* Practice by category — pie */}
               <div className="admin-card">
-                <h2 className="font-semibold text-gray-900 mb-4">Practice by Category</h2>
-                <PracticePieChart rows={categoryRows} />
+                <h2 className="font-semibold text-gray-900 mb-1">Quizzes by Category</h2>
+                <p className="text-xs text-gray-400 mb-4">Portal tests + AI practice</p>
+                <PracticePieChart rows={quizCategoryRows} />
               </div>
+              <div className="admin-card">
+                <h2 className="font-semibold text-gray-900 mb-1">Assignments by Category</h2>
+                <p className="text-xs text-gray-400 mb-4">Quiz assignments</p>
+                <PracticePieChart rows={assignmentCategoryRows} />
+              </div>
+            </div>
 
+            <div className="grid lg:grid-cols-1 gap-5">
               {/* Practice by month */}
               <div className="admin-card">
                 <h2 className="font-semibold text-gray-900 mb-4">Practice by Month · {currentYear}</h2>

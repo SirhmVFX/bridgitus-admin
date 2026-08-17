@@ -49,7 +49,7 @@ export async function POST(request: Request) {
          <p style="margin:0;"><strong>Parent email (contact only):</strong> ${parentEmail}</p>
        </div>
        <p><strong>Log in with your Student ID and password</strong> — not with email.</p>
-       <p>If you no longer have the password from registration, contact Bridgitus support to reset it.</p>
+       ${student.issuedPassword ? `<p style="margin:16px 0;"><strong>Password on file:</strong> <span style="font-family:monospace;font-size:16px;color:#00369b;">${student.issuedPassword as string}</span></p>` : `<p>If you no longer have the password from registration, ask Bridgitus admin to reset it from the Students page.</p>`}
        <div style="text-align:center;margin:28px 0;">
          <a href="${portalUrl}" style="display:inline-block;background:#00369b;color:#fff;text-decoration:none;padding:12px 28px;font-weight:600;">
            Open Learning Portal →

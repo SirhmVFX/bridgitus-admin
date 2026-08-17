@@ -57,6 +57,9 @@ export interface Student {
   planId?: string;
   planTitle?: string;
   planExpiresAt?: Timestamp;
+  /** Last password issued at registration or admin reset (for staff to share). */
+  issuedPassword?: string;
+  authEmail?: string;
   // Stripe payment data
   stripeCustomerId?: string;
   stripePaymentMethod?: {
