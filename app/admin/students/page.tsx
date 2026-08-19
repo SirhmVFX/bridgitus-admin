@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import {
-  getAllStudents, updateStudent,
+  getAllStudents, updateStudent, deleteStudent,
   getAttemptsByStudent, getProgressByStudent, getCompletionsByStudent,
   getAllMaterials,
   type Student, type TestAttempt, type StudentProgress, type MaterialCompletion, type LearningMaterial,
@@ -95,30 +95,59 @@ export default function StudentsPage() {
         body: JSON.stringify({ studentId: id }),
       });
       const text = await res.text();
-      let data: { error?: string; authDeleted?: boolean; studentId?: string; warning?: string; success?: boolean } = {};
+      let data: {
+        error?: string;
+        message?: string;
+        authDeleted?: boolean;
+        studentId?: string;
+        warning?: string;
+        success?: boolean;
+      } = {};
       try {
         data = text ? JSON.parse(text) : {};
       } catch {
-        throw new Error(
-          res.ok
-            ? "Delete returned an invalid response."
-            : `Delete failed (HTTP ${res.status}). Restart the admin app after updating Firebase Admin keys in .env.local.`
-        );
+        data = {};
       }
-      if (!res.ok) throw new Error(data.error || `Delete failed (HTTP ${res.status})`);
-      setActionMsg({
-        type: data.warning ? "error" : "ok",
-        text: data.authDeleted
-          ? `Deleted ${data.studentId || "student"} (record + login).`
-          : `Deleted student record.${data.warning ? ` ${data.warning}` : ""}`,
-      });
-      // If only warning (record deleted), still treat list refresh as success
-      if (data.success && data.warning) {
+
+      // If Admin SDK isn't available / failed, delete Firestore from the browser (admin is logged in)
+      if (!res.ok && (res.status === 503 || data.error === "ADMIN_NOT_CONFIGURED" || data.error === "ADMIN_INIT_FAILED")) {
+        await deleteStudent(id);
         setActionMsg({
           type: "ok",
-          text: `Deleted student record. Note: ${data.warning}`,
+          text:
+            `Deleted ${name || "student"} record. ` +
+            `Login may still exist in Firebase Authentication — fix Admin keys to remove logins automatically. ` +
+            (data.message ? `(${data.message})` : ""),
         });
+        if (viewStudent?.id === id) setViewStudent(null);
+        await load();
+        return;
       }
+
+      if (!res.ok) {
+        // Last resort: still try client Firestore delete so the row can be removed
+        try {
+          await deleteStudent(id);
+          setActionMsg({
+            type: "ok",
+            text:
+              `Deleted student record from the list. ` +
+              `Auth login may remain. Server said: ${data.message || data.error || `HTTP ${res.status}`}`,
+          });
+          if (viewStudent?.id === id) setViewStudent(null);
+          await load();
+          return;
+        } catch {
+          throw new Error(data.message || data.error || `Delete failed (HTTP ${res.status})`);
+        }
+      }
+
+      setActionMsg({
+        type: "ok",
+        text: data.authDeleted
+          ? `Deleted ${data.studentId || name || "student"} (record + login).`
+          : `Deleted ${data.studentId || name || "student"} record.${data.warning ? ` Note: ${data.warning}` : ""}`,
+      });
       if (viewStudent?.id === id) setViewStudent(null);
       await load();
     } catch (err: unknown) {
