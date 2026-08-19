@@ -24,15 +24,30 @@ export function getAdminApp(): App {
       "Firebase Admin is not configured. Set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY in .env.local (from a Firebase service account JSON)."
     );
   }
-  app = initializeApp({
-    credential: cert({
-      projectId:
-        process.env.FIREBASE_PROJECT_ID ||
-        process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
-      clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
-      privateKey: process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, "\n"),
-    }),
-  });
+
+  const privateKey = process.env.FIREBASE_PRIVATE_KEY!.replace(/\\n/g, "\n").trim();
+  if (!privateKey.includes("BEGIN PRIVATE KEY")) {
+    throw new Error(
+      "FIREBASE_PRIVATE_KEY looks invalid. Paste the private_key value from the Firebase service account JSON (keep the \\n characters)."
+    );
+  }
+
+  try {
+    app = initializeApp({
+      credential: cert({
+        projectId:
+          process.env.FIREBASE_PROJECT_ID ||
+          process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID!,
+        clientEmail: process.env.FIREBASE_CLIENT_EMAIL!,
+        privateKey,
+      }),
+    });
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    throw new Error(
+      `Firebase Admin failed to start: ${msg}. Re-download the service account JSON and copy client_email + private_key again.`
+    );
+  }
   return app;
 }
 

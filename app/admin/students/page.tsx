@@ -94,14 +94,31 @@ export default function StudentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId: id }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Delete failed");
+      const text = await res.text();
+      let data: { error?: string; authDeleted?: boolean; studentId?: string; warning?: string; success?: boolean } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Delete returned an invalid response."
+            : `Delete failed (HTTP ${res.status}). Restart the admin app after updating Firebase Admin keys in .env.local.`
+        );
+      }
+      if (!res.ok) throw new Error(data.error || `Delete failed (HTTP ${res.status})`);
       setActionMsg({
-        type: "ok",
+        type: data.warning ? "error" : "ok",
         text: data.authDeleted
           ? `Deleted ${data.studentId || "student"} (record + login).`
-          : `Deleted student record.${data.warning ? ` Warning: ${data.warning}` : ""}`,
+          : `Deleted student record.${data.warning ? ` ${data.warning}` : ""}`,
       });
+      // If only warning (record deleted), still treat list refresh as success
+      if (data.success && data.warning) {
+        setActionMsg({
+          type: "ok",
+          text: `Deleted student record. Note: ${data.warning}`,
+        });
+      }
       if (viewStudent?.id === id) setViewStudent(null);
       await load();
     } catch (err: unknown) {
