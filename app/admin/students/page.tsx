@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import {
-  getAllStudents, updateStudent, deleteStudent,
+  getAllStudents, updateStudent,
   getAttemptsByStudent, getProgressByStudent, getCompletionsByStudent,
   getAllMaterials,
   type Student, type TestAttempt, type StudentProgress, type MaterialCompletion, type LearningMaterial,
@@ -85,9 +85,31 @@ export default function StudentsPage() {
     } finally { setSaving(false); }
   }
 
-  async function handleDelete(id: string) {
-    if (!confirm("Delete this student record? This cannot be undone.")) return;
-    await deleteStudent(id); await load();
+  async function handleDelete(id: string, name?: string) {
+    if (!confirm(`Delete ${name || "this student"}?\n\nThis removes their record and login so they can register again.`)) return;
+    setActionMsg(null);
+    try {
+      const res = await fetch("/api/students/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ studentId: id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Delete failed");
+      setActionMsg({
+        type: "ok",
+        text: data.authDeleted
+          ? `Deleted ${data.studentId || "student"} (record + login).`
+          : `Deleted student record.${data.warning ? ` Warning: ${data.warning}` : ""}`,
+      });
+      if (viewStudent?.id === id) setViewStudent(null);
+      await load();
+    } catch (err: unknown) {
+      setActionMsg({
+        type: "error",
+        text: err instanceof Error ? err.message : "Delete failed",
+      });
+    }
   }
 
   async function handleResendOnboarding(s: Student) {
@@ -243,7 +265,7 @@ export default function StudentsPage() {
                           <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" /><polyline points="15 3 21 3 21 9" /><line x1="10" y1="14" x2="21" y2="3" /></svg>
                         </a>
                         <button onClick={() => openEdit(s)} className="p-1.5 text-gray-400 hover:text-[#00369b]" title="Edit"><MdEdit size={16} /></button>
-                        <button onClick={() => handleDelete(s.id!)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete"><MdDelete size={16} /></button>
+                        <button onClick={() => handleDelete(s.id!, `${s.firstName} ${s.lastName}`)} className="p-1.5 text-gray-400 hover:text-red-500" title="Delete"><MdDelete size={16} /></button>
                         <button
                           onClick={() => handleResendOnboarding(s)}
                           disabled={resendingId === s.id}
