@@ -26,8 +26,31 @@ import {
   MdFilterList,
 } from "react-icons/md";
 
-const GRADES = ["Pre-K", "K", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
-const TYPES: LearningMaterial["type"][] = ["text", "document", "pdf", "image", "video", "link", "mixed"];
+const GRADES = [
+  "Pre-K",
+  "K",
+  "1",
+  "2",
+  "3",
+  "4",
+  "5",
+  "6",
+  "7",
+  "8",
+  "9",
+  "10",
+  "11",
+  "12",
+];
+const TYPES: LearningMaterial["type"][] = [
+  "text",
+  "document",
+  "pdf",
+  "image",
+  "video",
+  "link",
+  "mixed",
+];
 
 const EMPTY: Omit<LearningMaterial, "id"> = {
   title: "",
@@ -71,7 +94,9 @@ export default function MaterialsPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  useEffect(() => {
+    load();
+  }, []);
 
   function openCreate() {
     setEditing(null);
@@ -150,20 +175,30 @@ export default function MaterialsPage() {
   const filtered = materials.filter((m) => {
     const gMatch = gradeFilter === "all" || m.grade === gradeFilter;
     const tMatch = typeFilter === "all" || m.type === typeFilter;
-    const sMatch = !search || m.title.toLowerCase().includes(search.toLowerCase()) || m.subject.toLowerCase().includes(search.toLowerCase());
+    const sMatch =
+      !search ||
+      m.title.toLowerCase().includes(search.toLowerCase()) ||
+      m.subject.toLowerCase().includes(search.toLowerCase());
     return gMatch && tMatch && sMatch;
   });
 
   return (
     <AdminLayout>
-      <div className="max-w-6xl mx-auto space-y-5">
+      <div className=" mx-auto space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Learning Materials</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Upload and manage resources for each grade</p>
+            <h1 className="text-xl font-bold text-gray-900">
+              Learning Materials
+            </h1>
+            <p className="text-gray-500 text-sm mt-0.5">
+              Upload and manage resources for each grade
+            </p>
           </div>
-          <button onClick={openCreate} className="btn-primary flex items-center gap-2">
+          <button
+            onClick={openCreate}
+            className="btn-primary flex items-center gap-2"
+          >
             <MdAdd size={18} /> Add Material
           </button>
         </div>
@@ -171,7 +206,10 @@ export default function MaterialsPage() {
         {/* Filters */}
         <div className="admin-card flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-48">
-            <MdSearch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <MdSearch
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
             <input
               type="text"
               value={search}
@@ -182,26 +220,48 @@ export default function MaterialsPage() {
           </div>
           <div className="flex items-center gap-2">
             <MdFilterList size={16} className="text-gray-400" />
-            <select value={gradeFilter} onChange={(e) => setGradeFilter(e.target.value)} className="admin-input w-auto">
+            <select
+              value={gradeFilter}
+              onChange={(e) => setGradeFilter(e.target.value)}
+              className="admin-input w-auto"
+            >
               <option value="all">All Grades</option>
-              {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+              {GRADES.map((g) => (
+                <option key={g} value={g}>
+                  Grade {g}
+                </option>
+              ))}
             </select>
-            <select value={typeFilter} onChange={(e) => setTypeFilter(e.target.value)} className="admin-input w-auto">
+            <select
+              value={typeFilter}
+              onChange={(e) => setTypeFilter(e.target.value)}
+              className="admin-input w-auto"
+            >
               <option value="all">All Types</option>
-              {TYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+              {TYPES.map((t) => (
+                <option key={t} value={t}>
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </option>
+              ))}
             </select>
           </div>
-          <span className="text-xs text-gray-400">{filtered.length} item{filtered.length !== 1 ? "s" : ""}</span>
+          <span className="text-xs text-gray-400">
+            {filtered.length} item{filtered.length !== 1 ? "s" : ""}
+          </span>
         </div>
 
         {/* Table */}
         <div className="admin-card p-0 overflow-hidden">
           {loading ? (
-            <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
+            <div className="p-8 text-center text-gray-400 text-sm">
+              Loading…
+            </div>
           ) : filtered.length === 0 ? (
             <div className="p-12 text-center">
               <MdMenuBook size={40} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">No materials found. Add one to get started.</p>
+              <p className="text-gray-500">
+                No materials found. Add one to get started.
+              </p>
             </div>
           ) : (
             <table className="admin-table">
@@ -223,15 +283,23 @@ export default function MaterialsPage() {
                     <td>
                       <p className="font-medium text-gray-800">{m.title}</p>
                     </td>
-                    <td><span className="badge badge-blue">Grade {m.grade}</span></td>
+                    <td>
+                      <span className="badge badge-blue">Grade {m.grade}</span>
+                    </td>
                     <td className="text-gray-600">{m.subject}</td>
                     <td>
-                      <span className="badge badge-gray capitalize">{m.type}</span>
+                      <span className="badge badge-gray capitalize">
+                        {m.type}
+                      </span>
                     </td>
-                    <td className="text-gray-500 text-xs">{m.estimatedMinutes ? `${m.estimatedMinutes} min` : "—"}</td>
+                    <td className="text-gray-500 text-xs">
+                      {m.estimatedMinutes ? `${m.estimatedMinutes} min` : "—"}
+                    </td>
                     <td className="text-gray-500">{m.order}</td>
                     <td>
-                      <span className={`badge ${m.published ? "badge-green" : "badge-yellow"}`}>
+                      <span
+                        className={`badge ${m.published ? "badge-green" : "badge-yellow"}`}
+                      >
                         {m.published ? "Published" : "Draft"}
                       </span>
                     </td>
@@ -242,10 +310,29 @@ export default function MaterialsPage() {
                           title={m.published ? "Unpublish" : "Publish"}
                           className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors"
                         >
-                          {m.published ? <MdVisibilityOff size={16} /> : <MdVisibility size={16} />}
+                          {m.published ? (
+                            <MdVisibilityOff size={16} />
+                          ) : (
+                            <MdVisibility size={16} />
+                          )}
                         </button>
-                        <a href={`/admin/analytics/material/${m.id}`} className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex" title="Analytics">
-                          <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="20" x2="18" y2="10" /><line x1="12" y1="20" x2="12" y2="4" /><line x1="6" y1="20" x2="6" y2="14" /></svg>
+                        <a
+                          href={`/admin/analytics/material/${m.id}`}
+                          className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex"
+                          title="Analytics"
+                        >
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            className="w-4 h-4"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                          >
+                            <line x1="18" y1="20" x2="18" y2="10" />
+                            <line x1="12" y1="20" x2="12" y2="4" />
+                            <line x1="6" y1="20" x2="6" y2="14" />
+                          </svg>
                         </a>
                         <button
                           onClick={() => openEdit(m)}
@@ -272,13 +359,19 @@ export default function MaterialsPage() {
 
       {/* Modal */}
       {modalOpen && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
+        <div
+          className="modal-overlay"
+          onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}
+        >
           <div className="modal-box">
             <div className="modal-header">
               <h2 className="font-semibold text-gray-900">
                 {editing ? "Edit Material" : "Add Learning Material"}
               </h2>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+              <button
+                onClick={() => setModalOpen(false)}
+                className="text-gray-400 hover:text-gray-600"
+              >
                 <MdClose size={20} />
               </button>
             </div>
@@ -288,32 +381,96 @@ export default function MaterialsPage() {
               <div className="grid sm:grid-cols-2 gap-4">
                 <div className="sm:col-span-2">
                   <label className="admin-label">Title *</label>
-                  <input required value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} className="admin-input" placeholder="Material title" />
+                  <input
+                    required
+                    value={form.title}
+                    onChange={(e) =>
+                      setForm({ ...form, title: e.target.value })
+                    }
+                    className="admin-input"
+                    placeholder="Material title"
+                  />
                 </div>
                 <div>
                   <label className="admin-label">Grade *</label>
-                  <select required value={form.grade} onChange={(e) => setForm({ ...form, grade: e.target.value })} className="admin-input">
-                    {GRADES.map((g) => <option key={g} value={g}>Grade {g}</option>)}
+                  <select
+                    required
+                    value={form.grade}
+                    onChange={(e) =>
+                      setForm({ ...form, grade: e.target.value })
+                    }
+                    className="admin-input"
+                  >
+                    {GRADES.map((g) => (
+                      <option key={g} value={g}>
+                        Grade {g}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="admin-label">Subject *</label>
-                  <input required value={form.subject} onChange={(e) => setForm({ ...form, subject: e.target.value })} className="admin-input" placeholder="e.g. Mathematics" />
+                  <input
+                    required
+                    value={form.subject}
+                    onChange={(e) =>
+                      setForm({ ...form, subject: e.target.value })
+                    }
+                    className="admin-input"
+                    placeholder="e.g. Mathematics"
+                  />
                 </div>
                 <div>
                   <label className="admin-label">Type *</label>
-                  <select required value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value as LearningMaterial["type"] })} className="admin-input">
-                    {TYPES.map((t) => <option key={t} value={t}>{t.charAt(0).toUpperCase() + t.slice(1)}</option>)}
+                  <select
+                    required
+                    value={form.type}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        type: e.target.value as LearningMaterial["type"],
+                      })
+                    }
+                    className="admin-input"
+                  >
+                    {TYPES.map((t) => (
+                      <option key={t} value={t}>
+                        {t.charAt(0).toUpperCase() + t.slice(1)}
+                      </option>
+                    ))}
                   </select>
                 </div>
                 <div>
                   <label className="admin-label">Display Order</label>
-                  <input type="number" value={form.order} onChange={(e) => setForm({ ...form, order: Number(e.target.value) })} className="admin-input" />
+                  <input
+                    type="number"
+                    value={form.order}
+                    onChange={(e) =>
+                      setForm({ ...form, order: Number(e.target.value) })
+                    }
+                    className="admin-input"
+                  />
                 </div>
                 <div>
-                  <label className="admin-label">Estimated Read/View Time (minutes)</label>
-                  <input type="number" min={1} value={form.estimatedMinutes ?? 15} onChange={(e) => setForm({ ...form, estimatedMinutes: Number(e.target.value) })} className="admin-input" placeholder="15" />
-                  <p className="text-xs text-gray-400 mt-1">Shown to students as progress guide</p>
+                  <label className="admin-label">
+                    Estimated Read/View Time (minutes)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.estimatedMinutes ?? 15}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        estimatedMinutes: Number(e.target.value),
+                      })
+                    }
+                    className="admin-input"
+                    placeholder="15"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">
+                    Shown to students as progress guide
+                  </p>
                 </div>
               </div>
 
@@ -330,7 +487,9 @@ export default function MaterialsPage() {
               {/* Rich content (text/mixed types) */}
               {(form.type === "text" || form.type === "mixed") && (
                 <div>
-                  <label className="admin-label">Full Content (Rich Text)</label>
+                  <label className="admin-label">
+                    Full Content (Rich Text)
+                  </label>
                   <WysiwygEditor
                     content={form.content ?? ""}
                     onChange={(html) => setForm({ ...form, content: html })}
@@ -340,10 +499,22 @@ export default function MaterialsPage() {
               )}
 
               {/* File upload for docs / PDF / image / video */}
-              {(["document", "pdf", "image", "video", "mixed"] as LearningMaterial["type"][]).includes(form.type) && (
+              {(
+                [
+                  "document",
+                  "pdf",
+                  "image",
+                  "video",
+                  "mixed",
+                ] as LearningMaterial["type"][]
+              ).includes(form.type) && (
                 <div>
                   <label className="admin-label">
-                    {form.type === "image" ? "Image File" : form.type === "video" ? "Video File" : "Document / PDF File"}
+                    {form.type === "image"
+                      ? "Image File"
+                      : form.type === "video"
+                        ? "Video File"
+                        : "Document / PDF File"}
                   </label>
                   <div className="flex items-center gap-3 flex-wrap">
                     <button
@@ -356,26 +527,43 @@ export default function MaterialsPage() {
                       {fileUploading ? "Uploading…" : "Upload File"}
                     </button>
                     {form.fileUrl && (
-                      <a href={form.fileUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#00369b] hover:underline truncate max-w-xs">
+                      <a
+                        href={form.fileUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs text-[#00369b] hover:underline truncate max-w-xs"
+                      >
                         {form.fileName || "Uploaded file"}
                       </a>
                     )}
                   </div>
-                  <input ref={fileRef} type="file" className="hidden" onChange={handleFileUpload} />
-                  <p className="text-xs text-gray-400 mt-1">
-                    Or paste URL:
-                  </p>
+                  <input
+                    ref={fileRef}
+                    type="file"
+                    className="hidden"
+                    onChange={handleFileUpload}
+                  />
+                  <p className="text-xs text-gray-400 mt-1">Or paste URL:</p>
                   <input
                     type="url"
                     value={form.fileUrl ?? ""}
-                    onChange={(e) => setForm({ ...form, fileUrl: e.target.value })}
+                    onChange={(e) =>
+                      setForm({ ...form, fileUrl: e.target.value })
+                    }
                     className="admin-input mt-1"
                     placeholder="https://…"
                   />
                   {form.fileUrl && (
                     <div className="mt-1">
                       <label className="admin-label">File Name (display)</label>
-                      <input value={form.fileName ?? ""} onChange={(e) => setForm({ ...form, fileName: e.target.value })} className="admin-input" placeholder="e.g. Chapter 1.pdf" />
+                      <input
+                        value={form.fileName ?? ""}
+                        onChange={(e) =>
+                          setForm({ ...form, fileName: e.target.value })
+                        }
+                        className="admin-input"
+                        placeholder="e.g. Chapter 1.pdf"
+                      />
                     </div>
                   )}
                 </div>
@@ -385,11 +573,15 @@ export default function MaterialsPage() {
               {(form.type === "link" || form.type === "mixed") && (
                 <div className="grid sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="admin-label">Resource / Video Link URL</label>
+                    <label className="admin-label">
+                      Resource / Video Link URL
+                    </label>
                     <input
                       type="url"
                       value={form.linkUrl ?? ""}
-                      onChange={(e) => setForm({ ...form, linkUrl: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, linkUrl: e.target.value })
+                      }
                       className="admin-input"
                       placeholder="https://youtube.com/…"
                     />
@@ -398,7 +590,9 @@ export default function MaterialsPage() {
                     <label className="admin-label">Link Button Label</label>
                     <input
                       value={form.linkLabel ?? ""}
-                      onChange={(e) => setForm({ ...form, linkLabel: e.target.value })}
+                      onChange={(e) =>
+                        setForm({ ...form, linkLabel: e.target.value })
+                      }
                       className="admin-input"
                       placeholder="e.g. Watch Video"
                     />
@@ -417,10 +611,14 @@ export default function MaterialsPage() {
               {/* Publish */}
               <label className="flex items-center gap-3 cursor-pointer">
                 <div
-                  onClick={() => setForm({ ...form, published: !form.published })}
+                  onClick={() =>
+                    setForm({ ...form, published: !form.published })
+                  }
                   className={`w-11 h-6 rounded-full relative transition-colors ${form.published ? "bg-[#00369b]" : "bg-gray-300"}`}
                 >
-                  <div className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${form.published ? "left-5" : "left-0.5"}`} />
+                  <div
+                    className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all ${form.published ? "left-5" : "left-0.5"}`}
+                  />
                 </div>
                 <span className="text-sm font-medium text-gray-700">
                   {form.published ? "Published" : "Save as Draft"}
@@ -429,10 +627,22 @@ export default function MaterialsPage() {
 
               {/* Actions */}
               <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-                <button type="submit" disabled={saving} className="btn-primary flex items-center gap-2 disabled:opacity-60">
-                  {saving ? "Saving…" : editing ? "Save Changes" : "Create Material"}
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="btn-primary flex items-center gap-2 disabled:opacity-60"
+                >
+                  {saving
+                    ? "Saving…"
+                    : editing
+                      ? "Save Changes"
+                      : "Create Material"}
                 </button>
-                <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">
+                <button
+                  type="button"
+                  onClick={() => setModalOpen(false)}
+                  className="btn-secondary"
+                >
                   Cancel
                 </button>
               </div>
