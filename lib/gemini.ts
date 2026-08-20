@@ -446,9 +446,13 @@ function extractDiagramPrompt(q: QuestionWithDiagramMeta): string | null {
 
 /** Generate one educational diagram via Gemini image model and upload to Cloudinary. */
 export async function generateQuestionDiagram(
-  question: AIQuestion
+  question: AIQuestion,
+  options?: { force?: boolean }
 ): Promise<string | null> {
-  const promptText = extractDiagramPrompt(question as QuestionWithDiagramMeta);
+  let promptText = extractDiagramPrompt(question as QuestionWithDiagramMeta);
+  if (!promptText && options?.force) {
+    promptText = `Educational worksheet diagram or graph that helps a student understand this question: ${question.text}`;
+  }
   if (!promptText) return null;
 
   const imageModel =

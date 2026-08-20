@@ -42,6 +42,8 @@ function QuestionCard({
   editing,
   onSaveEdit,
   onUpdateImage,
+  onGenerateDiagram,
+  generatingDiagram,
 }: {
   q: AIQuestion;
   index: number;
@@ -51,6 +53,8 @@ function QuestionCard({
   editing: boolean;
   onSaveEdit: (updated: AIQuestion) => void;
   onUpdateImage: (questionId: string, imageUrl: string | undefined) => void;
+  onGenerateDiagram: (q: AIQuestion) => void;
+  generatingDiagram: boolean;
 }) {
   const [editForm, setEditForm] = useState<AIQuestion>(q);
   const [showSolution, setShowSolution] = useState(false);
@@ -252,14 +256,22 @@ function QuestionCard({
             alt={`Diagram for question ${index + 1}`}
             className="max-h-56 border border-gray-200 object-contain"
           />
-          <div className="mt-1.5 flex gap-3">
+          <div className="mt-1.5 flex flex-wrap gap-3">
+            <button
+              onClick={() => onGenerateDiagram(q)}
+              disabled={generatingDiagram || uploadingImage}
+              className="text-xs text-purple-700 font-medium hover:underline flex items-center gap-1 disabled:opacity-50"
+            >
+              <MdAutoAwesome size={13} />
+              {generatingDiagram ? "Generating…" : "Regenerate AI diagram"}
+            </button>
             <button
               onClick={() => fileInputRef.current?.click()}
-              disabled={uploadingImage}
+              disabled={uploadingImage || generatingDiagram}
               className="text-xs text-[#00369b] font-medium hover:underline flex items-center gap-1 disabled:opacity-50"
             >
               <MdImage size={13} />{" "}
-              {uploadingImage ? "Uploading…" : "Replace image"}
+              {uploadingImage ? "Uploading…" : "Upload / replace image"}
             </button>
             <button
               onClick={() => onUpdateImage(q.id, undefined)}
@@ -270,22 +282,44 @@ function QuestionCard({
           </div>
         </div>
       ) : (
-        <button
-          onClick={() => fileInputRef.current?.click()}
-          disabled={uploadingImage}
-          className="flex items-center gap-1.5 text-xs text-gray-500 border border-dashed border-gray-300 px-3 py-2 hover:border-[#00369b] hover:text-[#00369b] transition-colors disabled:opacity-50"
-        >
-          {uploadingImage ? (
-            <>
-              <div className="w-3 h-3 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />{" "}
-              Uploading image…
-            </>
-          ) : (
-            <>
-              <MdImage size={14} /> Add diagram image for this question
-            </>
-          )}
-        </button>
+        <div className="space-y-1.5">
+          <p className="text-[11px] text-gray-400">Add a diagram for this question (optional)</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => onGenerateDiagram(q)}
+              disabled={generatingDiagram || uploadingImage}
+              className="flex items-center gap-1.5 text-xs font-medium text-purple-700 border border-purple-200 bg-purple-50 px-3 py-2 hover:bg-purple-100 transition-colors disabled:opacity-50"
+            >
+              {generatingDiagram ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
+                  Generating diagram…
+                </>
+              ) : (
+                <>
+                  <MdAutoAwesome size={14} /> Generate diagram / graph
+                </>
+              )}
+            </button>
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploadingImage || generatingDiagram}
+              className="flex items-center gap-1.5 text-xs font-medium text-[#00369b] border border-[#00369b]/30 bg-white px-3 py-2 hover:bg-blue-50 transition-colors disabled:opacity-50"
+            >
+              {uploadingImage ? (
+                <>
+                  <div className="w-3 h-3 border-2 border-[#00369b] border-t-transparent rounded-full animate-spin" />
+                  Uploading…
+                </>
+              ) : (
+                <>
+                  <MdImage size={14} /> Upload image
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       )}
       <input
         ref={fileInputRef}
@@ -413,13 +447,12 @@ export default function AIGeneratorPage() {
 
   // Generation state
   const [generating, setGenerating] = useState(false);
-  const [generatingDiagrams, setGeneratingDiagrams] = useState(false);
+  const [generatingDiagramId, setGeneratingDiagramId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<AIQuestion[]>([]);
   const [error, setError] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [diagramMsg, setDiagramMsg] = useState("");
 
   // Create similar state
   const [creatingSimFor, setCreatingSimFor] = useState<string | null>(null);
@@ -431,7 +464,6 @@ export default function AIGeneratorPage() {
     }
     setGenerating(true);
     setError("");
-    setDiagramMsg("");
     setQuestions([]);
     setSaved(false);
     try {
@@ -454,53 +486,35 @@ export default function AIGeneratorPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Generation failed");
       setQuestions(data.questions);
-
-      // Auto-generate diagrams for questions that need them (Gemini image model)
-      setGenerating(false);
-      setGeneratingDiagrams(true);
-      try {
-        const dRes = await fetch("/api/generate-diagrams", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ questions: data.questions }),
-        });
-        const dData = await dRes.json();
-        if (dRes.ok && Array.isArray(dData.questions)) {
-          setQuestions(dData.questions);
-          setDiagramMsg(dData.message ?? "");
-        } else if (!dRes.ok) {
-          setDiagramMsg(dData.error ?? "Diagram generation skipped.");
-        }
-      } catch {
-        setDiagramMsg("Questions ready — diagram generation could not run. You can still upload images manually.");
-      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setGenerating(false);
-      setGeneratingDiagrams(false);
     }
   }
 
-  async function handleGenerateDiagrams() {
-    if (!questions.length) return;
-    setGeneratingDiagrams(true);
-    setDiagramMsg("");
+  async function handleGenerateDiagram(q: AIQuestion) {
+    setGeneratingDiagramId(q.id);
     setError("");
     try {
       const res = await fetch("/api/generate-diagrams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ questions }),
+        body: JSON.stringify({ question: q, force: true }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Diagram generation failed");
-      setQuestions(data.questions);
-      setDiagramMsg(data.message ?? "");
+      if (data.imageUrl) {
+        setQuestions((prev) =>
+          prev.map((item) =>
+            item.id === q.id ? { ...item, imageUrl: data.imageUrl as string } : item
+          )
+        );
+      }
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Diagram generation failed");
     } finally {
-      setGeneratingDiagrams(false);
+      setGeneratingDiagramId(null);
     }
   }
 
@@ -606,20 +620,12 @@ export default function AIGeneratorPage() {
                 AI Question Generator
               </h1>
               <p className="text-gray-500 text-sm">
-                Powered by Google Gemini · Free tier
+                Powered by OpenAI · diagrams only when you click Generate
               </p>
             </div>
           </div>
           {questions.length > 0 && (
             <div className="flex gap-2 flex-wrap">
-              <button
-                onClick={handleGenerateDiagrams}
-                disabled={generatingDiagrams}
-                className="btn-secondary flex items-center gap-2 text-sm disabled:opacity-60"
-              >
-                <MdImage size={16} />
-                {generatingDiagrams ? "Generating diagrams…" : "Generate AI Diagrams"}
-              </button>
               <button
                 onClick={handlePrint}
                 className="btn-secondary flex items-center gap-2 text-sm"
@@ -637,16 +643,6 @@ export default function AIGeneratorPage() {
             </div>
           )}
         </div>
-
-        {diagramMsg && (
-          <p className="text-sm text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2">{diagramMsg}</p>
-        )}
-        {generatingDiagrams && (
-          <p className="text-sm text-purple-700 bg-purple-50 border border-purple-200 px-3 py-2 flex items-center gap-2">
-            <span className="w-3.5 h-3.5 border-2 border-purple-600 border-t-transparent rounded-full animate-spin" />
-            Creating educational diagrams with Gemini for questions that need them…
-          </p>
-        )}
 
         <div className="grid lg:grid-cols-5 gap-5">
           {/* ── Left: Form ── */}
@@ -878,7 +874,7 @@ export default function AIGeneratorPage() {
               <div className="admin-card text-center py-16">
                 <div className="w-10 h-10 border-4 border-purple-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
                 <p className="text-gray-700 font-medium">
-                  Gemini is generating your questions…
+                  AI is generating your questions…
                 </p>
                 <p className="text-gray-400 text-sm mt-1">
                   This usually takes 5–15 seconds
@@ -918,6 +914,8 @@ export default function AIGeneratorPage() {
                       editing={editingId === q.id}
                       onSaveEdit={handleSaveEdit}
                       onUpdateImage={handleUpdateImage}
+                      onGenerateDiagram={handleGenerateDiagram}
+                      generatingDiagram={generatingDiagramId === q.id}
                     />
                   ))}
                 </div>

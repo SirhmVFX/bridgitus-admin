@@ -20,7 +20,7 @@ export async function POST(request: Request) {
   try {
     if (!isSesConfigured()) {
       return NextResponse.json(
-        { error: "AWS SES is not configured. Set AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY and EMAIL_FROM." },
+        { error: "Email is not configured. Set SENDGRID_API_KEY and EMAIL_FROM, then set EMAIL_ENABLED=true in lib/email.ts." },
         { status: 503 }
       );
     }

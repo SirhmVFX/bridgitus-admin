@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
     // Send emails via Amazon SES
     if ((sendVia === "email" || sendVia === "both") && parentEmails.length > 0) {
       if (!isSesConfigured()) {
-        emailErrors.push("AWS SES is not configured (missing AWS credentials or EMAIL_FROM).");
+        emailErrors.push("Email is not configured (set SENDGRID_API_KEY + EMAIL_ENABLED=true).");
       } else {
         try {
           const result = await sendEmailToMany(parentEmails, {
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
             emailErrors.push(...result.errors.slice(0, 5));
           }
         } catch (error) {
-          console.error("SES parent-message error:", error);
+          console.error("Email parent-message error:", error);
           emailErrors.push(error instanceof Error ? error.message : "Unknown email error");
         }
       }

@@ -1,24 +1,51 @@
 import { NextResponse } from "next/server";
-import { attachDiagramsToQuestions } from "@/lib/gemini";
+import {
+  generateQuestionDiagram,
+  attachDiagramsToQuestions,
+  isAiConfigured,
+  aiConfigError,
+} from "@/lib/ai";
 import type { AIQuestion } from "@/lib/firestore";
 
 /**
  * POST /api/generate-diagrams
- * Body: { questions: AIQuestion[] }
- * Generates educational diagrams (via Gemini image model) for questions that need them.
+ * Body:
+ *   { question: AIQuestion, force?: boolean }  — one question (preferred; admin clicks per card)
+ *   { questions: AIQuestion[] }                — batch (optional / legacy)
  */
 export async function POST(request: Request) {
   try {
-    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "your_gemini_api_key_here") {
-      return NextResponse.json(
-        { error: "Gemini API key not configured." },
-        { status: 500 }
-      );
+    if (!isAiConfigured()) {
+      return NextResponse.json({ error: aiConfigError() }, { status: 503 });
     }
 
-    const { questions } = (await request.json()) as { questions: AIQuestion[] };
+    const body = (await request.json()) as {
+      question?: AIQuestion;
+      questions?: AIQuestion[];
+      force?: boolean;
+    };
+
+    // Single-question path (credit-friendly)
+    if (body.question?.id) {
+      const imageUrl = await generateQuestionDiagram(body.question, {
+        force: body.force !== false,
+      });
+      if (!imageUrl) {
+        return NextResponse.json(
+          { error: "Could not generate a diagram for this question. Try again or upload an image manually." },
+          { status: 500 }
+        );
+      }
+      return NextResponse.json({
+        questionId: body.question.id,
+        imageUrl,
+        message: "Diagram generated.",
+      });
+    }
+
+    const questions = body.questions;
     if (!Array.isArray(questions) || questions.length === 0) {
-      return NextResponse.json({ error: "No questions provided." }, { status: 400 });
+      return NextResponse.json({ error: "No question provided." }, { status: 400 });
     }
 
     const result = await attachDiagramsToQuestions(questions);

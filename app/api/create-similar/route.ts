@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
-import { createSimilarQuestions } from "@/lib/gemini";
+import { createSimilarQuestions, isAiConfigured, aiConfigError } from "@/lib/ai";
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY === "your_gemini_api_key_here") {
-      return NextResponse.json(
-        { error: "Gemini API key not configured." },
-        { status: 503 }
-      );
+    if (!isAiConfigured()) {
+      return NextResponse.json({ error: aiConfigError() }, { status: 503 });
     }
 
     const body = await request.json();

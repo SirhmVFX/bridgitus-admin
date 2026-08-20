@@ -1,15 +1,17 @@
 import { NextResponse } from "next/server";
-import { analyzeStudentPerformance, type StudentAnalysisPayload } from "@/lib/gemini";
+import {
+  analyzeStudentPerformance,
+  isAiConfigured,
+  aiConfigError,
+  type StudentAnalysisPayload,
+} from "@/lib/ai";
 
 export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
-    if (!process.env.GEMINI_API_KEY) {
-      return NextResponse.json(
-        { error: "GEMINI_API_KEY is not configured on the server." },
-        { status: 500 }
-      );
+    if (!isAiConfigured()) {
+      return NextResponse.json({ error: aiConfigError() }, { status: 503 });
     }
 
     const payload = (await request.json()) as StudentAnalysisPayload;
