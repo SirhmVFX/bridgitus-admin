@@ -15,7 +15,7 @@
 // import { SESClient, SendEmailCommand } from "@aws-sdk/client-ses";
 
 /** Set to `true` when your SendGrid API key is ready and you want emails to send. */
-export const EMAIL_ENABLED = false;
+export const EMAIL_ENABLED = true;
 
 export interface SendEmailOptions {
   to: string | string[];
@@ -27,16 +27,25 @@ export interface SendEmailOptions {
 }
 
 function defaultFrom(): string {
-  return process.env.EMAIL_FROM || process.env.AWS_SES_FROM_EMAIL || "noreply@bridgitus.com";
+  return (
+    process.env.EMAIL_FROM ||
+    process.env.AWS_SES_FROM_EMAIL ||
+    "noreply@bridgitus.com"
+  );
 }
 
 function stripHtml(html: string): string {
-  return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function normalizeList(value?: string | string[]): string[] {
   if (!value) return [];
-  return (Array.isArray(value) ? value : [value]).map((s) => s.trim()).filter(Boolean);
+  return (Array.isArray(value) ? value : [value])
+    .map((s) => s.trim())
+    .filter(Boolean);
 }
 
 /*
@@ -61,7 +70,12 @@ function getSesClient(): SESClient {
 /** Send one email via SendGrid. (No-ops while EMAIL_ENABLED=false.) */
 export async function sendEmail(opts: SendEmailOptions): Promise<void> {
   if (!EMAIL_ENABLED) {
-    console.warn("[email] Skipped (EMAIL_ENABLED=false):", opts.subject, "→", opts.to);
+    console.warn(
+      "[email] Skipped (EMAIL_ENABLED=false):",
+      opts.subject,
+      "→",
+      opts.to,
+    );
     return;
   }
 
@@ -102,7 +116,9 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
 
   if (!res.ok) {
     const errBody = await res.text().catch(() => "");
-    throw new Error(`SendGrid error ${res.status}: ${errBody || res.statusText}`);
+    throw new Error(
+      `SendGrid error ${res.status}: ${errBody || res.statusText}`,
+    );
   }
   // ──────────────────────────────────────────────────────────────────────────
 
@@ -130,7 +146,7 @@ export async function sendEmail(opts: SendEmailOptions): Promise<void> {
 /** Send the same message to many recipients (one call per address). */
 export async function sendEmailToMany(
   recipients: string[],
-  opts: Omit<SendEmailOptions, "to">
+  opts: Omit<SendEmailOptions, "to">,
 ): Promise<{ sent: number; failed: number; errors: string[] }> {
   if (!EMAIL_ENABLED) {
     console.warn(
@@ -138,12 +154,14 @@ export async function sendEmailToMany(
       opts.subject,
       "→",
       recipients.length,
-      "recipients"
+      "recipients",
     );
     return { sent: 0, failed: 0, errors: ["Email temporarily disabled"] };
   }
 
-  const unique = [...new Set(recipients.map((e) => e.trim().toLowerCase()).filter(Boolean))];
+  const unique = [
+    ...new Set(recipients.map((e) => e.trim().toLowerCase()).filter(Boolean)),
+  ];
   const errors: string[] = [];
   let sent = 0;
   let failed = 0;
@@ -151,12 +169,16 @@ export async function sendEmailToMany(
   const batchSize = 5;
   for (let i = 0; i < unique.length; i += batchSize) {
     const batch = unique.slice(i, i + batchSize);
-    const results = await Promise.allSettled(batch.map((to) => sendEmail({ ...opts, to })));
+    const results = await Promise.allSettled(
+      batch.map((to) => sendEmail({ ...opts, to })),
+    );
     for (const r of results) {
       if (r.status === "fulfilled") sent++;
       else {
         failed++;
-        errors.push(r.reason instanceof Error ? r.reason.message : String(r.reason));
+        errors.push(
+          r.reason instanceof Error ? r.reason.message : String(r.reason),
+        );
       }
     }
   }
