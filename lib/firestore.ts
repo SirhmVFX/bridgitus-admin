@@ -892,7 +892,14 @@ export async function deleteTestimonial(id: string): Promise<void> {
 // Pricing
 export async function getAllPricingPlans(): Promise<SitePricingPlan[]> {
   const snap = await getDocs(collection(db, "sitePricingPlans"));
-  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as SitePricingPlan) })).sort((a, b) => a.order - b.order);
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as SitePricingPlan) }))
+    .sort((a, b) => {
+      const aFamily = (a.title || "").toLowerCase().includes("family") ? 0 : 1;
+      const bFamily = (b.title || "").toLowerCase().includes("family") ? 0 : 1;
+      if (aFamily !== bFamily) return aFamily - bFamily;
+      return (a.order ?? 0) - (b.order ?? 0);
+    });
 }
 export async function createPricingPlan(data: Omit<SitePricingPlan, "id">): Promise<string> {
   const ref = await addDoc(collection(db, "sitePricingPlans"), {
