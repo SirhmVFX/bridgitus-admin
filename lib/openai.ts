@@ -14,7 +14,8 @@ type QuestionWithDiagramMeta = AIQuestion & {
 };
 
 const openaiTextModel = process.env.OPENAI_MODEL ?? "gpt-4o-mini";
-const openaiImageModel = process.env.OPENAI_IMAGE_MODEL ?? "dall-e-3";
+/** Prefer gpt-image-1 — many new OpenAI accounts no longer expose dall-e-3. */
+const openaiImageModel = process.env.OPENAI_IMAGE_MODEL ?? "gpt-image-1";
 
 function getClient(): OpenAI {
   const key = process.env.OPENAI_API_KEY?.trim();
@@ -371,11 +372,18 @@ Style: clean black lines on white background, labelled where helpful, no photore
 Diagram content: ${promptText}`;
 
   // Never send response_format — gpt-image-* rejects it; dall-e returns url by default (handled below).
+  const isGptImage = /^gpt-image/i.test(openaiImageModel);
   const result = await client.images.generate({
     model: openaiImageModel,
     prompt: fullPrompt,
     n: 1,
     size: "1024x1024",
+    ...(isGptImage
+      ? {
+          // Cheaper default for worksheet diagrams; override via env if needed
+          quality: (process.env.OPENAI_IMAGE_QUALITY as "low" | "medium" | "high" | "auto") || "medium",
+        }
+      : {}),
   });
 
   const b64 = result.data?.[0]?.b64_json;
