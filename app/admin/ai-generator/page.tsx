@@ -408,6 +408,8 @@ export default function AIGeneratorPage() {
   const [subject, setSubject] = useState("");
   const [topic, setTopic] = useState("");
   const [subtopic, setSubtopic] = useState("");
+  const [customSubject, setCustomSubject] = useState(false);
+  const [customTopic, setCustomTopic] = useState(false);
   const [count, setCount] = useState<number>(10);
   const [difficulty, setDifficulty] = useState<string>("Core");
   const [format, setFormat] = useState<string>("Mixed");
@@ -425,19 +427,26 @@ export default function AIGeneratorPage() {
     setSubject("");
     setTopic("");
     setSubtopic("");
+    setCustomSubject(false);
+    setCustomTopic(false);
   }, [curriculum]);
   useEffect(() => {
     setSubject("");
     setTopic("");
     setSubtopic("");
+    setCustomSubject(false);
+    setCustomTopic(false);
   }, [year]);
   useEffect(() => {
-    setTopic("");
-    setSubtopic("");
-  }, [subject]);
+    if (!customSubject) {
+      setTopic("");
+      setSubtopic("");
+      setCustomTopic(false);
+    }
+  }, [subject, customSubject]);
   useEffect(() => {
-    setSubtopic("");
-  }, [topic]);
+    if (!customTopic) setSubtopic("");
+  }, [topic, customTopic]);
   useEffect(() => {
     if (topic)
       setTitle(
@@ -686,35 +695,86 @@ export default function AIGeneratorPage() {
                   </select>
                 </div>
                 <div>
-                  <label className="admin-label">Subject</label>
-                  <select
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    className="admin-input w-full"
-                    disabled={!year}
-                  >
-                    <option value="">Select…</option>
-                    {subjects.map((s) => (
-                      <option key={s}>{s}</option>
-                    ))}
-                  </select>
+                  <div className="flex items-center justify-between gap-2 mb-1">
+                    <label className="admin-label !mb-0">Subject</label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setCustomSubject((v) => !v);
+                        setSubject("");
+                        setTopic("");
+                        setSubtopic("");
+                        setCustomTopic(false);
+                      }}
+                      className="text-[11px] font-semibold text-purple-700 hover:underline"
+                    >
+                      {customSubject ? "Pick from list" : "Type custom"}
+                    </button>
+                  </div>
+                  {customSubject ? (
+                    <input
+                      type="text"
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      className="admin-input w-full"
+                      placeholder="e.g. Mathematics"
+                      disabled={!year}
+                    />
+                  ) : (
+                    <select
+                      value={subject}
+                      onChange={(e) => setSubject(e.target.value)}
+                      className="admin-input w-full"
+                      disabled={!year}
+                    >
+                      <option value="">Select…</option>
+                      {subjects.map((s) => (
+                        <option key={s}>{s}</option>
+                      ))}
+                    </select>
+                  )}
                 </div>
               </div>
 
               {/* Topic */}
               <div>
-                <label className="admin-label">Topic</label>
-                <select
-                  value={topic}
-                  onChange={(e) => setTopic(e.target.value)}
-                  className="admin-input w-full"
-                  disabled={!subject}
-                >
-                  <option value="">Select…</option>
-                  {getTopics(curriculum, year, subject).map((t) => (
-                    <option key={t.name}>{t.name}</option>
-                  ))}
-                </select>
+                <div className="flex items-center justify-between gap-2 mb-1">
+                  <label className="admin-label !mb-0">Topic</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCustomTopic((v) => !v);
+                      setTopic("");
+                      setSubtopic("");
+                    }}
+                    disabled={!subject}
+                    className="text-[11px] font-semibold text-purple-700 hover:underline disabled:opacity-40"
+                  >
+                    {customTopic ? "Pick from list" : "Type custom"}
+                  </button>
+                </div>
+                {customTopic || customSubject ? (
+                  <input
+                    type="text"
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    className="admin-input w-full"
+                    placeholder="e.g. Transformations — Reflection"
+                    disabled={!subject}
+                  />
+                ) : (
+                  <select
+                    value={topic}
+                    onChange={(e) => setTopic(e.target.value)}
+                    className="admin-input w-full"
+                    disabled={!subject}
+                  >
+                    <option value="">Select…</option>
+                    {getTopics(curriculum, year, subject).map((t) => (
+                      <option key={t.name}>{t.name}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Subtopic */}
@@ -723,17 +783,28 @@ export default function AIGeneratorPage() {
                   Subtopic{" "}
                   <span className="text-gray-400 font-normal">(optional)</span>
                 </label>
-                <select
-                  value={subtopic}
-                  onChange={(e) => setSubtopic(e.target.value)}
-                  className="admin-input w-full"
-                  disabled={!topic}
-                >
-                  <option value="">All subtopics</option>
-                  {getSubtopics(curriculum, year, subject, topic).map((s) => (
-                    <option key={s}>{s}</option>
-                  ))}
-                </select>
+                {customTopic || customSubject ? (
+                  <input
+                    type="text"
+                    value={subtopic}
+                    onChange={(e) => setSubtopic(e.target.value)}
+                    className="admin-input w-full"
+                    placeholder="Optional focus area"
+                    disabled={!topic}
+                  />
+                ) : (
+                  <select
+                    value={subtopic}
+                    onChange={(e) => setSubtopic(e.target.value)}
+                    className="admin-input w-full"
+                    disabled={!topic}
+                  >
+                    <option value="">All subtopics</option>
+                    {getSubtopics(curriculum, year, subject, topic).map((s) => (
+                      <option key={s}>{s}</option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               {/* Count + Difficulty */}

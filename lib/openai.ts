@@ -370,18 +370,17 @@ export async function generateQuestionDiagram(
 Style: clean black lines on white background, labelled where helpful, no photorealism, no watermarks, no decorative clutter, no people faces.
 Diagram content: ${promptText}`;
 
+  // Never send response_format — gpt-image-* rejects it; dall-e returns url by default (handled below).
   const result = await client.images.generate({
     model: openaiImageModel,
     prompt: fullPrompt,
     n: 1,
     size: "1024x1024",
-    // dall-e-3 / gpt-image-* support b64 when available
-    response_format: "b64_json",
   });
 
   const b64 = result.data?.[0]?.b64_json;
   if (!b64) {
-    // Some accounts return URL only
+    // dall-e models typically return a temporary URL
     const url = result.data?.[0]?.url;
     if (url) {
       const imgRes = await fetch(url);
