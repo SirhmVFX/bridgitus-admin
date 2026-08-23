@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
-import { FieldValue } from "firebase-admin/firestore";
-import {
-  adminAuth,
-  adminDb,
-  generateStudentPassword,
-  isFirebaseAdminConfigured,
-} from "@/lib/firebaseAdmin";
-import { sendEmail, brandedEmail, isSesConfigured } from "@/lib/email";
+import { sendEmail, brandedEmail, isEmailConfigured } from "@/lib/email";
+
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
+function json(data: unknown, status = 200) {
+  return NextResponse.json(data, { status });
+}
 
 /**
  * POST /api/students/reset-password
@@ -15,26 +15,74 @@ import { sendEmail, brandedEmail, isSesConfigured } from "@/lib/email";
  */
 export async function POST(request: Request) {
   try {
-    if (!isFirebaseAdminConfigured()) {
-      return NextResponse.json(
+    let body: { studentId?: string; emailParent?: boolean };
+    try {
+      body = await request.json();
+    } catch {
+      return json({ error: "Invalid request body." }, 400);
+    }
+
+    const studentDocId = body.studentId?.trim();
+    const emailParent = body.emailParent !== false;
+    if (!studentDocId) {
+      return json({ error: "studentId is required" }, 400);
+    }
+
+    let adminAuth: typeof import("@/lib/firebaseAdmin").adminAuth;
+    let adminDb: typeof import("@/lib/firebaseAdmin").adminDb;
+    let generateStudentPassword: typeof import("@/lib/firebaseAdmin").generateStudentPassword;
+    let isFirebaseAdminConfigured: typeof import("@/lib/firebaseAdmin").isFirebaseAdminConfigured;
+    let getAdminApp: typeof import("@/lib/firebaseAdmin").getAdminApp;
+    let FieldValue: typeof import("firebase-admin/firestore").FieldValue;
+
+    try {
+      const admin = await import("@/lib/firebaseAdmin");
+      const fs = await import("firebase-admin/firestore");
+      adminAuth = admin.adminAuth;
+      adminDb = admin.adminDb;
+      generateStudentPassword = admin.generateStudentPassword;
+      isFirebaseAdminConfigured = admin.isFirebaseAdminConfigured;
+      getAdminApp = admin.getAdminApp;
+      FieldValue = fs.FieldValue;
+    } catch (loadErr: unknown) {
+      console.error("Firebase Admin load failed:", loadErr);
+      return json(
         {
           error:
-            "Password reset requires Firebase Admin credentials (FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY) in .env.local.",
+            "Password reset failed to start Firebase Admin. On the host, set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY, then redeploy.",
         },
-        { status: 503 }
+        503
       );
     }
 
-    const body = await request.json();
-    const studentDocId = body.studentId as string | undefined;
-    const emailParent = body.emailParent !== false;
-    if (!studentDocId) {
-      return NextResponse.json({ error: "studentId is required" }, { status: 400 });
+    if (!isFirebaseAdminConfigured()) {
+      return json(
+        {
+          error:
+            "Password reset requires FIREBASE_CLIENT_EMAIL and FIREBASE_PRIVATE_KEY on the server (production env), then redeploy.",
+        },
+        503
+      );
+    }
+
+    try {
+      getAdminApp();
+    } catch (initErr: unknown) {
+      console.error("Firebase Admin init failed:", initErr);
+      return json(
+        {
+          error:
+            initErr instanceof Error
+              ? `Firebase Admin init failed: ${initErr.message}`
+              : "Firebase Admin failed to start. Check FIREBASE_PRIVATE_KEY formatting on the host.",
+        },
+        503
+      );
     }
 
     const snap = await adminDb().collection("students").doc(studentDocId).get();
     if (!snap.exists) {
-      return NextResponse.json({ error: "Student not found" }, { status: 404 });
+      return json({ error: "Student not found" }, 404);
     }
 
     const student = snap.data()!;
@@ -47,7 +95,7 @@ export async function POST(request: Request) {
       process.env.NEXT_PUBLIC_PORTAL_URL || "https://bridgitus.com/portal/login";
 
     if (!uid) {
-      return NextResponse.json({ error: "Student has no Auth uid" }, { status: 400 });
+      return json({ error: "Student has no Auth uid — cannot reset login." }, 400);
     }
 
     const password = generateStudentPassword();
@@ -59,7 +107,7 @@ export async function POST(request: Request) {
     });
 
     let emailed = false;
-    if (emailParent && parentEmail && isSesConfigured()) {
+    if (emailParent && parentEmail && isEmailConfigured()) {
       try {
         await sendEmail({
           to: parentEmail,
@@ -81,7 +129,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
+    return json({
       success: true,
       password,
       studentId: studentIdCode,
@@ -90,9 +138,9 @@ export async function POST(request: Request) {
     });
   } catch (err: unknown) {
     console.error("reset-password error:", err);
-    return NextResponse.json(
+    return json(
       { error: err instanceof Error ? err.message : "Reset failed" },
-      { status: 500 }
+      500
     );
   }
 }

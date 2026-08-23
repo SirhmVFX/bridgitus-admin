@@ -194,7 +194,7 @@ export default function StudentDetailPage() {
 
   async function handleResetPassword() {
     if (!student?.id) return;
-    if (!confirm(`Reset password for ${student.firstName}? A new password will be generated and emailed to the parent if SES is enabled.`)) return;
+    if (!confirm(`Reset password for ${student.firstName}? A new password will be generated and emailed to the parent if email is enabled.`)) return;
     setResetBusy(true);
     setResetMsg("");
     try {
@@ -203,8 +203,18 @@ export default function StudentDetailPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId: student.id, emailParent: true }),
       });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Reset failed");
+      const text = await res.text();
+      let data: { error?: string; password?: string; emailed?: boolean } = {};
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? "Unexpected response from server."
+            : `Reset failed (HTTP ${res.status}). On production, set FIREBASE_CLIENT_EMAIL + FIREBASE_PRIVATE_KEY and redeploy.`
+        );
+      }
+      if (!res.ok) throw new Error(data.error || `Reset failed (HTTP ${res.status})`);
       setStudent((s) => (s ? { ...s, issuedPassword: data.password } : s));
       setShowPassword(true);
       setResetMsg(`New password: ${data.password}${data.emailed ? " (emailed to parent)" : " (email not sent — copy and share manually)"}`);
