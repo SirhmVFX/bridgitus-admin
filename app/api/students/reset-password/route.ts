@@ -46,10 +46,10 @@ export async function POST(request: Request) {
       FieldValue = fs.FieldValue;
     } catch (loadErr: unknown) {
       console.error("Firebase Admin load failed:", loadErr);
+      const detail = loadErr instanceof Error ? loadErr.message : String(loadErr);
       return json(
         {
-          error:
-            "Password reset failed to start Firebase Admin. On the host, set FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, and FIREBASE_PRIVATE_KEY, then redeploy.",
+          error: `Firebase Admin could not load: ${detail}. After adding FIREBASE_* env vars, redeploy. Check FIREBASE_PRIVATE_KEY uses \\n for newlines.`,
         },
         503
       );
