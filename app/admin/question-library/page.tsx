@@ -26,6 +26,14 @@ function QuestionItem({ q, i }: { q: AIQuestion; i: number }) {
         {q.difficulty && <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5">{q.difficulty}</span>}
       </div>
       <p className="text-sm text-gray-800 font-medium leading-relaxed whitespace-pre-wrap">{q.text}</p>
+      {q.imageUrl && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={q.imageUrl}
+          alt={`Diagram for question ${i + 1}`}
+          className="max-h-56 w-auto border border-gray-200 object-contain bg-white"
+        />
+      )}
       {q.options && (
         <div className="grid grid-cols-2 gap-1.5">
           {q.options.map((opt, j) => (
@@ -101,8 +109,16 @@ function SetCard({
           {set.questions.map((q, i) => (
             <div key={q.id} className="flex items-start gap-2 text-sm">
               <span className="w-5 h-5 bg-gray-100 text-gray-600 text-xs font-bold flex items-center justify-center shrink-0">{i + 1}</span>
-              <div className="flex-1">
+              <div className="flex-1 space-y-1.5">
                 <p className="text-gray-700 text-xs leading-relaxed">{q.text}</p>
+                {q.imageUrl && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={q.imageUrl}
+                    alt={`Diagram Q${i + 1}`}
+                    className="max-h-32 w-auto border border-gray-100 object-contain"
+                  />
+                )}
                 {q.correctAnswer && (
                   <p className="text-xs text-emerald-600 mt-0.5">✓ {q.correctAnswer}</p>
                 )}

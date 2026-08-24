@@ -923,6 +923,14 @@ export default function TestsPage() {
                             className="admin-input resize-none"
                             placeholder="Enter question…"
                           />
+                          {q.imageUrl && (
+                            // eslint-disable-next-line @next/next/no-img-element
+                            <img
+                              src={q.imageUrl}
+                              alt={`Diagram for question ${idx + 1}`}
+                              className="mt-2 max-h-48 w-auto border border-gray-200 object-contain bg-gray-50"
+                            />
+                          )}
                         </div>
                         {q.type === "multiple_choice" && (
                           <div>

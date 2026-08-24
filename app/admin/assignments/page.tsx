@@ -307,6 +307,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
       points: aq.points ?? 1,
       explanation: (aq.explanation ?? "") as string,
       workedSolution: (aq.workedSolution ?? "") as string,
+      ...(aq.imageUrl ? { imageUrl: aq.imageUrl } : {}),
     }));
     const total = qs.reduce((s, q) => s + q.points, 0);
     setForm((f) => ({
@@ -331,6 +332,11 @@ ${data.description ? `\n\n${data.description}` : ""}`,
     ];
     set.questions.forEach((q, i) => {
       lines.push(`<p><strong>Q${i + 1}.</strong> ${q.text}</p>`);
+      if (q.imageUrl) {
+        lines.push(
+          `<p><img src="${q.imageUrl}" alt="Question ${i + 1} diagram" style="max-height:280px;object-fit:contain;" /></p>`,
+        );
+      }
       if (q.type === "multiple_choice" && q.options)
         lines.push(
           `<ul>${q.options.map((o) => `<li>${o}</li>`).join("")}</ul>`,
@@ -911,6 +917,14 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                                 rows={2}
                                 placeholder="Question text"
                               />
+                              {question.imageUrl && (
+                                // eslint-disable-next-line @next/next/no-img-element
+                                <img
+                                  src={question.imageUrl}
+                                  alt={`Diagram for question ${qIndex + 1}`}
+                                  className="max-h-48 w-auto border border-gray-200 object-contain bg-gray-50"
+                                />
+                              )}
                             </div>
                             <div className="grid gap-3 w-full sm:w-52">
                               <div>

@@ -107,7 +107,14 @@ export async function POST(request: Request) {
     });
 
     let emailed = false;
-    if (emailParent && parentEmail && isEmailConfigured()) {
+    let emailError: string | null = null;
+    if (!emailParent) {
+      emailError = "Email skipped (emailParent=false).";
+    } else if (!parentEmail) {
+      emailError = "No parent email on this student record.";
+    } else if (!isEmailConfigured()) {
+      emailError = "Email not configured (set SENDGRID_API_KEY + EMAIL_FROM).";
+    } else {
       try {
         await sendEmail({
           to: parentEmail,
@@ -126,6 +133,7 @@ export async function POST(request: Request) {
         emailed = true;
       } catch (err) {
         console.error("Password reset email failed:", err);
+        emailError = err instanceof Error ? err.message : "Email send failed";
       }
     }
 
@@ -135,6 +143,7 @@ export async function POST(request: Request) {
       studentId: studentIdCode,
       parentEmail,
       emailed,
+      emailError,
     });
   } catch (err: unknown) {
     console.error("reset-password error:", err);

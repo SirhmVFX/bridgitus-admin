@@ -204,7 +204,12 @@ export default function StudentDetailPage() {
         body: JSON.stringify({ studentId: student.id, emailParent: true }),
       });
       const text = await res.text();
-      let data: { error?: string; password?: string; emailed?: boolean } = {};
+      let data: {
+        error?: string;
+        password?: string;
+        emailed?: boolean;
+        emailError?: string | null;
+      } = {};
       try {
         data = text ? JSON.parse(text) : {};
       } catch {
@@ -217,7 +222,11 @@ export default function StudentDetailPage() {
       if (!res.ok) throw new Error(data.error || `Reset failed (HTTP ${res.status})`);
       setStudent((s) => (s ? { ...s, issuedPassword: data.password } : s));
       setShowPassword(true);
-      setResetMsg(`New password: ${data.password}${data.emailed ? " (emailed to parent)" : " (email not sent — copy and share manually)"}`);
+      setResetMsg(
+        data.emailed
+          ? `New password: ${data.password} (emailed to parent)`
+          : `New password: ${data.password} (email not sent — copy and share manually)${data.emailError ? ` — ${data.emailError}` : ""}`
+      );
     } catch (err: unknown) {
       setResetMsg(err instanceof Error ? err.message : "Reset failed");
     } finally {
