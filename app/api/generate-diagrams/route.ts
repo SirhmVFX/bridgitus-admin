@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 import {
   generateQuestionDiagram,
   attachDiagramsToQuestions,
@@ -15,6 +16,9 @@ import type { AIQuestion } from "@/lib/firestore";
  */
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     if (!isAiConfigured()) {
       return NextResponse.json({ error: aiConfigError() }, { status: 503 });
     }

@@ -23,6 +23,7 @@ import {
   type Question,
   type QuestionType,
 } from "@/lib/firestore";
+import { adminFetch } from "@/lib/adminFetch";
 import {
   MdAdd,
   MdEdit,
@@ -254,7 +255,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
           published: true,
         });
         // Email students + parents via Amazon SES
-        fetch("/api/notify-students", {
+        adminFetch("/api/notify-students", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

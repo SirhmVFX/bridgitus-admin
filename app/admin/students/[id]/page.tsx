@@ -23,6 +23,7 @@ import {
   MdDownload, MdLockReset, MdGroupAdd, MdVisibility, MdVisibilityOff,
 } from "react-icons/md";
 import { PracticePieChart, SkillMountainChart } from "@/components/AnalyticsCharts";
+import { adminFetch } from "@/lib/adminFetch";
 
 type Tab = "overview" | "materials" | "tests" | "assignments" | "progress" | "analytics";
 
@@ -198,7 +199,7 @@ export default function StudentDetailPage() {
     setResetBusy(true);
     setResetMsg("");
     try {
-      const res = await fetch("/api/students/reset-password", {
+      const res = await adminFetch("/api/students/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId: student.id, emailParent: true }),
@@ -239,7 +240,7 @@ export default function StudentDetailPage() {
     setSiblingBusy(true);
     setSiblingMsg("");
     try {
-      const res = await fetch("/api/students/add-family-sibling", {
+      const res = await adminFetch("/api/students/add-family-sibling", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

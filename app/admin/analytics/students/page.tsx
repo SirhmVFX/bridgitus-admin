@@ -17,6 +17,7 @@ import {
   MdCheckCircle, MdCancel, MdWarning, MdRefresh, MdPerson, MdDownload,
 } from "react-icons/md";
 import { PracticePieChart, SkillMountainChart } from "@/components/AnalyticsCharts";
+import { adminFetch } from "@/lib/adminFetch";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -185,7 +186,7 @@ function AIInsightsPanel({
         })),
       };
 
-      const res = await fetch("/api/analyze-student", {
+      const res = await adminFetch("/api/analyze-student", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

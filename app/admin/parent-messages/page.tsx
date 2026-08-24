@@ -6,6 +6,7 @@ import {
   getAllStudents, getAllParentMessages, deleteParentMessage,
   type ParentMessage, type Student,
 } from "@/lib/firestore";
+import { adminFetch } from "@/lib/adminFetch";
 import {
   MdSend, MdEmail, MdSms, MdClose, MdPerson, MdFilterList,
   MdDelete, MdCheckCircle, MdSchedule, MdPeople,
@@ -71,7 +72,7 @@ export default function ParentMessagesPage() {
     setSendResult(null);
 
     try {
-      const response = await fetch("/api/parent-messages", {
+      const response = await adminFetch("/api/parent-messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

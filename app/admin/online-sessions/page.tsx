@@ -6,6 +6,7 @@ import {
   getAllOnlineSessions, deleteOnlineSession, isOnlineSessionLive,
   type OnlineSession,
 } from "@/lib/firestore";
+import { adminFetch } from "@/lib/adminFetch";
 import {
   MdVideocam, MdAdd, MdDelete, MdOpenInNew, MdCheckCircle, MdSchedule,
 } from "react-icons/md";
@@ -55,7 +56,7 @@ export default function OnlineSessionsPage() {
     e.preventDefault();
     setSaving(true); setMessage(null);
     try {
-      const res = await fetch("/api/online-sessions", {
+      const res = await adminFetch("/api/online-sessions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

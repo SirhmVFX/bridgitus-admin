@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 import {
   createOnlineSession,
   updateOnlineSession,
@@ -13,6 +14,9 @@ import { sendEmailToMany, brandedEmail, isSesConfigured } from "@/lib/email";
  */
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     const body = await request.json();
     const {
       title,

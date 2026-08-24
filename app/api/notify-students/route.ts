@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAllStudents } from "@/lib/firestore";
 import { sendEmailToMany, brandedEmail, isSesConfigured } from "@/lib/email";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 
 /**
  * POST /api/notify-students
@@ -18,6 +19,9 @@ import { sendEmailToMany, brandedEmail, isSesConfigured } from "@/lib/email";
  */
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     if (!isSesConfigured()) {
       return NextResponse.json(
         { error: "Email is not configured. Set SENDGRID_API_KEY and EMAIL_FROM, then set EMAIL_ENABLED=true in lib/email.ts." },

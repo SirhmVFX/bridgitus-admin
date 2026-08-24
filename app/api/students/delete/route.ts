@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 import {
   isFirebaseAdminConfigured,
   adminAuth,
@@ -16,6 +17,9 @@ import {
  */
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     let body: { studentId?: string };
     try {
       body = await request.json();

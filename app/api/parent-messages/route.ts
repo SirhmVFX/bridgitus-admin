@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getAllStudents, createParentMessage, updateParentMessage, type ParentMessage } from "@/lib/firestore";
 import { sendEmailToMany, brandedEmail, isSesConfigured } from "@/lib/email";
 import { Twilio } from "twilio";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 
 export async function POST(request: NextRequest) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     const body = await request.json();
     const { title, body: messageBody, recipientType, recipientIds, recipientGrades, sendVia, createdBy } = body;
 

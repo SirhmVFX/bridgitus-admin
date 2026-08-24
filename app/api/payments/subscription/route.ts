@@ -3,6 +3,7 @@ import { db } from "@/lib/firebase";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import type { Student } from "@/lib/firestore";
 import { getStripe, STRIPE_CURRENCY } from "@/lib/stripe";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 
 /**
  * POST /api/payments/subscription
@@ -12,6 +13,9 @@ import { getStripe, STRIPE_CURRENCY } from "@/lib/stripe";
  */
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     const stripe = getStripe();
     const body = await request.json();
     const { action, studentId } = body as { action: string; studentId: string };

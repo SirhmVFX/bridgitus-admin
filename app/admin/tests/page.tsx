@@ -20,6 +20,7 @@ import {
   type LearningMaterial,
   type QuestionSet,
 } from "@/lib/firestore";
+import { adminFetch } from "@/lib/adminFetch";
 import {
   MdAdd,
   MdEdit,
@@ -225,7 +226,7 @@ export default function TestsPage() {
           published: true,
         });
         // Email students + parents via Amazon SES
-        fetch("/api/notify-students", {
+        adminFetch("/api/notify-students", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({

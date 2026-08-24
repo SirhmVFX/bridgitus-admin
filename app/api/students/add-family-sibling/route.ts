@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { FieldValue } from "firebase-admin/firestore";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 import {
   adminAuth,
   adminDb,
@@ -21,6 +22,9 @@ import { sendEmail, brandedEmail, isSesConfigured } from "@/lib/email";
  */
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     if (!isFirebaseAdminConfigured()) {
       return NextResponse.json(
         {
@@ -76,16 +80,24 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Source student has no parent email" }, { status: 400 });
     }
 
-    const siblings = await adminDb()
+    const siblingsByParent = await adminDb()
       .collection("students")
       .where("parentEmail", "==", parentEmail)
       .get();
-    if (siblings.size >= 3) {
+    const siblingsByEmail = await adminDb()
+      .collection("students")
+      .where("email", "==", parentEmail)
+      .get();
+    const siblingIds = new Set<string>();
+    for (const d of siblingsByParent.docs) siblingIds.add(d.id);
+    for (const d of siblingsByEmail.docs) siblingIds.add(d.id);
+    if (siblingIds.size >= 3) {
       return NextResponse.json(
         { error: "Family Plan already has 3 students under this parent email." },
         { status: 400 }
       );
     }
+    const siblingCount = siblingIds.size;
 
     const { year, next } = await nextStudentIdCounterAdmin();
     const studentId = formatStudentId(year, next);
@@ -162,7 +174,7 @@ export async function POST(request: Request) {
       password,
       parentEmail,
       emailed,
-      siblingCount: siblings.size + 1,
+      siblingCount: siblingCount + 1,
     });
   } catch (err: unknown) {
     console.error("add-family-sibling error:", err);

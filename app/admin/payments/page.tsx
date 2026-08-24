@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import { getAllStudents, type Student } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
+import { adminFetch } from "@/lib/adminFetch";
 import {
   MdPayment,
   MdSearch,
@@ -103,7 +104,7 @@ export default function PaymentsPage() {
     setSubmitting(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/payments/subscription", {
+      const res = await adminFetch("/api/payments/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -142,7 +143,7 @@ export default function PaymentsPage() {
     setCancellingFor(s.id);
     setMessage(null);
     try {
-      const res = await fetch("/api/payments/subscription", {
+      const res = await adminFetch("/api/payments/subscription", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "cancel", studentId: s.id }),

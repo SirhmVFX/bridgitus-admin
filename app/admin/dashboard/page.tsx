@@ -18,6 +18,7 @@ import {
   type AdminAlert,
 } from "@/lib/firestore";
 import FirebaseStatus from "@/components/FirebaseStatus";
+import { adminFetch } from "@/lib/adminFetch";
 import {
   MdPeople,
   MdMenuBook,
@@ -93,7 +94,7 @@ export default function DashboardPage() {
 
   async function handleRunPaymentCheck() {
     try {
-      const res = await fetch("/api/check-payments", { method: "POST" });
+      const res = await adminFetch("/api/check-payments", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
         // Reload alerts

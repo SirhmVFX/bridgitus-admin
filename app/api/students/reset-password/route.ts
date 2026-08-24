@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { sendEmail, brandedEmail, isEmailConfigured } from "@/lib/email";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -15,6 +16,9 @@ function json(data: unknown, status = 200) {
  */
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     let body: { studentId?: string; emailParent?: boolean };
     try {
       body = await request.json();

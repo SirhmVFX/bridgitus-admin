@@ -16,6 +16,7 @@ import {
   type MaterialCompletion,
   type LearningMaterial,
 } from "@/lib/firestore";
+import { adminFetch } from "@/lib/adminFetch";
 import {
   MdPeople,
   MdEdit,
@@ -145,7 +146,7 @@ export default function StudentsPage() {
       return;
     setActionMsg(null);
     try {
-      const res = await fetch("/api/students/delete", {
+      const res = await adminFetch("/api/students/delete", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId: id }),
@@ -233,7 +234,7 @@ export default function StudentsPage() {
     setResendingId(s.id);
     setActionMsg(null);
     try {
-      const res = await fetch("/api/students/resend-credentials", {
+      const res = await adminFetch("/api/students/resend-credentials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ studentId: s.id }),

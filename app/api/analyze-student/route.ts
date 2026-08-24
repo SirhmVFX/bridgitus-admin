@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 import {
   analyzeStudentPerformance,
   isAiConfigured,
@@ -10,6 +11,9 @@ export const maxDuration = 60;
 
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     if (!isAiConfigured()) {
       return NextResponse.json({ error: aiConfigError() }, { status: 503 });
     }

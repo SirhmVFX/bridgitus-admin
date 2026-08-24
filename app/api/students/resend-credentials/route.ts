@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { sendEmail, brandedEmail, isSesConfigured } from "@/lib/email";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 
 /**
  * POST /api/students/resend-credentials
@@ -12,6 +13,9 @@ import { sendEmail, brandedEmail, isSesConfigured } from "@/lib/email";
  */
 export async function POST(request: Request) {
   try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
     const body = await request.json();
     const studentDocId = body.studentId as string | undefined;
     if (!studentDocId) {

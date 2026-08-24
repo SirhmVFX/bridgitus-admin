@@ -15,6 +15,7 @@ import {
 } from "@/lib/curriculum";
 import { createQuestionSet, type AIQuestion } from "@/lib/firestore";
 import { uploadToCloudinary } from "@/lib/cloudinary";
+import { adminFetch } from "@/lib/adminFetch";
 import {
   MdAutoAwesome,
   MdSave,
@@ -476,7 +477,7 @@ export default function AIGeneratorPage() {
     setQuestions([]);
     setSaved(false);
     try {
-      const res = await fetch("/api/generate-questions", {
+      const res = await adminFetch("/api/generate-questions", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -506,7 +507,7 @@ export default function AIGeneratorPage() {
     setGeneratingDiagramId(q.id);
     setError("");
     try {
-      const res = await fetch("/api/generate-diagrams", {
+      const res = await adminFetch("/api/generate-diagrams", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: q, force: true }),
@@ -530,7 +531,7 @@ export default function AIGeneratorPage() {
   async function handleCreateSimilar(q: AIQuestion) {
     setCreatingSimFor(q.id);
     try {
-      const res = await fetch("/api/create-similar", {
+      const res = await adminFetch("/api/create-similar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ question: q, count: 3 }),
