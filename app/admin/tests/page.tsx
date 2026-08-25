@@ -21,6 +21,7 @@ import {
   type QuestionSet,
 } from "@/lib/firestore";
 import { adminFetch } from "@/lib/adminFetch";
+import { yearsMatch } from "@/lib/yearGrade";
 import {
   MdAdd,
   MdEdit,
@@ -178,6 +179,13 @@ export default function TestsPage() {
   }
 
   function importFromSet(set: QuestionSet) {
+    if (form.grade && set.year && !yearsMatch(set.year, form.grade)) {
+      alert(
+        `This question set is for ${set.year}, but this test is Grade ${form.grade}. ` +
+          `Import only matching year sets so diagrams stay with the right grade.`
+      );
+      return;
+    }
     // Convert AIQuestion → Question (they share all needed fields)
     const imported: Question[] = set.questions.map((aq) => {
       const type = (
@@ -636,7 +644,14 @@ export default function TestsPage() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {questionSets.map((set) => (
+                      {questionSets
+                        .filter(
+                          (set) =>
+                            !form.grade ||
+                            !set.year ||
+                            yearsMatch(set.year, form.grade)
+                        )
+                        .map((set) => (
                         <div
                           key={set.id}
                           className="border border-gray-200 p-4 hover:border-purple-300 hover:bg-purple-50/30 transition-all"

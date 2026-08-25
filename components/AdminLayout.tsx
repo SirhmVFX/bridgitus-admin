@@ -5,6 +5,7 @@ import { useRouter, usePathname } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import type { AdminSection } from "@/lib/firestore";
+import { formatAdminBreadcrumb, useBreadcrumbLabel } from "@/lib/breadcrumb";
 import {
   MdDashboard, MdMenuBook, MdQuiz, MdPeople,
   MdAssignment, MdPerson, MdLogout, MdMenu,
@@ -74,6 +75,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [websiteOpen, setWebsiteOpen] = useState(pathname.startsWith("/admin/website"));
+  const { detailLabel } = useBreadcrumbLabel();
 
   useEffect(() => {
     if (pathname.startsWith("/admin/website")) setWebsiteOpen(true);
@@ -217,7 +219,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </button>
           <div className="flex-1">
             <p className="text-sm font-semibold text-gray-700 capitalize">
-              {pathname.split("/").filter(Boolean).slice(1).join(" › ").replace(/-/g, " ") || "Dashboard"}
+              {formatAdminBreadcrumb(pathname, detailLabel)}
             </p>
           </div>
           <button className="p-1.5 text-gray-400 hover:text-gray-600"><MdNotifications size={20} /></button>

@@ -5,9 +5,11 @@ import Link from "next/link";
 import AdminLayout from "@/components/AdminLayout";
 import { getAssignmentById, getSubmissionsByAssignment, getAllStudents, type Assignment, type AssignmentSubmission, type Student } from "@/lib/firestore";
 import { MdArrowBack, MdAssignment, MdCheckCircle } from "react-icons/md";
+import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 
 export default function AssignmentAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
+  const { setDetailLabel } = useBreadcrumbLabel();
   const [assignment, setAssignment] = useState<Assignment | null>(null);
   const [submissions, setSubmissions] = useState<AssignmentSubmission[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -17,8 +19,10 @@ export default function AssignmentAnalyticsPage() {
     if (!id) return;
     Promise.all([getAssignmentById(id), getSubmissionsByAssignment(id), getAllStudents()]).then(([a, s, st]) => {
       setAssignment(a); setSubmissions(s); setStudents(st); setLoading(false);
+      setDetailLabel(a?.title || null);
     });
-  }, [id]);
+    return () => setDetailLabel(null);
+  }, [id, setDetailLabel]);
 
   const studentMap = Object.fromEntries(students.map((s) => [s.id, s]));
   const eligibleStudents = assignment

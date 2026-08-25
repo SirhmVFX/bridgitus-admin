@@ -24,6 +24,7 @@ import {
   type QuestionType,
 } from "@/lib/firestore";
 import { adminFetch } from "@/lib/adminFetch";
+import { setYearMatchesTarget } from "@/lib/yearGrade";
 import {
   MdAdd,
   MdEdit,
@@ -297,8 +298,16 @@ ${data.description ? `\n\n${data.description}` : ""}`,
 
   /** Import as interactive quiz — stores actual Question[] on the assignment */
   function importSetAsQuiz(set: QuestionSet) {
+    const targets = form.targetGrades?.length ? form.targetGrades : [];
+    if (targets.length && set.year && !setYearMatchesTarget(set.year, targets)) {
+      alert(
+        `This question set is for ${set.year}, but this assignment targets Grade(s) ${targets.join(", ")}. ` +
+          `Import only matching year sets so diagrams stay with the right grade.`
+      );
+      return;
+    }
     const qs: Question[] = set.questions.map((aq) => ({
-      id: aq.id ?? crypto.randomUUID(),
+      id: crypto.randomUUID(),
       type: (aq.type === "extended_response"
         ? "short_answer"
         : aq.type) as Question["type"],
@@ -1311,7 +1320,14 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                   </div>
                 ) : (
                   <div className="space-y-3">
-                    {questionSets.map((set) => (
+                    {questionSets
+                      .filter(
+                        (set) =>
+                          !form.targetGrades?.length ||
+                          !set.year ||
+                          setYearMatchesTarget(set.year, form.targetGrades)
+                      )
+                      .map((set) => (
                       <div
                         key={set.id}
                         className="border border-gray-200 p-4 hover:border-purple-300 hover:bg-purple-50/30 transition-all"

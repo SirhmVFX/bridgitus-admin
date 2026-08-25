@@ -5,9 +5,11 @@ import Link from "next/link";
 import AdminLayout from "@/components/AdminLayout";
 import { getTestById, getAttemptsByTest, getAllStudents, type Test, type TestAttempt, type Student } from "@/lib/firestore";
 import { MdArrowBack, MdCheckCircle, MdCancel, MdPending, MdQuiz } from "react-icons/md";
+import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 
 export default function TestAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
+  const { setDetailLabel } = useBreadcrumbLabel();
   const [test, setTest] = useState<Test | null>(null);
   const [attempts, setAttempts] = useState<TestAttempt[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -17,8 +19,10 @@ export default function TestAnalyticsPage() {
     if (!id) return;
     Promise.all([getTestById(id), getAttemptsByTest(id), getAllStudents()]).then(([t, a, s]) => {
       setTest(t); setAttempts(a); setStudents(s); setLoading(false);
+      setDetailLabel(t?.title || null);
     });
-  }, [id]);
+    return () => setDetailLabel(null);
+  }, [id, setDetailLabel]);
 
   const studentMap = Object.fromEntries(students.map((s) => [s.id, s]));
   const approved = attempts.filter((a) => a.status === "approved");

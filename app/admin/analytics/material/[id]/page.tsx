@@ -5,9 +5,11 @@ import Link from "next/link";
 import AdminLayout from "@/components/AdminLayout";
 import { getMaterialById, getCompletionsByMaterial, getAllStudents, type LearningMaterial, type MaterialCompletion, type Student } from "@/lib/firestore";
 import { MdArrowBack, MdCheckCircle, MdRadioButtonUnchecked, MdMenuBook } from "react-icons/md";
+import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 
 export default function MaterialAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
+  const { setDetailLabel } = useBreadcrumbLabel();
   const [material, setMaterial] = useState<LearningMaterial | null>(null);
   const [completions, setCompletions] = useState<MaterialCompletion[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
@@ -17,8 +19,10 @@ export default function MaterialAnalyticsPage() {
     if (!id) return;
     Promise.all([getMaterialById(id), getCompletionsByMaterial(id), getAllStudents()]).then(([m, c, s]) => {
       setMaterial(m); setCompletions(c); setStudents(s); setLoading(false);
+      setDetailLabel(m?.title || null);
     });
-  }, [id]);
+    return () => setDetailLabel(null);
+  }, [id, setDetailLabel]);
 
   const completedStudentIds = new Set(completions.map((c) => c.studentId));
   const gradeStudents = material ? students.filter((s) => s.grade === material.grade) : [];

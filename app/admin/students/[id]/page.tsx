@@ -24,6 +24,7 @@ import {
 } from "react-icons/md";
 import { PracticePieChart, SkillMountainChart } from "@/components/AnalyticsCharts";
 import { adminFetch } from "@/lib/adminFetch";
+import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 
 type Tab = "overview" | "materials" | "tests" | "assignments" | "progress" | "analytics";
 
@@ -74,6 +75,7 @@ const emptyEdit = {
 
 export default function StudentDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { setDetailLabel } = useBreadcrumbLabel();
 
   const [student, setStudent] = useState<Student | null>(null);
   const [siblings, setSiblings] = useState<Student[]>([]);
@@ -124,6 +126,7 @@ export default function StudentDetailPage() {
       setAssignments(asgn);
       setPractice(pa); setGaps(g); setSessions(ss); setQuizSubs(subs);
       if (s) {
+        setDetailLabel(`${s.firstName} ${s.lastName}`.trim() || s.studentId);
         setEdit({
           firstName: s.firstName || "",
           lastName: s.lastName || "",
@@ -150,6 +153,8 @@ export default function StudentDetailPage() {
               (x.parentEmail || x.email || "").toLowerCase() === parentEmail
           )
         );
+      } else {
+        setDetailLabel(null);
       }
       const statuses: Record<string, string> = {};
       await Promise.all(asgn.map(async (a) => {
@@ -163,7 +168,8 @@ export default function StudentDetailPage() {
       setLoading(false);
     }
     load();
-  }, [id]);
+    return () => setDetailLabel(null);
+  }, [id, setDetailLabel]);
 
   async function handleSave() {
     if (!student?.id) return;
