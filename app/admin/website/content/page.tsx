@@ -284,7 +284,7 @@ const SECTIONS: { key: Section; label: string }[] = [
 export default function ContentPage() {
   const [section, setSection] = useState<Section>("hero");
   return (<AdminLayout>
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="w-full space-y-5">
       <div className="flex items-center gap-3"><MdImage size={22} className="text-[#00369b]" />
         <div><h1 className="text-xl font-bold text-gray-900">Hero, Brief & Content</h1><p className="text-gray-500 text-sm">Edit hero, testimonials, pricing, FAQs and classes</p></div></div>
       <div className="flex flex-wrap gap-1 bg-gray-100 p-1">

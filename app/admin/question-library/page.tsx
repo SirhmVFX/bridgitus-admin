@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import {
   getAllQuestionSets, deleteQuestionSet,
   type QuestionSet, type AIQuestion,
@@ -191,6 +193,7 @@ export default function QuestionLibraryPage() {
   const [viewingSet, setViewingSet] = useState<QuestionSet | null>(null);
   const [loadError, setLoadError] = useState("");
   const [view, setView] = useState<"folders" | "flat">("folders");
+  const [page, setPage] = useState(1);
 
   async function load() {
     try {
@@ -219,6 +222,12 @@ export default function QuestionLibraryPage() {
     return textMatch && diffMatch;
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, filterDifficulty, view]);
+
+  const pageSlice = paginate(filtered, page);
+
   // Group by subject
   const subjectMap = filtered.reduce<Record<string, QuestionSet[]>>((acc, s) => {
     const key = s.subject || "Uncategorised";
@@ -232,7 +241,7 @@ export default function QuestionLibraryPage() {
   if (viewingSet) {
     return (
       <AdminLayout>
-        <div className="max-w-4xl mx-auto space-y-5">
+        <div className="w-full space-y-5">
           <button onClick={() => setViewingSet(null)} className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800">
             <MdArrowBack size={16} /> Back to Library
           </button>
@@ -279,7 +288,7 @@ export default function QuestionLibraryPage() {
   // ── Library list view ──────────────────────────────────────────────────
   return (
     <AdminLayout>
-      <div className="max-w-5xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">
@@ -309,11 +318,11 @@ export default function QuestionLibraryPage() {
           {/* View toggle */}
           <div className="flex gap-1 bg-gray-100 p-1 rounded">
             <button onClick={() => setView("folders")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-all ${view === "folders" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-all ${view === "folders" ? "bg-white text-gray-900 border border-gray-200" : "text-gray-500 hover:text-gray-700"}`}>
               <MdFolder size={13} /> Folders
             </button>
             <button onClick={() => setView("flat")}
-              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-all ${view === "flat" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}>
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded transition-all ${view === "flat" ? "bg-white text-gray-900 border border-gray-200" : "text-gray-500 hover:text-gray-700"}`}>
               <MdLibraryBooks size={13} /> All
             </button>
           </div>
@@ -359,7 +368,7 @@ export default function QuestionLibraryPage() {
         ) : (
           /* Flat view */
           <div className="space-y-4">
-            {filtered.map(set => (
+            {pageSlice.items.map(set => (
               <div key={set.id} className="admin-card space-y-0 p-0 overflow-hidden">
                 <div className="flex items-center gap-2 px-4 pt-3 pb-1">
                   <MdFolder size={13} className="text-amber-400 shrink-0" />
@@ -370,6 +379,9 @@ export default function QuestionLibraryPage() {
                 </div>
               </div>
             ))}
+            <div className="admin-card !p-0 overflow-hidden">
+              <Pagination slice={pageSlice} onPageChange={setPage} />
+            </div>
           </div>
         )}
       </div>

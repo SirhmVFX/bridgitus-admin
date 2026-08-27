@@ -78,7 +78,7 @@ type Section="about"|"services";
 export default function AboutPage(){
   const [section,setSection]=useState<Section>("about");
   return (<AdminLayout>
-    <div className="max-w-5xl mx-auto space-y-5">
+    <div className="w-full space-y-5">
       <div className="flex items-center gap-3"><MdInfo size={22} className="text-[#00369b]"/>
         <div><h1 className="text-xl font-bold text-gray-900">About Page</h1><p className="text-gray-500 text-sm">Director&apos;s desk, vision, mission, services and features</p></div></div>
       <div className="flex flex-wrap gap-1 bg-gray-100 p-1">

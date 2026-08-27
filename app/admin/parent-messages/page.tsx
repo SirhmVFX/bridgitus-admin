@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import {
   getAllStudents, getAllParentMessages, deleteParentMessage,
   type ParentMessage, type Student,
@@ -30,6 +32,7 @@ export default function ParentMessagesPage() {
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [sendVia, setSendVia] = useState<"email" | "sms" | "both">("both");
   const [studentSearch, setStudentSearch] = useState("");
+  const [page, setPage] = useState(1);
 
   async function loadData() {
     const [studentsData, messagesData] = await Promise.all([
@@ -131,9 +134,11 @@ export default function ParentMessagesPage() {
     );
   });
 
+  const pageSlice = paginate(messageHistory, page);
+
   return (
     <AdminLayout>
-      <div className="max-w-6xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-xl font-bold text-gray-900">Parent Messages</h1>
@@ -145,7 +150,7 @@ export default function ParentMessagesPage() {
         </div>
 
         {/* Message History */}
-        <div className="admin-card p-0 overflow-hidden">
+        <div className="admin-card !p-0 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
           ) : messageHistory.length === 0 ? (
@@ -154,71 +159,74 @@ export default function ParentMessagesPage() {
               <p className="text-gray-500">No messages sent yet. Create one to notify parents.</p>
             </div>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Recipients</th>
-                  <th>Method</th>
-                  <th>Emails</th>
-                  <th>SMS</th>
-                  <th>Sent</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {messageHistory.map((msg) => (
-                  <tr key={msg.id}>
-                    <td>
-                      <p className="font-medium text-gray-800">{msg.title}</p>
-                      <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">
-                        {msg.body.slice(0, 60)}...
-                      </p>
-                    </td>
-                    <td>
-                      {msg.recipientType === "all" ? (
-                        <span className="badge badge-blue">All Parents</span>
-                      ) : msg.recipientGrades && msg.recipientGrades.length > 0 ? (
-                        <span className="text-xs text-gray-600">
-                          Grades: {msg.recipientGrades.join(", ")}
-                        </span>
-                      ) : (
-                        <span className="text-xs text-gray-600">
-                          {msg.recipientIds?.length || 0} selected
-                        </span>
-                      )}
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-1">
-                        {msg.sendVia === "email" || msg.sendVia === "both" ? (
-                          <MdEmail size={16} className="text-blue-600" />
-                        ) : null}
-                        {msg.sendVia === "sms" || msg.sendVia === "both" ? (
-                          <MdSms size={16} className="text-green-600" />
-                        ) : null}
-                      </div>
-                    </td>
-                    <td>{msg.emailCount || 0}</td>
-                    <td>{msg.smsCount || 0}</td>
-                    <td>
-                      {msg.sentAt ? (
-                        <span className="badge badge-green">Sent</span>
-                      ) : (
-                        <span className="badge badge-yellow">Draft</span>
-                      )}
-                    </td>
-                    <td>
-                      <button
-                        onClick={() => handleDelete(msg.id!)}
-                        className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                      >
-                        <MdDelete size={16} />
-                      </button>
-                    </td>
+            <>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Recipients</th>
+                    <th>Method</th>
+                    <th>Emails</th>
+                    <th>SMS</th>
+                    <th>Sent</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pageSlice.items.map((msg) => (
+                    <tr key={msg.id}>
+                      <td>
+                        <p className="font-medium text-gray-800">{msg.title}</p>
+                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">
+                          {msg.body.slice(0, 60)}...
+                        </p>
+                      </td>
+                      <td>
+                        {msg.recipientType === "all" ? (
+                          <span className="badge badge-blue">All Parents</span>
+                        ) : msg.recipientGrades && msg.recipientGrades.length > 0 ? (
+                          <span className="text-xs text-gray-600">
+                            Grades: {msg.recipientGrades.join(", ")}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-gray-600">
+                            {msg.recipientIds?.length || 0} selected
+                          </span>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1">
+                          {msg.sendVia === "email" || msg.sendVia === "both" ? (
+                            <MdEmail size={16} className="text-blue-600" />
+                          ) : null}
+                          {msg.sendVia === "sms" || msg.sendVia === "both" ? (
+                            <MdSms size={16} className="text-green-600" />
+                          ) : null}
+                        </div>
+                      </td>
+                      <td>{msg.emailCount || 0}</td>
+                      <td>{msg.smsCount || 0}</td>
+                      <td>
+                        {msg.sentAt ? (
+                          <span className="badge badge-green">Sent</span>
+                        ) : (
+                          <span className="badge badge-yellow">Draft</span>
+                        )}
+                      </td>
+                      <td>
+                        <button
+                          onClick={() => handleDelete(msg.id!)}
+                          className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                        >
+                          <MdDelete size={16} />
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination slice={pageSlice} onPageChange={setPage} />
+            </>
           )}
         </div>
       </div>

@@ -32,7 +32,7 @@ export default function MaterialAnalyticsPage() {
 
   return (
     <AdminLayout>
-      <div className="max-w-4xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <Link href="/admin/materials" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800"><MdArrowBack size={16} />Back to Materials</Link>
         {loading ? <div className="text-center py-20 text-gray-400">Loading…</div> : !material ? (
           <div className="text-center py-20"><p className="text-gray-500">Material not found.</p></div>

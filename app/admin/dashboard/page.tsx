@@ -61,7 +61,7 @@ export default function DashboardPage() {
           getAllPendingAttempts(),
           getAllStudents(),
           getAllAnnouncements(),
-          getAdminAlerts(true), // unread only
+          getAdminAlerts(true),
         ]);
         setStats(s);
         setPending(p.slice(0, 5));
@@ -97,7 +97,6 @@ export default function DashboardPage() {
       const res = await adminFetch("/api/check-payments", { method: "POST" });
       const data = await res.json();
       if (data.ok) {
-        // Reload alerts
         const al = await getAdminAlerts(true);
         setAlerts(al.slice(0, 10));
         alert(
@@ -114,29 +113,33 @@ export default function DashboardPage() {
         {
           label: "Total Students",
           value: stats.students,
+          sub: "Enrolled learners",
           icon: MdPeople,
-          color: "bg-[#00369b]",
+          iconBg: "bg-[#00369b]/10 text-[#00369b]",
           href: "/admin/students",
         },
         {
-          label: "Learning Materials",
+          label: "Materials",
           value: stats.materials,
+          sub: "Learning content",
           icon: MdMenuBook,
-          color: "bg-emerald-600",
+          iconBg: "bg-emerald-50 text-emerald-600",
           href: "/admin/materials",
         },
         {
-          label: "Tests & Exams",
+          label: "Assessments",
           value: stats.tests,
+          sub: "Tests & exams",
           icon: MdQuiz,
-          color: "bg-amber-500",
+          iconBg: "bg-sky-50 text-[#00c1ff]",
           href: "/admin/tests",
         },
         {
           label: "Pending Reviews",
           value: stats.pendingReviews,
+          sub: "Needs attention",
           icon: MdPending,
-          color: "bg-red-500",
+          iconBg: "bg-amber-50 text-amber-600",
           href: "/admin/tests",
         },
       ]
@@ -144,39 +147,40 @@ export default function DashboardPage() {
 
   return (
     <AdminLayout>
-      <div className=" mx-auto space-y-5">
+      <div className="space-y-5">
         <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Dashboard</h1>
-            <p className="text-gray-500 text-sm mt-0.5">
-              Bridgitus Learning Management Overview
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Overview
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
+              Dashboard
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
+              Bridgitus learning management at a glance
             </p>
           </div>
           <a
             href={YOUTUBE_URL}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2 transition-colors"
+            className="inline-flex items-center gap-2 rounded-2xl bg-red-600 hover:bg-red-700 text-white text-sm font-semibold px-4 py-2.5 transition-all hover:-translate-y-0.5 border border-red-700"
           >
             <MdOndemandVideo size={16} /> YouTube Channel
           </a>
         </div>
 
-        {/* Firebase connection status — only shows if there's an issue */}
         <FirebaseStatus />
 
-        {/* Payment alerts banner */}
         {!loading && alerts.length > 0 && (
-          <div className="border border-amber-300 bg-amber-50 p-4 space-y-3">
+          <div className="admin-card border-amber-200/80 bg-amber-50/50 space-y-3">
             <div className="flex items-center justify-between flex-wrap gap-2">
               <h2 className="font-semibold text-amber-900 flex items-center gap-2">
                 <MdWarning size={18} className="text-amber-600" />
-                Payment Alerts{" "}
-                <span className="bg-amber-500 text-white text-xs font-bold px-2 py-0.5 rounded-full">
-                  {alerts.length}
-                </span>
+                Payment Alerts
+                <span className="badge badge-yellow">{alerts.length}</span>
               </h2>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-3">
                 <button
                   onClick={handleRunPaymentCheck}
                   className="text-xs text-amber-700 font-semibold hover:underline flex items-center gap-1"
@@ -195,21 +199,33 @@ export default function DashboardPage() {
               {alerts.map((alert) => (
                 <div
                   key={alert.id}
-                  className={`flex items-start justify-between gap-3 px-4 py-3 border text-sm ${alert.type === "payment_expired" ? "bg-red-50 border-red-200" : "bg-amber-50 border-amber-200"}`}
+                  className={`flex items-start justify-between gap-3 px-4 py-3 rounded-xl border text-sm ${
+                    alert.type === "payment_expired"
+                      ? "bg-red-50 border-red-200"
+                      : "bg-white border-amber-200"
+                  }`}
                 >
                   <div className="flex items-start gap-2">
                     <MdPayment
                       size={15}
-                      className={`shrink-0 mt-0.5 ${alert.type === "payment_expired" ? "text-red-500" : "text-amber-600"}`}
+                      className={`shrink-0 mt-0.5 ${
+                        alert.type === "payment_expired"
+                          ? "text-red-500"
+                          : "text-amber-600"
+                      }`}
                     />
                     <div>
                       <p
-                        className={`font-medium text-sm ${alert.type === "payment_expired" ? "text-red-800" : "text-amber-800"}`}
+                        className={`font-medium text-sm ${
+                          alert.type === "payment_expired"
+                            ? "text-red-800"
+                            : "text-amber-800"
+                        }`}
                       >
                         {alert.message}
                       </p>
                       <Link
-                        href={`/admin/students`}
+                        href="/admin/students"
                         className="text-xs text-[#00369b] hover:underline mt-0.5 inline-block"
                       >
                         View student →
@@ -219,14 +235,14 @@ export default function DashboardPage() {
                   <div className="flex gap-1 shrink-0">
                     <button
                       onClick={() => handleMarkAlertRead(alert.id!)}
-                      className="p-1 text-gray-400 hover:text-emerald-600"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors"
                       title="Mark read"
                     >
                       <MdCheckCircle size={15} />
                     </button>
                     <button
                       onClick={() => handleDeleteAlert(alert.id!)}
-                      className="p-1 text-gray-400 hover:text-red-500"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 transition-colors"
                       title="Dismiss"
                     >
                       <MdClose size={15} />
@@ -238,193 +254,200 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Stat cards */}
         {loading ? (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {[...Array(4)].map((_, i) => (
-              <div
-                key={i}
-                className="stat-card h-24 animate-pulse bg-gray-100"
-              />
+              <div key={i} className="stat-card h-28 animate-pulse bg-slate-100" />
             ))}
           </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {statCards.map((c) => (
-              <Link
-                key={c.label}
-                href={c.href}
-                className="stat-card hover:opacity-90 transition-opacity"
-              >
-                <div className="flex items-center gap-3">
+              <Link key={c.label} href={c.href} className="stat-card hover-lift block">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-slate-400">
+                    {c.label}
+                  </p>
                   <div
-                    className={`w-10 h-10 flex items-center justify-center shrink-0 ${c.color}`}
+                    className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${c.iconBg}`}
                   >
-                    <c.icon size={20} className="text-white" />
-                  </div>
-                  <div>
-                    <p className="text-2xl font-bold text-gray-900">
-                      {c.value}
-                    </p>
-                    <p className="text-xs text-gray-500 font-medium">
-                      {c.label}
-                    </p>
+                    <c.icon size={18} />
                   </div>
                 </div>
+                <p className="text-3xl font-extrabold text-[#001233] mt-3 tracking-tight">
+                  {c.value}
+                </p>
+                <p className="text-xs text-slate-400 mt-1">{c.sub}</p>
               </Link>
             ))}
           </div>
         )}
 
-        {/* Announcements (published) */}
-        {!loading && announcements.length > 0 && (
-          <div className="admin-card">
-            <div className="section-header -mx-6 -mt-5 mb-4 px-6 py-3">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <MdCampaign size={16} className="text-[#00369b]" /> Active
-                Announcements
-              </h2>
-              <Link
-                href="/admin/announcements"
-                className="text-xs text-[#00369b] hover:underline font-medium flex items-center gap-1"
-              >
-                Manage <MdArrowForward size={12} />
-              </Link>
-            </div>
-            <div className="space-y-2">
-              {announcements.map((a) => (
-                <div
-                  key={a.id}
-                  className={`flex items-start gap-3 px-4 py-3 border text-sm ${a.pinned ? "bg-amber-50 border-amber-200" : "bg-gray-50 border-gray-200"}`}
-                >
-                  {a.pinned ? (
-                    <MdPushPin
-                      size={14}
-                      className="text-amber-500 shrink-0 mt-0.5"
-                    />
-                  ) : (
-                    <MdCampaign
-                      size={14}
-                      className="text-gray-400 shrink-0 mt-0.5"
-                    />
-                  )}
-                  <div className="flex-1">
-                    <p className="font-medium text-gray-800">{a.title}</p>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {a.targetGrades.length === 0
-                        ? "All Grades"
-                        : `Grade${a.targetGrades.length > 1 ? "s" : ""} ${a.targetGrades.join(", ")}`}
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        <div className="grid lg:grid-cols-2 gap-5">
-          {/* Pending reviews */}
-          <div className="admin-card">
-            <div className="section-header -mx-6 -mt-5 mb-4 px-6 py-3">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <MdPending size={16} className="text-red-500" /> Pending Test
-                Reviews
-              </h2>
-              <Link
-                href="/admin/tests"
-                className="text-xs text-[#00369b] hover:underline font-medium flex items-center gap-1"
-              >
-                View all <MdArrowForward size={12} />
-              </Link>
-            </div>
-            {loading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-10 bg-gray-100 animate-pulse" />
-                ))}
-              </div>
-            ) : pending.length === 0 ? (
-              <div className="text-center py-8">
-                <MdCheckCircle
-                  size={30}
-                  className="mx-auto text-emerald-400 mb-2"
-                />
-                <p className="text-sm text-gray-500">
-                  All caught up! No pending reviews.
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-gray-50 -mx-6">
-                {pending.map((a) => (
-                  <div
-                    key={a.id}
-                    className="flex items-center justify-between px-6 py-3"
+        <div className="grid lg:grid-cols-3 gap-5">
+          <div className="lg:col-span-2 space-y-5">
+            {!loading && announcements.length > 0 && (
+              <div className="admin-card">
+                <div className="section-header">
+                  <h2 className="font-semibold text-[#001233] flex items-center gap-2">
+                    <MdCampaign size={16} className="text-[#00369b]" /> Active
+                    Announcements
+                  </h2>
+                  <Link
+                    href="/admin/announcements"
+                    className="text-xs text-[#00369b] hover:underline font-semibold flex items-center gap-1"
                   >
-                    <div>
-                      <p className="text-sm font-medium text-gray-800">
-                        {a.testTitle ?? "Test"}
-                      </p>
-                      <p className="text-xs text-gray-400">
-                        Student: {a.studentName ?? a.studentId} · Attempt #
-                        {a.attemptNumber}
-                      </p>
+                    Manage <MdArrowForward size={12} />
+                  </Link>
+                </div>
+                <div className="space-y-2 pt-3">
+                  {announcements.map((a) => (
+                    <div
+                      key={a.id}
+                      className={`flex items-start gap-3 px-4 py-3 rounded-xl border text-sm transition-colors ${
+                        a.pinned
+                          ? "bg-amber-50 border-amber-200"
+                          : "bg-slate-50/80 border-slate-100"
+                      }`}
+                    >
+                      {a.pinned ? (
+                        <MdPushPin
+                          size={14}
+                          className="text-amber-500 shrink-0 mt-0.5"
+                        />
+                      ) : (
+                        <MdCampaign
+                          size={14}
+                          className="text-slate-400 shrink-0 mt-0.5"
+                        />
+                      )}
+                      <div className="flex-1">
+                        <p className="font-medium text-slate-800">{a.title}</p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {a.targetGrades.length === 0
+                            ? "All Grades"
+                            : `Grade${a.targetGrades.length > 1 ? "s" : ""} ${a.targetGrades.join(", ")}`}
+                        </p>
+                      </div>
                     </div>
-                    <span className="badge badge-yellow">Pending</span>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
+
+            <div className="admin-card">
+              <div className="section-header">
+                <h2 className="font-semibold text-[#001233] flex items-center gap-2">
+                  <MdPending size={16} className="text-amber-500" /> Pending Test
+                  Reviews
+                </h2>
+                <Link
+                  href="/admin/tests"
+                  className="text-xs text-[#00369b] hover:underline font-semibold flex items-center gap-1"
+                >
+                  View all <MdArrowForward size={12} />
+                </Link>
+              </div>
+              {loading ? (
+                <div className="space-y-3 pt-3">
+                  {[...Array(3)].map((_, i) => (
+                    <div key={i} className="h-12 bg-slate-100 rounded-xl animate-pulse" />
+                  ))}
+                </div>
+              ) : pending.length === 0 ? (
+                <div className="text-center py-10">
+                  <MdCheckCircle
+                    size={32}
+                    className="mx-auto text-emerald-400 mb-2"
+                  />
+                  <p className="text-sm text-slate-500">
+                    All caught up! No pending reviews.
+                  </p>
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-100 pt-1">
+                  {pending.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-center justify-between py-3.5 hover:bg-slate-50/80 -mx-2 px-2 rounded-xl transition-colors"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-800">
+                          {a.testTitle ?? "Test"}
+                        </p>
+                        <p className="text-xs text-slate-400 mt-0.5">
+                          {a.studentName ?? a.studentId} · Attempt #{a.attemptNumber}
+                        </p>
+                      </div>
+                      <span className="badge badge-yellow">
+                        <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
+                        Pending
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Recent students */}
-          <div className="admin-card">
-            <div className="section-header -mx-6 -mt-5 mb-4 px-6 py-3">
-              <h2 className="font-semibold text-gray-900 flex items-center gap-2">
-                <MdPeople size={16} className="text-[#00369b]" /> Recent
-                Students
-              </h2>
-              <Link
-                href="/admin/students"
-                className="text-xs text-[#00369b] hover:underline font-medium flex items-center gap-1"
-              >
-                Manage <MdArrowForward size={12} />
-              </Link>
-            </div>
-            {loading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-10 bg-gray-100 animate-pulse" />
-                ))}
+          <div className="space-y-5">
+            <div className="admin-card">
+              <div className="section-header">
+                <h2 className="font-semibold text-[#001233]">Needs attention</h2>
+                <Link
+                  href="/admin/students"
+                  className="text-xs text-[#00369b] hover:underline font-semibold"
+                >
+                  View log
+                </Link>
               </div>
-            ) : recentStudents.length === 0 ? (
-              <p className="text-sm text-gray-400 text-center py-8">
-                No students enrolled yet.
-              </p>
-            ) : (
-              <div className="divide-y divide-gray-50 -mx-6">
-                {recentStudents.map((s) => (
-                  <div
-                    key={s.id}
-                    className="flex items-center justify-between px-6 py-3"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 bg-[#00369b]/10 flex items-center justify-center text-[#00369b] text-xs font-bold shrink-0">
+              {loading ? (
+                <div className="space-y-3 pt-3">
+                  {[...Array(4)].map((_, i) => (
+                    <div key={i} className="h-14 bg-slate-100 rounded-xl animate-pulse" />
+                  ))}
+                </div>
+              ) : recentStudents.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-8">
+                  No students enrolled yet.
+                </p>
+              ) : (
+                <div className="space-y-2 pt-3">
+                  {recentStudents.map((s) => (
+                    <Link
+                      key={s.id}
+                      href={`/admin/students/${s.id}`}
+                      className="flex items-center gap-3 px-3 py-3 rounded-xl bg-slate-50/80 border border-slate-100 hover:border-[#00c1ff]/40 hover:bg-white transition-all"
+                    >
+                      <div className="w-9 h-9 rounded-full bg-[#00369b] flex items-center justify-center text-white text-xs font-bold shrink-0">
                         {s.firstName?.[0]}
                         {s.lastName?.[0]}
                       </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-800">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-slate-800 truncate">
                           {s.firstName} {s.lastName}
                         </p>
-                        <p className="text-xs text-gray-400">
-                          {s.studentId} · Grade {s.grade}
+                        <p className="text-xs text-slate-400">
+                          Grade {s.grade} · {s.studentId}
                         </p>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
                       <span
-                        className={`badge ${s.paymentStatus === "paid" || s.paymentStatus === "waived" ? "badge-green" : s.paymentStatus === "expired" ? "badge-red" : "badge-yellow"}`}
+                        className={`badge shrink-0 ${
+                          s.paymentStatus === "paid" || s.paymentStatus === "waived"
+                            ? "badge-green"
+                            : s.paymentStatus === "expired"
+                              ? "badge-red"
+                              : "badge-yellow"
+                        }`}
                       >
+                        <span
+                          className={`w-1.5 h-1.5 rounded-full ${
+                            s.paymentStatus === "paid" || s.paymentStatus === "waived"
+                              ? "bg-emerald-500"
+                              : s.paymentStatus === "expired"
+                                ? "bg-red-500"
+                                : "bg-amber-500"
+                          }`}
+                        />
                         {s.paymentStatus === "paid"
                           ? "Paid"
                           : s.paymentStatus === "waived"
@@ -433,59 +456,53 @@ export default function DashboardPage() {
                               ? "Expired"
                               : "Unpaid"}
                       </span>
-                      <span
-                        className={`badge ${s.status === "active" ? "badge-blue" : s.status === "suspended" ? "badge-red" : "badge-gray"}`}
-                      >
-                        {s.status}
-                      </span>
-                    </div>
-                  </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="admin-card">
+              <h2 className="font-semibold text-[#001233] mb-4 flex items-center gap-2">
+                <MdTrendingUp size={16} className="text-[#00369b]" /> Quick Actions
+              </h2>
+              <div className="grid grid-cols-2 gap-2.5">
+                {[
+                  {
+                    href: "/admin/materials",
+                    label: "Add Material",
+                    icon: MdMenuBook,
+                    color: "bg-blue-50 text-blue-700 hover:bg-blue-100",
+                  },
+                  {
+                    href: "/admin/tests",
+                    label: "Create Test",
+                    icon: MdQuiz,
+                    color: "bg-amber-50 text-amber-700 hover:bg-amber-100",
+                  },
+                  {
+                    href: "/admin/students",
+                    label: "Students",
+                    icon: MdPeople,
+                    color: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
+                  },
+                  {
+                    href: "/admin/announcements",
+                    label: "Announce",
+                    icon: MdCampaign,
+                    color: "bg-sky-50 text-[#00369b] hover:bg-sky-100",
+                  },
+                ].map((a) => (
+                  <Link
+                    key={a.href}
+                    href={a.href}
+                    className={`flex items-center gap-2.5 p-3.5 rounded-xl transition-all font-semibold text-sm hover:-translate-y-0.5 ${a.color}`}
+                  >
+                    <a.icon size={16} /> {a.label}
+                  </Link>
                 ))}
               </div>
-            )}
-          </div>
-        </div>
-
-        {/* Quick actions */}
-        <div className="admin-card">
-          <h2 className="font-semibold text-gray-900 mb-4 flex items-center gap-2">
-            <MdTrendingUp size={16} className="text-[#00369b]" /> Quick Actions
-          </h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            {[
-              {
-                href: "/admin/materials",
-                label: "Add Material",
-                icon: MdMenuBook,
-                color: "bg-blue-50 text-blue-700 hover:bg-blue-100",
-              },
-              {
-                href: "/admin/tests",
-                label: "Create Test",
-                icon: MdQuiz,
-                color: "bg-amber-50 text-amber-700 hover:bg-amber-100",
-              },
-              {
-                href: "/admin/students",
-                label: "View Students",
-                icon: MdPeople,
-                color: "bg-emerald-50 text-emerald-700 hover:bg-emerald-100",
-              },
-              {
-                href: "/admin/announcements",
-                label: "New Announcement",
-                icon: MdCampaign,
-                color: "bg-purple-50 text-purple-700 hover:bg-purple-100",
-              },
-            ].map((a) => (
-              <Link
-                key={a.href}
-                href={a.href}
-                className={`flex items-center gap-3 p-4 transition-colors font-medium text-sm ${a.color}`}
-              >
-                <a.icon size={18} /> {a.label}
-              </Link>
-            ))}
+            </div>
           </div>
         </div>
       </div>

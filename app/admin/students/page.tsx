@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import {
   getAllStudents,
   updateStudent,
@@ -53,6 +55,7 @@ export default function StudentsPage() {
   const [search, setSearch] = useState("");
   const [gradeFilter, setGradeFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [viewStudent, setViewStudent] = useState<Student | null>(null);
   const [editStudent, setEditStudent] = useState<Student | null>(null);
   const [studentAttempts, setStudentAttempts] = useState<TestAttempt[]>([]);
@@ -286,6 +289,12 @@ export default function StudentsPage() {
     return sMatch && gMatch && stMatch;
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, gradeFilter, statusFilter]);
+
+  const pageSlice = paginate(filtered, page);
+
   const avgScore = (atts: TestAttempt[]) => {
     const approved = atts.filter((a) => a.status === "approved");
     if (!approved.length) return null;
@@ -296,11 +305,16 @@ export default function StudentsPage() {
 
   return (
     <AdminLayout>
-      <div className=" mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Students</h1>
-            <p className="text-gray-500 text-sm mt-0.5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              People
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
+              Students
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
               {students.length} enrolled student
               {students.length !== 1 ? "s" : ""}
             </p>
@@ -309,43 +323,50 @@ export default function StudentsPage() {
 
         {/* Filters */}
         <div className="admin-card flex flex-wrap gap-3 items-center">
-          <div className="flex">
-            <div className="relative flex-1 min-w-48">
-              <MdSearch
-                size={16}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-              />
-              <input
-                type="text"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by name, ID, email, or grade…"
-                className="admin-input pl-8"
-              />
-            </div>
-            <select
-              value={gradeFilter}
-              onChange={(e) => setGradeFilter(e.target.value)}
-              className="admin-input w-auto min-w-[9rem]"
-              title="Filter by grade"
-            >
-              <option value="all">All Grades</option>
-              {GRADES.map((g) => (
-                <option key={g} value={g}>
-                  Grade {g}
-                </option>
-              ))}
-            </select>
-            <select
-              value={statusFilter}
-              onChange={(e) => setStatusFilter(e.target.value)}
-              className="admin-input w-auto"
-            >
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-              <option value="suspended">Suspended</option>
-            </select>
+          <div className="relative flex-1 min-w-48">
+            <MdSearch
+              size={16}
+              className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by name, ID, email, or grade…"
+              className="admin-input pl-8"
+            />
+          </div>
+          <select
+            value={gradeFilter}
+            onChange={(e) => setGradeFilter(e.target.value)}
+            className="admin-input w-auto min-w-[9rem]"
+            title="Filter by grade"
+          >
+            <option value="all">All Grades</option>
+            {GRADES.map((g) => (
+              <option key={g} value={g}>
+                Grade {g}
+              </option>
+            ))}
+          </select>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "All"],
+                ["active", "Active"],
+                ["inactive", "Inactive"],
+                ["suspended", "Suspended"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStatusFilter(value)}
+                className={`filter-pill${statusFilter === value ? " active" : ""}`}
+              >
+                {label}
+              </button>
+            ))}
           </div>
           <span className="text-xs text-gray-400">
             {filtered.length} result{filtered.length !== 1 ? "s" : ""}
@@ -354,7 +375,7 @@ export default function StudentsPage() {
 
         {actionMsg && (
           <div
-            className={`px-4 py-3 text-sm border ${
+            className={`px-4 py-3 text-sm border rounded-xl ${
               actionMsg.type === "ok"
                 ? "bg-emerald-50 border-emerald-200 text-emerald-800"
                 : "bg-red-50 border-red-200 text-red-700"
@@ -372,7 +393,7 @@ export default function StudentsPage() {
         )}
 
         {/* Table */}
-        <div className="admin-card p-0 overflow-hidden">
+        <div className="admin-card !p-0 overflow-hidden">
           {loading ? (
             <div className="p-12 text-center">
               <div className="w-8 h-8 border-4 border-[#00369b] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -389,7 +410,7 @@ export default function StudentsPage() {
               <button onClick={load} className="btn-primary text-sm">
                 Retry
               </button>
-              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 text-xs text-amber-700 text-left max-w-lg mx-auto">
+              <div className="mt-4 p-4 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-700 text-left max-w-lg mx-auto">
                 <p className="font-semibold mb-1">Troubleshooting tips:</p>
                 <ul className="list-disc pl-4 space-y-1">
                   <li>
@@ -412,114 +433,117 @@ export default function StudentsPage() {
               <p className="text-gray-500">No students found.</p>
             </div>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Student ID</th>
-                  <th>Grade</th>
-                  <th>School</th>
-                  <th>Parent Email</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => (
-                  <tr key={s.id}>
-                    <td>
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full bg-[#00369b]/10 flex items-center justify-center text-[#00369b] text-xs font-bold shrink-0">
-                          {s.firstName?.[0]}
-                          {s.lastName?.[0]}
-                        </div>
-                        <div>
-                          <p className="font-medium text-gray-800">
-                            {s.firstName} {s.lastName}
-                          </p>
-                          <p className="text-xs text-gray-400">{s.email}</p>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <span className="font-mono text-xs text-[#00369b] font-bold">
-                        {s.studentId}
-                      </span>
-                    </td>
-                    <td>
-                      <span className="badge badge-blue">Grade {s.grade}</span>
-                    </td>
-                    <td className="text-gray-600 text-sm">{s.school}</td>
-                    <td className="text-gray-600 text-sm">{s.parentEmail}</td>
-                    <td>
-                      <span
-                        className={`badge ${s.status === "active" ? "badge-green" : s.status === "suspended" ? "badge-red" : "badge-gray"}`}
-                      >
-                        {s.status}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-1.5 flex-wrap">
-                        <button
-                          onClick={() => openView(s)}
-                          className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                          title="Quick view"
-                        >
-                          <MdVisibility size={16} />
-                        </button>
-                        <a
-                          href={`/admin/students/${s.id}`}
-                          className="p-1.5 text-gray-400 hover:text-[#00369b] inline-flex"
-                          title="Full details"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="w-4 h-4"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
-                            <polyline points="15 3 21 3 21 9" />
-                            <line x1="10" y1="14" x2="21" y2="3" />
-                          </svg>
-                        </a>
-                        <button
-                          onClick={() => openEdit(s)}
-                          className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                          title="Edit"
-                        >
-                          <MdEdit size={16} />
-                        </button>
-                        <button
-                          onClick={() =>
-                            handleDelete(s.id!, `${s.firstName} ${s.lastName}`)
-                          }
-                          className="p-1.5 text-gray-400 hover:text-red-500"
-                          title="Delete"
-                        >
-                          <MdDelete size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleResendOnboarding(s)}
-                          disabled={resendingId === s.id}
-                          className="inline-flex items-center gap-1 px-2 py-1 text-[11px] font-semibold border border-[#00369b]/30 text-[#00369b] hover:bg-[#00369b] hover:text-white disabled:opacity-40 transition-colors"
-                          title="Resend onboarding email"
-                        >
-                          {resendingId === s.id ? (
-                            <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
-                          ) : (
-                            <MdOutgoingMail size={13} />
-                          )}
-                          Resend onboarding email
-                        </button>
-                      </div>
-                    </td>
+            <>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Student ID</th>
+                    <th>Grade</th>
+                    <th>School</th>
+                    <th>Parent Email</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pageSlice.items.map((s) => (
+                    <tr key={s.id}>
+                      <td>
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-[#00369b]/10 flex items-center justify-center text-[#00369b] text-xs font-bold shrink-0">
+                            {s.firstName?.[0]}
+                            {s.lastName?.[0]}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-800">
+                              {s.firstName} {s.lastName}
+                            </p>
+                            <p className="text-xs text-gray-400">{s.email}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <span className="font-mono text-xs text-[#00369b] font-bold">
+                          {s.studentId}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge badge-blue">Grade {s.grade}</span>
+                      </td>
+                      <td className="text-gray-600 text-sm">{s.school}</td>
+                      <td className="text-gray-600 text-sm">{s.parentEmail}</td>
+                      <td>
+                        <span
+                          className={`badge ${s.status === "active" ? "badge-green" : s.status === "suspended" ? "badge-red" : "badge-gray"}`}
+                        >
+                          {s.status}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <button
+                            onClick={() => openView(s)}
+                            className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                            title="Quick view"
+                          >
+                            <MdVisibility size={16} />
+                          </button>
+                          <a
+                            href={`/admin/students/${s.id}`}
+                            className="p-1.5 text-gray-400 hover:text-[#00369b] inline-flex"
+                            title="Full details"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="w-4 h-4"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6" />
+                              <polyline points="15 3 21 3 21 9" />
+                              <line x1="10" y1="14" x2="21" y2="3" />
+                            </svg>
+                          </a>
+                          <button
+                            onClick={() => openEdit(s)}
+                            className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                            title="Edit"
+                          >
+                            <MdEdit size={16} />
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleDelete(s.id!, `${s.firstName} ${s.lastName}`)
+                            }
+                            className="p-1.5 text-gray-400 hover:text-red-500"
+                            title="Delete"
+                          >
+                            <MdDelete size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleResendOnboarding(s)}
+                            disabled={resendingId === s.id}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-semibold rounded-full border border-[#00369b]/30 text-[#00369b] hover:bg-[#00369b] hover:text-white disabled:opacity-40 transition-colors"
+                            title="Resend onboarding email"
+                          >
+                            {resendingId === s.id ? (
+                              <span className="inline-block w-3 h-3 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                            ) : (
+                              <MdOutgoingMail size={13} />
+                            )}
+                            Resend onboarding email
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination slice={pageSlice} onPageChange={setPage} />
+            </>
           )}
         </div>
       </div>

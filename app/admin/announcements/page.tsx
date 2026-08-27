@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import {
   getAllAnnouncements, createAnnouncement, updateAnnouncement, deleteAnnouncement,
   type Announcement,
@@ -25,6 +27,7 @@ export default function AnnouncementsPage() {
   const [editing, setEditing] = useState<Announcement | null>(null);
   const [form, setForm] = useState<Omit<Announcement,"id">>(EMPTY);
   const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
 
   async function load() {
     const a = await getAllAnnouncements();
@@ -72,20 +75,29 @@ export default function AnnouncementsPage() {
     await load();
   }
 
+  const pageSlice = paginate(announcements, page);
+
   return (
     <AdminLayout>
-      <div className="max-w-5xl mx-auto space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="w-full space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Announcements</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Publish notices to students by grade</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Communication
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
+              Announcements
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
+              Publish notices to students by grade
+            </p>
           </div>
           <button onClick={openCreate} className="btn-primary flex items-center gap-2">
             <MdAdd size={18} /> New Announcement
           </button>
         </div>
 
-        <div className="admin-card p-0 overflow-hidden">
+        <div className="admin-card !p-0 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
           ) : announcements.length === 0 ? (
@@ -94,51 +106,54 @@ export default function AnnouncementsPage() {
               <p className="text-gray-500">No announcements yet. Create one to notify students.</p>
             </div>
           ) : (
-            <table className="admin-table">
-              <thead><tr>
-                <th>Title</th><th>Grades</th><th>Pinned</th><th>Status</th><th>Actions</th>
-              </tr></thead>
-              <tbody>
-                {announcements.map((a) => (
-                  <tr key={a.id}>
-                    <td>
-                      <div>
-                        <p className="font-medium text-gray-800">{a.title}</p>
-                        <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{a.body.replace(/<[^>]+>/g, "").slice(0, 80)}</p>
-                      </div>
-                    </td>
-                    <td>
-                      {a.targetGrades.length === 0
-                        ? <span className="badge badge-blue">All Grades</span>
-                        : <span className="text-xs text-gray-600">{a.targetGrades.map((g) => `G${g}`).join(", ")}</span>}
-                    </td>
-                    <td>
-                      <button onClick={() => togglePin(a)} title={a.pinned ? "Unpin" : "Pin"} className={`p-1.5 transition-colors ${a.pinned ? "text-amber-500" : "text-gray-300 hover:text-amber-400"}`}>
-                        <MdPushPin size={16} />
-                      </button>
-                    </td>
-                    <td>
-                      <span className={`badge ${a.published ? "badge-green" : "badge-yellow"}`}>
-                        {a.published ? "Published" : "Draft"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <button onClick={() => togglePublish(a)} title={a.published ? "Unpublish" : "Publish"} className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors">
-                          {a.published ? <MdVisibilityOff size={16} /> : <MdVisibility size={16} />}
+            <>
+              <table className="admin-table">
+                <thead><tr>
+                  <th>Title</th><th>Grades</th><th>Pinned</th><th>Status</th><th>Actions</th>
+                </tr></thead>
+                <tbody>
+                  {pageSlice.items.map((a) => (
+                    <tr key={a.id}>
+                      <td>
+                        <div>
+                          <p className="font-medium text-gray-800">{a.title}</p>
+                          <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">{a.body.replace(/<[^>]+>/g, "").slice(0, 80)}</p>
+                        </div>
+                      </td>
+                      <td>
+                        {a.targetGrades.length === 0
+                          ? <span className="badge badge-blue">All Grades</span>
+                          : <span className="text-xs text-gray-600">{a.targetGrades.map((g) => `G${g}`).join(", ")}</span>}
+                      </td>
+                      <td>
+                        <button onClick={() => togglePin(a)} title={a.pinned ? "Unpin" : "Pin"} className={`p-1.5 transition-colors ${a.pinned ? "text-amber-500" : "text-gray-300 hover:text-amber-400"}`}>
+                          <MdPushPin size={16} />
                         </button>
-                        <button onClick={() => openEdit(a)} className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors">
-                          <MdEdit size={16} />
-                        </button>
-                        <button onClick={() => handleDelete(a.id!)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
-                          <MdDelete size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                      </td>
+                      <td>
+                        <span className={`badge ${a.published ? "badge-green" : "badge-yellow"}`}>
+                          {a.published ? "Published" : "Draft"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <button onClick={() => togglePublish(a)} title={a.published ? "Unpublish" : "Publish"} className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors">
+                            {a.published ? <MdVisibilityOff size={16} /> : <MdVisibility size={16} />}
+                          </button>
+                          <button onClick={() => openEdit(a)} className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors">
+                            <MdEdit size={16} />
+                          </button>
+                          <button onClick={() => handleDelete(a.id!)} className="p-1.5 text-gray-400 hover:text-red-500 transition-colors">
+                            <MdDelete size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination slice={pageSlice} onPageChange={setPage} />
+            </>
           )}
         </div>
       </div>
@@ -167,11 +182,7 @@ export default function AnnouncementsPage() {
                 <div className="flex flex-wrap gap-2 mt-1">
                   {GRADES.map((g) => (
                     <button key={g} type="button" onClick={() => toggleGrade(g)}
-                      className={`px-3 py-1 text-xs font-semibold border transition-all ${
-                        form.targetGrades.includes(g)
-                          ? "bg-[#00369b] text-white border-[#00369b]"
-                          : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
-                      }`}>
+                      className={`filter-pill${form.targetGrades.includes(g) ? " active" : ""}`}>
                       Grade {g}
                     </button>
                   ))}

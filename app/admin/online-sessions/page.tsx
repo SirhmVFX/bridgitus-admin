@@ -88,16 +88,18 @@ export default function OnlineSessionsPage() {
 
   return (
     <AdminLayout>
-      <div className="max-w-4xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
-          <div className="flex items-center gap-3">
-            <MdVideocam size={22} className="text-[#5B5FC7]" />
-            <div>
-              <h1 className="text-xl font-bold text-gray-900">Online Sessions</h1>
-              <p className="text-gray-500 text-sm">
-                Post a Microsoft Teams link — students get a live Join button on their dashboard
-              </p>
-            </div>
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Live Learning
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
+              Online Sessions
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
+              Post a Microsoft Teams link — students get a live Join button on their dashboard
+            </p>
           </div>
           <button onClick={openModal} className="btn-primary flex items-center gap-2 text-sm">
             <MdAdd size={16} /> New Teams Session
@@ -105,14 +107,14 @@ export default function OnlineSessionsPage() {
         </div>
 
         {message && (
-          <div className={`border px-4 py-3 text-sm ${message.type === "ok"
+          <div className={`border rounded-xl px-4 py-3 text-sm ${message.type === "ok"
             ? "border-emerald-300 bg-emerald-50 text-emerald-700"
             : "border-red-200 bg-red-50 text-red-700"}`}>
             {message.text}
           </div>
         )}
 
-        <div className="admin-card p-0 overflow-hidden">
+        <div className="admin-card !p-0 overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-gray-400 text-sm">Loading…</div>
           ) : sessions.length === 0 ? (
@@ -131,17 +133,17 @@ export default function OnlineSessionsPage() {
                       <div className="flex items-center gap-2 flex-wrap">
                         <p className="font-semibold text-gray-900">{s.title}</p>
                         {live && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white px-2 py-0.5 animate-pulse">
+                          <span className="text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white px-2.5 py-0.5 rounded-full animate-pulse">
                             Live now
                           </span>
                         )}
                         {!live && !ended && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-2 py-0.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full">
                             Upcoming
                           </span>
                         )}
                         {ended && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-2 py-0.5">
+                          <span className="text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-2.5 py-0.5 rounded-full">
                             Ended
                           </span>
                         )}
@@ -213,9 +215,7 @@ export default function OnlineSessionsPage() {
                 <div className="flex flex-wrap gap-2 mt-1">
                   {GRADES.map((g) => (
                     <button key={g} type="button" onClick={() => toggleGrade(g)}
-                      className={`text-xs px-2.5 py-1 border font-medium ${targetGrades.includes(g)
-                        ? "border-[#00369b] bg-[#00369b]/10 text-[#00369b]"
-                        : "border-gray-200 text-gray-600"}`}>
+                      className={`filter-pill${targetGrades.includes(g) ? " active" : ""}`}>
                       {g}
                     </button>
                   ))}

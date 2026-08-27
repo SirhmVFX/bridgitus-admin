@@ -126,7 +126,7 @@ export default function AccountPage() {
 
   return (
     <AdminLayout>
-      <div className="max-w-3xl mx-auto space-y-6">
+      <div className="w-full space-y-6">
         <div>
           <h1 className="text-xl font-bold text-gray-900">My Account</h1>
           <p className="text-gray-500 text-sm mt-0.5">Manage your profile, security, and admin team</p>

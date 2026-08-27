@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import WysiwygEditor from "@/components/WysiwygEditor";
 import ImageUpload from "@/components/ImageUpload";
 import { uploadToCloudinary } from "@/lib/cloudinary";
@@ -81,6 +83,7 @@ export default function MaterialsPage() {
   const [gradeFilter, setGradeFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
@@ -182,16 +185,25 @@ export default function MaterialsPage() {
     return gMatch && tMatch && sMatch;
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, gradeFilter, typeFilter]);
+
+  const pageSlice = paginate(filtered, page);
+
   return (
     <AdminLayout>
-      <div className=" mx-auto space-y-5">
+      <div className="w-full space-y-5">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Content
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
               Learning Materials
             </h1>
-            <p className="text-gray-500 text-sm mt-0.5">
+            <p className="text-slate-500 text-sm mt-1">
               Upload and manage resources for each grade
             </p>
           </div>
@@ -232,18 +244,25 @@ export default function MaterialsPage() {
                 </option>
               ))}
             </select>
-            <select
-              value={typeFilter}
-              onChange={(e) => setTypeFilter(e.target.value)}
-              className="admin-input w-auto"
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setTypeFilter("all")}
+              className={`filter-pill${typeFilter === "all" ? " active" : ""}`}
             >
-              <option value="all">All Types</option>
-              {TYPES.map((t) => (
-                <option key={t} value={t}>
-                  {t.charAt(0).toUpperCase() + t.slice(1)}
-                </option>
-              ))}
-            </select>
+              All Types
+            </button>
+            {TYPES.map((t) => (
+              <button
+                key={t}
+                type="button"
+                onClick={() => setTypeFilter(t)}
+                className={`filter-pill${typeFilter === t ? " active" : ""}`}
+              >
+                {t.charAt(0).toUpperCase() + t.slice(1)}
+              </button>
+            ))}
           </div>
           <span className="text-xs text-gray-400">
             {filtered.length} item{filtered.length !== 1 ? "s" : ""}
@@ -251,7 +270,7 @@ export default function MaterialsPage() {
         </div>
 
         {/* Table */}
-        <div className="admin-card p-0 overflow-hidden">
+        <div className="admin-card !p-0 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">
               Loading…
@@ -264,95 +283,98 @@ export default function MaterialsPage() {
               </p>
             </div>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Grade</th>
-                  <th>Subject</th>
-                  <th>Type</th>
-                  <th>Est. Time</th>
-                  <th>Order</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((m) => (
-                  <tr key={m.id}>
-                    <td>
-                      <p className="font-medium text-gray-800">{m.title}</p>
-                    </td>
-                    <td>
-                      <span className="badge badge-blue">Grade {m.grade}</span>
-                    </td>
-                    <td className="text-gray-600">{m.subject}</td>
-                    <td>
-                      <span className="badge badge-gray capitalize">
-                        {m.type}
-                      </span>
-                    </td>
-                    <td className="text-gray-500 text-xs">
-                      {m.estimatedMinutes ? `${m.estimatedMinutes} min` : "—"}
-                    </td>
-                    <td className="text-gray-500">{m.order}</td>
-                    <td>
-                      <span
-                        className={`badge ${m.published ? "badge-green" : "badge-yellow"}`}
-                      >
-                        {m.published ? "Published" : "Draft"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => togglePublish(m)}
-                          title={m.published ? "Unpublish" : "Publish"}
-                          className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors"
-                        >
-                          {m.published ? (
-                            <MdVisibilityOff size={16} />
-                          ) : (
-                            <MdVisibility size={16} />
-                          )}
-                        </button>
-                        <a
-                          href={`/admin/analytics/material/${m.id}`}
-                          className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex"
-                          title="Analytics"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="w-4 h-4"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
-                          >
-                            <line x1="18" y1="20" x2="18" y2="10" />
-                            <line x1="12" y1="20" x2="12" y2="4" />
-                            <line x1="6" y1="20" x2="6" y2="14" />
-                          </svg>
-                        </a>
-                        <button
-                          onClick={() => openEdit(m)}
-                          className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors"
-                        >
-                          <MdEdit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(m.id!)}
-                          disabled={deleting === m.id}
-                          className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
-                        >
-                          <MdDelete size={16} />
-                        </button>
-                      </div>
-                    </td>
+            <>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Grade</th>
+                    <th>Subject</th>
+                    <th>Type</th>
+                    <th>Est. Time</th>
+                    <th>Order</th>
+                    <th>Status</th>
+                    <th>Actions</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {pageSlice.items.map((m) => (
+                    <tr key={m.id}>
+                      <td>
+                        <p className="font-medium text-gray-800">{m.title}</p>
+                      </td>
+                      <td>
+                        <span className="badge badge-blue">Grade {m.grade}</span>
+                      </td>
+                      <td className="text-gray-600">{m.subject}</td>
+                      <td>
+                        <span className="badge badge-gray capitalize">
+                          {m.type}
+                        </span>
+                      </td>
+                      <td className="text-gray-500 text-xs">
+                        {m.estimatedMinutes ? `${m.estimatedMinutes} min` : "—"}
+                      </td>
+                      <td className="text-gray-500">{m.order}</td>
+                      <td>
+                        <span
+                          className={`badge ${m.published ? "badge-green" : "badge-yellow"}`}
+                        >
+                          {m.published ? "Published" : "Draft"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => togglePublish(m)}
+                            title={m.published ? "Unpublish" : "Publish"}
+                            className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors"
+                          >
+                            {m.published ? (
+                              <MdVisibilityOff size={16} />
+                            ) : (
+                              <MdVisibility size={16} />
+                            )}
+                          </button>
+                          <a
+                            href={`/admin/analytics/material/${m.id}`}
+                            className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex"
+                            title="Analytics"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="w-4 h-4"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <line x1="18" y1="20" x2="18" y2="10" />
+                              <line x1="12" y1="20" x2="12" y2="4" />
+                              <line x1="6" y1="20" x2="6" y2="14" />
+                            </svg>
+                          </a>
+                          <button
+                            onClick={() => openEdit(m)}
+                            className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors"
+                          >
+                            <MdEdit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(m.id!)}
+                            disabled={deleting === m.id}
+                            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors disabled:opacity-40"
+                          >
+                            <MdDelete size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination slice={pageSlice} onPageChange={setPage} />
+            </>
           )}
         </div>
       </div>

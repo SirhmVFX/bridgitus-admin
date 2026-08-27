@@ -1,6 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import { getAllContactMessages, markMessageRead, deleteContactMessage, type ContactMessage } from "@/lib/firestore";
 import { MdEmail, MdDelete, MdMarkEmailRead, MdSearch } from "react-icons/md";
 
@@ -9,6 +11,7 @@ export default function MessagesPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState<"all"|"unread"|"read">("all");
+  const [page, setPage] = useState(1);
   const [selected, setSelected] = useState<ContactMessage|null>(null);
 
   async function load() {
@@ -34,17 +37,26 @@ export default function MessagesPage() {
     const statusMatch = filter==="all" || (filter==="unread" && !m.read) || (filter==="read" && m.read);
     return textMatch && statusMatch;
   });
+
+  useEffect(() => {
+    setPage(1);
+  }, [search, filter]);
+
+  const pageSlice = paginate(filtered, page);
   const unreadCount = messages.filter((m) => !m.read).length;
 
   return (
     <AdminLayout>
-      <div className="max-w-6xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900 flex items-center gap-2">
-              <MdEmail size={20} className="text-[#00369b]"/> Contact Messages
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Inbox
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
+              Contact Messages
             </h1>
-            <p className="text-gray-500 text-sm mt-0.5">
+            <p className="text-slate-500 text-sm mt-1">
               {unreadCount > 0 ? `${unreadCount} unread` : "All messages read"} · {messages.length} total
             </p>
           </div>
@@ -56,11 +68,12 @@ export default function MessagesPage() {
             <MdSearch size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"/>
             <input value={search} onChange={(e)=>setSearch(e.target.value)} placeholder="Search messages…" className="admin-input pl-8"/>
           </div>
-          <div className="flex gap-1">
+          <div className="flex flex-wrap gap-2">
             {(["all","unread","read"] as const).map((f)=>(
-              <button key={f} onClick={()=>setFilter(f)}
-                className={`px-3 py-1.5 text-xs font-semibold capitalize transition-all border ${filter===f?"bg-[#00369b] text-white border-[#00369b]":"bg-white text-gray-600 border-gray-200"}`}>
-                {f}</button>
+              <button key={f} type="button" onClick={()=>setFilter(f)}
+                className={`filter-pill capitalize${filter===f?" active":""}`}>
+                {f}
+              </button>
             ))}
           </div>
           <span className="text-xs text-gray-400 ml-auto">{filtered.length} result{filtered.length!==1?"s":""}</span>
@@ -70,41 +83,46 @@ export default function MessagesPage() {
           {/* List */}
           <div className="lg:col-span-2 space-y-2">
             {loading ? (
-              <div className="space-y-2">{[...Array(4)].map((_,i)=><div key={i} className="bg-white border h-16 animate-pulse"/>)}</div>
+              <div className="space-y-2">{[...Array(4)].map((_,i)=><div key={i} className="admin-card h-16 animate-pulse"/>)}</div>
             ) : filtered.length===0 ? (
-              <div className="bg-white border border-gray-200 p-10 text-center">
+              <div className="admin-card p-10 text-center">
                 <MdEmail size={32} className="mx-auto text-gray-300 mb-2"/>
                 <p className="text-gray-500 text-sm">No messages found.</p>
               </div>
             ) : (
-              filtered.map((m)=>(
-                <button key={m.id} onClick={()=>{ setSelected(m); if(!m.read) handleRead(m.id!); }}
-                  className={`w-full text-left border px-4 py-3 transition-all ${selected?.id===m.id?"border-[#00369b] bg-blue-50":"bg-white border-gray-200 hover:border-gray-300"} ${!m.read?"border-l-4 border-l-[#00369b]":""}`}>
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <p className={`text-sm truncate ${!m.read?"font-bold text-gray-900":"font-medium text-gray-700"}`}>{m.name}</p>
-                      <p className="text-xs text-gray-400 truncate">{m.email}</p>
-                      <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{m.message}</p>
+              <>
+                {pageSlice.items.map((m)=>(
+                  <button key={m.id} onClick={()=>{ setSelected(m); if(!m.read) handleRead(m.id!); }}
+                    className={`w-full text-left admin-card !p-4 transition-all ${selected?.id===m.id?"!border-[#00369b] bg-blue-50/60":"hover:-translate-y-0.5"} ${!m.read?"border-l-4 !border-l-[#00369b]":""}`}>
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <p className={`text-sm truncate ${!m.read?"font-bold text-gray-900":"font-medium text-gray-700"}`}>{m.name}</p>
+                        <p className="text-xs text-gray-400 truncate">{m.email}</p>
+                        <p className="text-xs text-gray-500 line-clamp-1 mt-0.5">{m.message}</p>
+                      </div>
+                      {!m.read && <div className="w-2 h-2 bg-[#00369b] rounded-full shrink-0 mt-1"/>}
                     </div>
-                    {!m.read && <div className="w-2 h-2 bg-[#00369b] rounded-full shrink-0 mt-1"/>}
-                  </div>
-                  {m.createdAt && (
-                    <p className="text-xs text-gray-300 mt-1">
-                      {(m.createdAt as { toDate?: () => Date })?.toDate?.()?.toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}) ?? ""}
-                    </p>
-                  )}
-                </button>
-              ))
+                    {m.createdAt && (
+                      <p className="text-xs text-gray-300 mt-1">
+                        {(m.createdAt as { toDate?: () => Date })?.toDate?.()?.toLocaleDateString("en-AU",{day:"numeric",month:"short",year:"numeric"}) ?? ""}
+                      </p>
+                    )}
+                  </button>
+                ))}
+                <div className="admin-card !p-0 overflow-hidden">
+                  <Pagination slice={pageSlice} onPageChange={setPage} />
+                </div>
+              </>
             )}
           </div>
 
           {/* Detail */}
           <div className="lg:col-span-3">
             {selected ? (
-              <div className="bg-white border border-gray-200 h-full">
+              <div className="admin-card !p-0 h-full overflow-hidden">
                 <div className="flex items-center justify-between px-5 py-4 border-b border-gray-100">
                   <div>
-                    <p className="font-semibold text-gray-900">{selected.name}</p>
+                    <p className="font-semibold text-[#001233]">{selected.name}</p>
                     <a href={`mailto:${selected.email}`} className="text-xs text-[#00369b] hover:underline">{selected.email}</a>
                   </div>
                   <div className="flex items-center gap-2">
@@ -114,7 +132,7 @@ export default function MessagesPage() {
                     )}
                     <a href={`mailto:${selected.email}?subject=Re: Your enquiry`}
                       className="btn-primary text-xs py-1 flex items-center gap-1">Reply</a>
-                    <button onClick={()=>handleDelete(selected.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={16}/></button>
+                    <button onClick={()=>handleDelete(selected.id!)} className="p-1.5 text-gray-400 hover:text-red-500 rounded-xl"><MdDelete size={16}/></button>
                   </div>
                 </div>
                 <div className="p-5">
@@ -122,7 +140,7 @@ export default function MessagesPage() {
                 </div>
               </div>
             ) : (
-              <div className="bg-white border border-gray-200 p-12 text-center h-full flex flex-col items-center justify-center">
+              <div className="admin-card p-12 text-center h-full flex flex-col items-center justify-center">
                 <MdEmail size={40} className="text-gray-300 mb-3"/>
                 <p className="text-gray-400 text-sm">Select a message to read it</p>
               </div>

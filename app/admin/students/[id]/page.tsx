@@ -454,7 +454,7 @@ export default function StudentDetailPage() {
 
   return (
     <AdminLayout>
-      <div className="max-w-5xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <Link href="/admin/students" className="flex items-center gap-2 text-sm text-gray-500 hover:text-gray-800">
           <MdArrowBack size={16} /> Back to Students
         </Link>
@@ -462,12 +462,17 @@ export default function StudentDetailPage() {
         <div className="admin-card">
           <div className="flex items-start justify-between flex-wrap gap-4">
             <div className="flex items-center gap-4">
-              <div className="w-16 h-16 bg-[#00369b] flex items-center justify-center text-white text-2xl font-bold shrink-0">
+              <div className="w-16 h-16 rounded-2xl bg-[#00369b] flex items-center justify-center text-white text-2xl font-bold shrink-0/20">
                 {student.firstName?.[0]}{student.lastName?.[0]}
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">{student.firstName} {student.lastName}</h1>
-                <div className="flex flex-wrap gap-2 mt-1">
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+                  Student Profile
+                </p>
+                <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
+                  {student.firstName} {student.lastName}
+                </h1>
+                <div className="flex flex-wrap gap-2 mt-2">
                   <span className="badge badge-blue font-mono">{student.studentId}</span>
                   <span className={`badge ${student.status === "active" ? "badge-green" : student.status === "suspended" ? "badge-red" : "badge-gray"}`}>{student.status}</span>
                   <span className="badge badge-blue">Grade {student.grade}</span>
@@ -548,10 +553,10 @@ export default function StudentDetailPage() {
           ))}
         </div>
 
-        <div className="flex flex-wrap gap-1 bg-gray-100 p-1">
+        <div className="flex flex-wrap gap-2">
           {TABS.map((t) => (
-            <button key={t.key} onClick={() => setTab(t.key)}
-              className={`flex items-center gap-1.5 px-3 py-2 text-xs sm:text-sm font-medium transition-all cursor-pointer ${tab === t.key ? "bg-white text-gray-900" : "text-gray-500 hover:text-gray-700"}`}>
+            <button key={t.key} type="button" onClick={() => setTab(t.key)}
+              className={`filter-pill flex items-center gap-1.5${tab === t.key ? " active" : ""}`}>
               <t.icon size={14}/>{t.label}
             </button>
           ))}

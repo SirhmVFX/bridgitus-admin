@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import { getAllStudents, type Student } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
 import { adminFetch } from "@/lib/adminFetch";
@@ -64,6 +66,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const [message, setMessage] = useState<{
     type: "ok" | "error";
     text: string;
@@ -175,6 +178,12 @@ export default function PaymentsPage() {
     return sMatch && stMatch;
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, statusFilter]);
+
+  const pageSlice = paginate(filtered, page);
+
   const stats = {
     paid: students.filter((s) => s.paymentStatus === "paid").length,
     pending: students.filter((s) => s.paymentStatus === "pending").length,
@@ -186,15 +195,17 @@ export default function PaymentsPage() {
 
   return (
     <AdminLayout>
-      <div className=" mx-auto space-y-5">
+      <div className="w-full space-y-5">
         {/* Header */}
-        <div className="flex items-center gap-3">
-          <MdPayment size={22} className="text-[#00369b]" />
+        <div className="flex items-start justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Billing
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
               Payment Management
             </h1>
-            <p className="text-gray-500 text-sm">
+            <p className="text-slate-500 text-sm mt-1">
               View student payments and set up automatic weekly or monthly
               direct debits via Stripe (AUD)
             </p>
@@ -227,12 +238,12 @@ export default function PaymentsPage() {
           ].map((s) => (
             <div key={s.label} className="admin-card flex items-center gap-3">
               <div
-                className={`w-10 h-10 flex items-center justify-center shrink-0 ${s.color}`}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${s.color}`}
               >
                 <MdPayment size={18} />
               </div>
               <div>
-                <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+                <p className="text-2xl font-bold text-[#001233]">{s.value}</p>
                 <p className="text-xs text-gray-500">{s.label}</p>
               </div>
             </div>
@@ -241,7 +252,7 @@ export default function PaymentsPage() {
 
         {message && (
           <div
-            className={`border px-4 py-3 text-sm flex items-center gap-2 ${
+            className={`border rounded-xl px-4 py-3 text-sm flex items-center gap-2 ${
               message.type === "ok"
                 ? "border-emerald-300 bg-emerald-50 text-emerald-700"
                 : "border-red-200 bg-red-50 text-red-700"
@@ -271,18 +282,27 @@ export default function PaymentsPage() {
               className="admin-input pl-8"
             />
           </div>
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="admin-input w-auto"
-          >
-            <option value="all">All Payment Status</option>
-            <option value="paid">Paid</option>
-            <option value="pending">Pending</option>
-            <option value="waived">Waived</option>
-            <option value="expired">Expired</option>
-            <option value="failed">Failed</option>
-          </select>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "All"],
+                ["paid", "Paid"],
+                ["pending", "Pending"],
+                ["waived", "Waived"],
+                ["expired", "Expired"],
+                ["failed", "Failed"],
+              ] as const
+            ).map(([value, label]) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setStatusFilter(value)}
+                className={`filter-pill${statusFilter === value ? " active" : ""}`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
           <button
             onClick={load}
             className="btn-secondary text-sm flex items-center gap-1.5"
@@ -292,7 +312,7 @@ export default function PaymentsPage() {
         </div>
 
         {/* Table */}
-        <div className="admin-card p-0 overflow-x-auto">
+        <div className="admin-card !p-0 overflow-hidden overflow-x-auto">
           {loading ? (
             <div className="p-12 text-center">
               <div className="w-8 h-8 border-4 border-[#00369b] border-t-transparent rounded-full animate-spin mx-auto mb-3" />
@@ -304,128 +324,137 @@ export default function PaymentsPage() {
               <p className="text-gray-500">No students found.</p>
             </div>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Student</th>
-                  <th>Grade</th>
-                  <th>Plan</th>
-                  <th>Status</th>
-                  <th>Last Payment</th>
-                  <th>Expires</th>
-                  <th>Card on File</th>
-                  <th>Auto-pay</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((s) => {
-                  const hasCard =
-                    !!s.stripePaymentMethod?.paymentMethodId ||
-                    !!s.paystackAuthorization?.authorizationCode;
-                  const cardLast4 =
-                    s.stripePaymentMethod?.last4 ||
-                    s.paystackAuthorization?.last4;
-                  const cardBrand =
-                    s.stripePaymentMethod?.brand ||
-                    s.paystackAuthorization?.cardType;
-                  const autoPayActive = s.autoPay?.status === "active";
-                  const autoPayAmount =
-                    s.autoPay?.amountCents ?? s.autoPay?.amountKobo;
-                  return (
-                    <tr key={s.id}>
-                      <td>
-                        <div>
-                          <p className="font-medium text-gray-800">
-                            {s.firstName} {s.lastName}
-                          </p>
-                          <p className="text-xs text-gray-400 font-mono">
-                            {s.studentId}
-                          </p>
-                        </div>
-                      </td>
-                      <td>
-                        <span className="badge badge-blue">
-                          Grade {s.grade || "—"}
-                        </span>
-                      </td>
-                      <td className="text-sm text-gray-600">
-                        {s.planTitle ?? "—"}
-                      </td>
-                      <td>
-                        <span
-                          className={`badge ${STATUS_BADGE[s.paymentStatus] ?? "badge-gray"}`}
-                        >
-                          {s.paymentStatus}
-                        </span>
-                      </td>
-                      <td>
-                        <p className="text-sm text-gray-700 font-semibold">
-                          {formatAmount(s.paymentAmount)}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {formatDate(s.paidAt)}
-                        </p>
-                      </td>
-                      <td className="text-sm text-gray-600">
-                        {formatDate(s.planExpiresAt)}
-                      </td>
-                      <td>
-                        {hasCard ? (
-                          <span className="text-xs text-gray-600 flex items-center gap-1">
-                            <MdCreditCard size={14} className="text-gray-400" />
-                            {cardBrand?.trim() || "Card"} ····{cardLast4}
+            <>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Student</th>
+                    <th>Grade</th>
+                    <th>Plan</th>
+                    <th>Status</th>
+                    <th>Last Payment</th>
+                    <th>Expires</th>
+                    <th>Card on File</th>
+                    <th>Auto-pay</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageSlice.items.map((s) => {
+                    const hasCard =
+                      !!s.stripePaymentMethod?.paymentMethodId ||
+                      !!s.paystackAuthorization?.authorizationCode;
+                    const cardLast4 =
+                      s.stripePaymentMethod?.last4 ||
+                      s.paystackAuthorization?.last4;
+                    const cardBrand =
+                      s.stripePaymentMethod?.brand ||
+                      s.paystackAuthorization?.cardType;
+                    const autoPayActive = s.autoPay?.status === "active";
+                    const autoPayAmount =
+                      s.autoPay?.amountCents ?? s.autoPay?.amountKobo;
+                    return (
+                      <tr key={s.id}>
+                        <td>
+                          <div className="flex items-center gap-3">
+                            <div className="w-8 h-8 rounded-full bg-[#00369b]/10 flex items-center justify-center text-[#00369b] text-xs font-bold shrink-0">
+                              {s.firstName?.[0]}
+                              {s.lastName?.[0]}
+                            </div>
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {s.firstName} {s.lastName}
+                              </p>
+                              <p className="text-xs text-gray-400 font-mono">
+                                {s.studentId}
+                              </p>
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <span className="badge badge-blue">
+                            Grade {s.grade || "—"}
                           </span>
-                        ) : (
-                          <span className="text-xs text-gray-400">
-                            No saved card
-                          </span>
-                        )}
-                      </td>
-                      <td>
-                        {autoPayActive ? (
-                          <span className="badge badge-green flex items-center gap-1 w-fit">
-                            <MdAutorenew size={12} /> {s.autoPay!.interval} ·{" "}
-                            {formatAmount(autoPayAmount)}
-                          </span>
-                        ) : s.autoPay?.status === "cancelled" ? (
-                          <span className="badge badge-gray">cancelled</span>
-                        ) : (
-                          <span className="text-xs text-gray-400">—</span>
-                        )}
-                      </td>
-                      <td>
-                        {autoPayActive ? (
-                          <button
-                            onClick={() => handleCancelAutoPay(s)}
-                            disabled={cancellingFor === s.id}
-                            className="text-xs font-semibold text-red-600 hover:text-red-800 flex items-center gap-1 disabled:opacity-50"
+                        </td>
+                        <td className="text-sm text-gray-600">
+                          {s.planTitle ?? "—"}
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${STATUS_BADGE[s.paymentStatus] ?? "badge-gray"}`}
                           >
-                            <MdCancel size={13} />{" "}
-                            {cancellingFor === s.id
-                              ? "Cancelling…"
-                              : "Cancel auto-pay"}
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => openSetup(s)}
-                            disabled={!s.stripePaymentMethod?.paymentMethodId}
-                            title={
-                              s.stripePaymentMethod?.paymentMethodId
-                                ? "Set up automatic direct debit"
-                                : "Student must complete one Stripe payment first to save a card"
-                            }
-                            className="text-xs font-semibold text-[#00369b] hover:underline flex items-center gap-1 disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
-                          >
-                            <MdAutorenew size={13} /> Set up auto-pay
-                          </button>
-                        )}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+                            {s.paymentStatus}
+                          </span>
+                        </td>
+                        <td>
+                          <p className="text-sm text-gray-700 font-semibold">
+                            {formatAmount(s.paymentAmount)}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {formatDate(s.paidAt)}
+                          </p>
+                        </td>
+                        <td className="text-sm text-gray-600">
+                          {formatDate(s.planExpiresAt)}
+                        </td>
+                        <td>
+                          {hasCard ? (
+                            <span className="text-xs text-gray-600 flex items-center gap-1">
+                              <MdCreditCard size={14} className="text-gray-400" />
+                              {cardBrand?.trim() || "Card"} ····{cardLast4}
+                            </span>
+                          ) : (
+                            <span className="text-xs text-gray-400">
+                              No saved card
+                            </span>
+                          )}
+                        </td>
+                        <td>
+                          {autoPayActive ? (
+                            <span className="badge badge-green flex items-center gap-1 w-fit">
+                              <MdAutorenew size={12} /> {s.autoPay!.interval} ·{" "}
+                              {formatAmount(autoPayAmount)}
+                            </span>
+                          ) : s.autoPay?.status === "cancelled" ? (
+                            <span className="badge badge-gray">cancelled</span>
+                          ) : (
+                            <span className="text-xs text-gray-400">—</span>
+                          )}
+                        </td>
+                        <td>
+                          {autoPayActive ? (
+                            <button
+                              onClick={() => handleCancelAutoPay(s)}
+                              disabled={cancellingFor === s.id}
+                              className="text-xs font-semibold text-red-600 hover:text-red-800 flex items-center gap-1 disabled:opacity-50"
+                            >
+                              <MdCancel size={13} />{" "}
+                              {cancellingFor === s.id
+                                ? "Cancelling…"
+                                : "Cancel auto-pay"}
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => openSetup(s)}
+                              disabled={!s.stripePaymentMethod?.paymentMethodId}
+                              title={
+                                s.stripePaymentMethod?.paymentMethodId
+                                  ? "Set up automatic direct debit"
+                                  : "Student must complete one Stripe payment first to save a card"
+                              }
+                              className="text-xs font-semibold text-[#00369b] hover:underline flex items-center gap-1 disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                            >
+                              <MdAutorenew size={13} /> Set up auto-pay
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+              <Pagination slice={pageSlice} onPageChange={setPage} />
+            </>
           )}
         </div>
 

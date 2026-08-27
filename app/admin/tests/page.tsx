@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import WysiwygEditor from "@/components/WysiwygEditor";
 import {
   getAllTests,
@@ -100,6 +102,8 @@ export default function TestsPage() {
   const [libraryModal, setLibraryModal] = useState(false);
   const [questionSets, setQuestionSets] = useState<QuestionSet[]>([]);
   const [libLoading, setLibLoading] = useState(false);
+  const [testsPage, setTestsPage] = useState(1);
+  const [attemptsPage, setAttemptsPage] = useState(1);
 
   async function load() {
     try {
@@ -274,16 +278,21 @@ export default function TestsPage() {
   }
 
   const pending = attempts.filter((a) => a.status === "pending_review");
+  const testsSlice = paginate(tests, testsPage);
+  const attemptsSlice = paginate(attempts, attemptsPage);
 
   return (
     <AdminLayout>
-      <div className=" mx-auto space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="w-full space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Assessments
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
               Tests &amp; Exams
             </h1>
-            <p className="text-gray-500 text-sm mt-0.5">
+            <p className="text-slate-500 text-sm mt-1">
               Create assessments and review student results
             </p>
           </div>
@@ -304,16 +313,13 @@ export default function TestsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+        <div className="flex flex-wrap gap-2">
           {(["tests", "results"] as const).map((t) => (
             <button
               key={t}
+              type="button"
               onClick={() => setTab(t)}
-              className={`px-5 py-2 rounded-md text-sm font-medium transition-all capitalize ${
-                tab === t
-                  ? "bg-white text-gray-900 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
-              }`}
+              className={`filter-pill${tab === t ? " active" : ""}`}
             >
               {t === "results"
                 ? `Results${pending.length > 0 ? ` (${pending.length} pending)` : ""}`
@@ -323,7 +329,7 @@ export default function TestsPage() {
         </div>
 
         {tab === "tests" && (
-          <div className="admin-card p-0 overflow-hidden">
+          <div className="admin-card !p-0 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-gray-400 text-sm">
                 Loading…
@@ -336,95 +342,98 @@ export default function TestsPage() {
                 </p>
               </div>
             ) : (
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Title</th>
-                    <th>Grade</th>
-                    <th>Subject</th>
-                    <th>Type</th>
-                    <th>Questions</th>
-                    <th>Pass Mark</th>
-                    <th>Attempts</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tests.map((t) => (
-                    <tr key={t.id}>
-                      <td>
-                        <p className="font-medium text-gray-800">{t.title}</p>
-                      </td>
-                      <td>
-                        <span className="badge badge-blue">
-                          Grade {t.grade}
-                        </span>
-                      </td>
-                      <td className="text-gray-600">{t.subject}</td>
-                      <td>
-                        <span
-                          className={`badge ${t.type === "exam" ? "badge-red" : "badge-blue"}`}
-                        >
-                          {t.type}
-                        </span>
-                      </td>
-                      <td className="text-gray-600">
-                        {t.questions.length} ({t.totalPoints} pts)
-                      </td>
-                      <td className="text-gray-600">{t.passMark}%</td>
-                      <td className="text-gray-600">Max {t.maxAttempts}</td>
-                      <td>
-                        <span
-                          className={`badge ${t.published ? "badge-green" : "badge-yellow"}`}
-                        >
-                          {t.published ? "Live" : "Draft"}
-                        </span>
-                      </td>
-                      <td>
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={() => openEdit(t)}
-                            className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                          >
-                            <MdEdit size={16} />
-                          </button>
-                          <a
-                            href={`/admin/analytics/test/${t.id}`}
-                            className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex"
-                            title="Analytics"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="w-4 h-4"
-                              viewBox="0 0 24 24"
-                              fill="none"
-                              stroke="currentColor"
-                              strokeWidth="2"
-                            >
-                              <line x1="18" y1="20" x2="18" y2="10" />
-                              <line x1="12" y1="20" x2="12" y2="4" />
-                              <line x1="6" y1="20" x2="6" y2="14" />
-                            </svg>
-                          </a>
-                          <button
-                            onClick={() => handleDelete(t.id!)}
-                            className="p-1.5 text-gray-400 hover:text-red-500"
-                          >
-                            <MdDelete size={16} />
-                          </button>
-                        </div>
-                      </td>
+              <>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Title</th>
+                      <th>Grade</th>
+                      <th>Subject</th>
+                      <th>Type</th>
+                      <th>Questions</th>
+                      <th>Pass Mark</th>
+                      <th>Attempts</th>
+                      <th>Status</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {testsSlice.items.map((t) => (
+                      <tr key={t.id}>
+                        <td>
+                          <p className="font-medium text-gray-800">{t.title}</p>
+                        </td>
+                        <td>
+                          <span className="badge badge-blue">
+                            Grade {t.grade}
+                          </span>
+                        </td>
+                        <td className="text-gray-600">{t.subject}</td>
+                        <td>
+                          <span
+                            className={`badge ${t.type === "exam" ? "badge-red" : "badge-blue"}`}
+                          >
+                            {t.type}
+                          </span>
+                        </td>
+                        <td className="text-gray-600">
+                          {t.questions.length} ({t.totalPoints} pts)
+                        </td>
+                        <td className="text-gray-600">{t.passMark}%</td>
+                        <td className="text-gray-600">Max {t.maxAttempts}</td>
+                        <td>
+                          <span
+                            className={`badge ${t.published ? "badge-green" : "badge-yellow"}`}
+                          >
+                            {t.published ? "Live" : "Draft"}
+                          </span>
+                        </td>
+                        <td>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => openEdit(t)}
+                              className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                            >
+                              <MdEdit size={16} />
+                            </button>
+                            <a
+                              href={`/admin/analytics/test/${t.id}`}
+                              className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex"
+                              title="Analytics"
+                            >
+                              <svg
+                                xmlns="http://www.w3.org/2000/svg"
+                                className="w-4 h-4"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                              >
+                                <line x1="18" y1="20" x2="18" y2="10" />
+                                <line x1="12" y1="20" x2="12" y2="4" />
+                                <line x1="6" y1="20" x2="6" y2="14" />
+                              </svg>
+                            </a>
+                            <button
+                              onClick={() => handleDelete(t.id!)}
+                              className="p-1.5 text-gray-400 hover:text-red-500"
+                            >
+                              <MdDelete size={16} />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination slice={testsSlice} onPageChange={setTestsPage} />
+              </>
             )}
           </div>
         )}
 
         {tab === "results" && (
-          <div className="admin-card p-0 overflow-hidden">
+          <div className="admin-card !p-0 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-gray-400 text-sm">
                 Loading…
@@ -435,73 +444,79 @@ export default function TestsPage() {
                 <p className="text-gray-500">No submissions yet.</p>
               </div>
             ) : (
-              <table className="admin-table">
-                <thead>
-                  <tr>
-                    <th>Student</th>
-                    <th>Test</th>
-                    <th>Attempt</th>
-                    <th>Score</th>
-                    <th>Status</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {attempts.map((a) => (
-                    <tr key={a.id}>
-                      <td>
-                        <p className="font-medium text-gray-800">
-                          {a.studentName ?? a.studentId}
-                        </p>
-                      </td>
-                      <td className="text-gray-600">
-                        {a.testTitle ?? a.testId}
-                      </td>
-                      <td className="text-gray-500">#{a.attemptNumber}</td>
-                      <td>
-                        <span
-                          className={`font-bold text-sm ${a.status === "approved" ? (a.passed ? "text-emerald-600" : "text-red-500") : "text-gray-500"}`}
-                        >
-                          {a.status === "approved" ? `${a.percentage}%` : "—"}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            a.status === "approved"
-                              ? a.passed
-                                ? "badge-green"
-                                : "badge-red"
-                              : a.status === "rejected"
-                                ? "badge-red"
-                                : "badge-yellow"
-                          }`}
-                        >
-                          {a.status.replace("_", " ")}
-                        </span>
-                      </td>
-                      <td>
-                        {a.status === "pending_review" && (
-                          <button
-                            onClick={() => {
-                              setReviewModal(a);
-                              setReviewComment("");
-                            }}
-                            className="btn-primary text-xs py-1 px-3"
-                          >
-                            Review
-                          </button>
-                        )}
-                        {a.status !== "pending_review" && (
-                          <span className="text-xs text-gray-400">
-                            {a.adminComment || "—"}
-                          </span>
-                        )}
-                      </td>
+              <>
+                <table className="admin-table">
+                  <thead>
+                    <tr>
+                      <th>Student</th>
+                      <th>Test</th>
+                      <th>Attempt</th>
+                      <th>Score</th>
+                      <th>Status</th>
+                      <th>Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {attemptsSlice.items.map((a) => (
+                      <tr key={a.id}>
+                        <td>
+                          <p className="font-medium text-gray-800">
+                            {a.studentName ?? a.studentId}
+                          </p>
+                        </td>
+                        <td className="text-gray-600">
+                          {a.testTitle ?? a.testId}
+                        </td>
+                        <td className="text-gray-500">#{a.attemptNumber}</td>
+                        <td>
+                          <span
+                            className={`font-bold text-sm ${a.status === "approved" ? (a.passed ? "text-emerald-600" : "text-red-500") : "text-gray-500"}`}
+                          >
+                            {a.status === "approved" ? `${a.percentage}%` : "—"}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge ${
+                              a.status === "approved"
+                                ? a.passed
+                                  ? "badge-green"
+                                  : "badge-red"
+                                : a.status === "rejected"
+                                  ? "badge-red"
+                                  : "badge-yellow"
+                            }`}
+                          >
+                            {a.status.replace("_", " ")}
+                          </span>
+                        </td>
+                        <td>
+                          {a.status === "pending_review" && (
+                            <button
+                              onClick={() => {
+                                setReviewModal(a);
+                                setReviewComment("");
+                              }}
+                              className="btn-primary text-xs py-1 px-3"
+                            >
+                              Review
+                            </button>
+                          )}
+                          {a.status !== "pending_review" && (
+                            <span className="text-xs text-gray-400">
+                              {a.adminComment || "—"}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                <Pagination
+                  slice={attemptsSlice}
+                  onPageChange={setAttemptsPage}
+                />
+              </>
             )}
           </div>
         )}

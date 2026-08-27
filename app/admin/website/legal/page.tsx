@@ -62,7 +62,7 @@ export default function LegalPage() {
 
   return (
     <AdminLayout>
-      <div className="max-w-5xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <div className="flex items-center gap-3">
           <MdGavel size={22} className="text-[#00369b]" />
           <div>

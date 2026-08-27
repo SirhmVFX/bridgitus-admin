@@ -2,6 +2,8 @@
 
 import { useEffect, useState, useRef } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import WysiwygEditor from "@/components/WysiwygEditor";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import {
@@ -95,6 +97,7 @@ export default function AssignmentsPage() {
   const [fileUploading, setFileUploading] = useState(false);
   const [gradeFilter, setGradeFilter] = useState("all");
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
   const [subModal, setSubModal] = useState<{
     a: Assignment;
     subs: AssignmentSubmission[];
@@ -403,6 +406,12 @@ ${data.description ? `\n\n${data.description}` : ""}`,
     return gMatch && sMatch;
   });
 
+  useEffect(() => {
+    setPage(1);
+  }, [search, gradeFilter]);
+
+  const pageSlice = paginate(filtered, page);
+
   const studentName = (id: string) => {
     const s = students.find((s) => s.id === id);
     return s ? `${s.firstName} ${s.lastName}` : id;
@@ -410,11 +419,16 @@ ${data.description ? `\n\n${data.description}` : ""}`,
 
   return (
     <AdminLayout>
-      <div className=" mx-auto space-y-5">
-        <div className="flex items-center justify-between">
+      <div className="w-full space-y-5">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Assignments</h1>
-            <p className="text-gray-500 text-sm mt-0.5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Assessments
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
+              Assignments
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
               IXL, DeltaMath, custom and auto-graded quiz assignments
             </p>
           </div>
@@ -458,7 +472,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
           </span>
         </div>
 
-        <div className="admin-card p-0 overflow-hidden">
+        <div className="admin-card !p-0 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">
               Loading…
@@ -468,88 +482,91 @@ ${data.description ? `\n\n${data.description}` : ""}`,
               No assignments yet.
             </div>
           ) : (
-            <table className="admin-table">
-              <thead>
-                <tr>
-                  <th>Title</th>
-                  <th>Type</th>
-                  <th>Subject</th>
-                  <th>Grades</th>
-                  <th>Due</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filtered.map((a) => (
-                  <tr key={a.id}>
-                    <td>
-                      <p className="font-medium text-gray-800">{a.title}</p>
-                    </td>
-                    <td>
-                      <span
-                        className={`badge text-white ${a.type === "ixl" ? "bg-orange-500" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}
-                      >
-                        {a.type === "ixl"
-                          ? "IXL"
-                          : a.type === "deltamath"
-                            ? "DeltaMath"
-                            : a.type === "quiz"
-                              ? "Quiz"
-                              : a.type}
-                      </span>
-                    </td>
-                    <td className="text-gray-600">{a.subject}</td>
-                    <td className="text-gray-500 text-xs">
-                      {a.targetGrades.map((g) => `G${g}`).join(", ")}
-                    </td>
-                    <td className="text-gray-500 text-xs">
-                      {a.dueDate || "—"}
-                    </td>
-                    <td>
-                      <span
-                        className={`badge ${a.published ? "badge-green" : "badge-yellow"}`}
-                      >
-                        {a.published ? "Live" : "Draft"}
-                      </span>
-                    </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        {a.platformUrl && (
-                          <a
-                            href={a.platformUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
+            <>
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Title</th>
+                    <th>Type</th>
+                    <th>Subject</th>
+                    <th>Grades</th>
+                    <th>Due</th>
+                    <th>Status</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageSlice.items.map((a) => (
+                    <tr key={a.id}>
+                      <td>
+                        <p className="font-medium text-gray-800">{a.title}</p>
+                      </td>
+                      <td>
+                        <span
+                          className={`badge text-white ${a.type === "ixl" ? "bg-orange-500" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}
+                        >
+                          {a.type === "ixl"
+                            ? "IXL"
+                            : a.type === "deltamath"
+                              ? "DeltaMath"
+                              : a.type === "quiz"
+                                ? "Quiz"
+                                : a.type}
+                        </span>
+                      </td>
+                      <td className="text-gray-600">{a.subject}</td>
+                      <td className="text-gray-500 text-xs">
+                        {a.targetGrades.map((g) => `G${g}`).join(", ")}
+                      </td>
+                      <td className="text-gray-500 text-xs">
+                        {a.dueDate || "—"}
+                      </td>
+                      <td>
+                        <span
+                          className={`badge ${a.published ? "badge-green" : "badge-yellow"}`}
+                        >
+                          {a.published ? "Live" : "Draft"}
+                        </span>
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          {a.platformUrl && (
+                            <a
+                              href={a.platformUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                            >
+                              <MdOpenInNew size={16} />
+                            </a>
+                          )}
+                          <button
+                            onClick={() => openSubmissions(a)}
+                            className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                            title="View submissions"
+                          >
+                            <MdVisibility size={16} />
+                          </button>
+                          <button
+                            onClick={() => openEdit(a)}
                             className="p-1.5 text-gray-400 hover:text-[#00369b]"
                           >
-                            <MdOpenInNew size={16} />
-                          </a>
-                        )}
-                        <button
-                          onClick={() => openSubmissions(a)}
-                          className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                          title="View submissions"
-                        >
-                          <MdVisibility size={16} />
-                        </button>
-                        <button
-                          onClick={() => openEdit(a)}
-                          className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                        >
-                          <MdEdit size={16} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(a.id!)}
-                          className="p-1.5 text-gray-400 hover:text-red-500"
-                        >
-                          <MdDelete size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+                            <MdEdit size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(a.id!)}
+                            className="p-1.5 text-gray-400 hover:text-red-500"
+                          >
+                            <MdDelete size={16} />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <Pagination slice={pageSlice} onPageChange={setPage} />
+            </>
           )}
         </div>
 

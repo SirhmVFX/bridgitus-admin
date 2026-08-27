@@ -451,7 +451,7 @@ export default function StudentAnalyticsPage() {
 
   return (
     <AdminLayout>
-      <div className="max-w-6xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         {/* Header */}
         <div className="flex items-center justify-between flex-wrap gap-3">
           <div className="flex items-center gap-3">

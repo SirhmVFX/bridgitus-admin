@@ -146,7 +146,7 @@ export default function GeneralPage() {
   const [section, setSection] = useState<Section>("header");
   return (
     <AdminLayout>
-      <div className="max-w-5xl mx-auto space-y-5">
+      <div className="w-full space-y-5">
         <div className="flex items-center gap-3">
           <MdSettings size={22} className="text-[#00369b]"/>
           <div><h1 className="text-xl font-bold text-gray-900">General Settings</h1>
