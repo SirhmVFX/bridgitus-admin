@@ -21,7 +21,7 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   section: AdminSection;
-  group: "overview" | "learning" | "tools";
+  group?: "overview" | "learning" | "tools" | "account";
 }
 
 const MAIN_NAV: NavItem[] = [
@@ -48,13 +48,18 @@ const WEBSITE_SUBNAV: { label: string; icon: React.ElementType; href: string; se
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { href: "/admin/account", label: "My Account", icon: MdPerson, section: "account" },
-  { href: "/admin/permissions", label: "Permissions", icon: MdShield, section: "permissions" },
+  { href: "/admin/account", label: "My Account", icon: MdPerson, section: "account", group: "account" },
+  { href: "/admin/permissions", label: "Permissions", icon: MdShield, section: "permissions", group: "account" },
 ];
 
 const ALL_NAV: NavItem[] = [
   ...MAIN_NAV,
-  ...WEBSITE_SUBNAV.map((x) => ({ href: x.href, label: x.label, icon: x.icon, section: x.section })),
+  ...WEBSITE_SUBNAV.map((x) => ({
+    href: x.href,
+    label: x.label,
+    icon: x.icon,
+    section: x.section,
+  })),
   ...ADMIN_NAV,
 ];
 
