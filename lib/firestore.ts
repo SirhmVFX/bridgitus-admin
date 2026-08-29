@@ -141,6 +141,10 @@ export interface Test {
   maxAttempts: number;
   timeLimit?: number;
   linkedMaterialId?: string;
+  /** ISO datetime-local string, e.g. 2026-08-29T09:00 */
+  startAt?: string;
+  /** ISO datetime-local string */
+  dueAt?: string;
   published: boolean;
   createdAt?: Timestamp;
   updatedAt?: Timestamp;
@@ -161,6 +165,9 @@ export interface TestAttempt {
   attemptNumber: number;
   status: "pending_review" | "approved" | "rejected";
   adminComment?: string;
+  /** Optional student-uploaded PDF/document */
+  attachmentUrl?: string;
+  attachmentName?: string;
   submittedAt?: Timestamp;
   reviewedAt?: Timestamp;
 }
@@ -177,7 +184,12 @@ export interface Assignment {
   content?: string;
   fileUrl?: string;
   fileName?: string;
+  /** @deprecated Prefer dueAt; kept for older records */
   dueDate?: string;
+  /** ISO datetime-local string */
+  startAt?: string;
+  /** ISO datetime-local string */
+  dueAt?: string;
   maxScore?: number;
   linkedMaterialId?: string;
   questions?: Question[];
@@ -206,6 +218,9 @@ export interface AssignmentSubmission {
   passed?: boolean;
   attemptNumber?: number;
   feedback?: string;
+  /** Student-uploaded PDF/document for this submission */
+  attachmentUrl?: string;
+  attachmentName?: string;
   submittedAt?: Timestamp;
   gradedAt?: Timestamp;
 }
@@ -815,12 +830,15 @@ export interface ParentMessage {
   recipientIds?: string[];
   recipientGrades?: string[];
   sendVia: "email" | "sms" | "both";
-  sentAt?: Timestamp;
+  sentAt?: Timestamp | string | null;
   sentByEmail?: boolean;
   sentBySms?: boolean;
   emailCount?: number;
   smsCount?: number;
-  createdAt?: Timestamp;
+  emailSentCount?: number;
+  smsSentCount?: number;
+  deliveryErrors?: string[];
+  createdAt?: Timestamp | string | null;
   createdBy?: string;
 }
 

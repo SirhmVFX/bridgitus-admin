@@ -26,6 +26,7 @@ import {
   type QuestionType,
 } from "@/lib/firestore";
 import { adminFetch } from "@/lib/adminFetch";
+import { dueDateFromDueAt, formatSchedule } from "@/lib/schedule";
 import { setYearMatchesTarget } from "@/lib/yearGrade";
 import {
   MdAdd,
@@ -73,6 +74,8 @@ const EMPTY: Omit<Assignment, "id"> = {
   fileUrl: "",
   fileName: "",
   dueDate: "",
+  startAt: "",
+  dueAt: "",
   maxScore: 100,
   linkedMaterialId: "",
   targetGrades: ["1"],
@@ -151,6 +154,10 @@ export default function AssignmentsPage() {
       fileUrl: a.fileUrl ?? "",
       fileName: a.fileName ?? "",
       dueDate: a.dueDate ?? "",
+      startAt: a.startAt ?? "",
+      dueAt:
+        a.dueAt ??
+        (a.dueDate ? `${a.dueDate}T23:59` : ""),
       maxScore: a.maxScore ?? 100,
       linkedMaterialId: a.linkedMaterialId ?? "",
       targetGrades: a.targetGrades,
@@ -234,7 +241,10 @@ export default function AssignmentsPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const data = { ...form };
+      const data = {
+        ...form,
+        dueDate: dueDateFromDueAt(form.dueAt),
+      };
       if (data.type === "quiz") {
         data.totalPoints = (data.questions ?? []).reduce(
           (s, q) => s + (q.points ?? 1),
@@ -519,7 +529,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                         {a.targetGrades.map((g) => `G${g}`).join(", ")}
                       </td>
                       <td className="text-gray-500 text-xs">
-                        {a.dueDate || "—"}
+                        {formatSchedule(a.dueAt || a.dueDate)}
                       </td>
                       <td>
                         <span
@@ -638,6 +648,18 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                         {sub.feedback && (
                           <p className="text-xs text-gray-500 mt-2 italic">
                             {sub.feedback}
+                          </p>
+                        )}
+                        {sub.attachmentUrl && (
+                          <p className="text-xs mt-2">
+                            <a
+                              href={sub.attachmentUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-[#00369b] hover:underline font-medium"
+                            >
+                              {sub.attachmentName || "Download attachment"}
+                            </a>
                           </p>
                         )}
                         {gradingId === sub.id && (
@@ -775,12 +797,23 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                     />
                   </div>
                   <div>
-                    <label className="admin-label">Due Date</label>
+                    <label className="admin-label">Start date &amp; time</label>
                     <input
-                      type="date"
-                      value={form.dueDate ?? ""}
+                      type="datetime-local"
+                      value={form.startAt ?? ""}
                       onChange={(e) =>
-                        setForm({ ...form, dueDate: e.target.value })
+                        setForm({ ...form, startAt: e.target.value })
+                      }
+                      className="admin-input"
+                    />
+                  </div>
+                  <div>
+                    <label className="admin-label">Due date &amp; time</label>
+                    <input
+                      type="datetime-local"
+                      value={form.dueAt ?? ""}
+                      onChange={(e) =>
+                        setForm({ ...form, dueAt: e.target.value })
                       }
                       className="admin-input"
                     />

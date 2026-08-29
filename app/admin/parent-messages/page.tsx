@@ -5,43 +5,72 @@ import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
 import { paginate } from "@/lib/pagination";
 import {
-  getAllStudents, getAllParentMessages, deleteParentMessage,
-  type ParentMessage, type Student,
+  getAllStudents,
+  deleteParentMessage,
+  type ParentMessage,
+  type Student,
 } from "@/lib/firestore";
 import { adminFetch } from "@/lib/adminFetch";
+import { useAuth } from "@/lib/auth";
 import {
-  MdSend, MdEmail, MdSms, MdClose, MdPerson, MdFilterList,
-  MdDelete, MdCheckCircle, MdSchedule, MdPeople,
+  MdSend, MdEmail, MdSms, MdClose, MdDelete, MdVisibility,
 } from "react-icons/md";
 
 const GRADES = ["Pre-K","K","1","2","3","4","5","6","7","8","9","10","11","12"];
 
+function formatWhen(value: ParentMessage["sentAt"] | ParentMessage["createdAt"]) {
+  if (!value) return "—";
+  if (typeof value === "string") {
+    const d = new Date(value);
+    return Number.isNaN(d.getTime()) ? value : d.toLocaleString("en-AU");
+  }
+  if (typeof value === "object" && "toDate" in value && typeof value.toDate === "function") {
+    return value.toDate().toLocaleString("en-AU");
+  }
+  return "—";
+}
+
 export default function ParentMessagesPage() {
+  const { adminUser } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [messageHistory, setMessageHistory] = useState<ParentMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const [viewing, setViewing] = useState<ParentMessage | null>(null);
   const [sending, setSending] = useState(false);
   const [sendResult, setSendResult] = useState<{ success: boolean; message: string } | null>(null);
 
-  // Form state
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [recipientType, setRecipientType] = useState<"all" | "specific">("all");
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
-  const [sendVia, setSendVia] = useState<"email" | "sms" | "both">("both");
+  const [sendVia, setSendVia] = useState<"email" | "sms" | "both">("email");
   const [studentSearch, setStudentSearch] = useState("");
   const [page, setPage] = useState(1);
 
   async function loadData() {
-    const [studentsData, messagesData] = await Promise.all([
-      getAllStudents(),
-      getAllParentMessages(),
-    ]);
-    setStudents(studentsData);
-    setMessageHistory(messagesData);
-    setLoading(false);
+    setLoadError(null);
+    try {
+      const [studentsData, messagesRes] = await Promise.all([
+        getAllStudents(),
+        adminFetch("/api/parent-messages"),
+      ]);
+      setStudents(studentsData);
+      if (messagesRes.ok) {
+        const data = await messagesRes.json();
+        setMessageHistory((data.messages ?? []) as ParentMessage[]);
+      } else {
+        const err = await messagesRes.json().catch(() => ({}));
+        setLoadError(err.error || "Could not load message history.");
+        setMessageHistory([]);
+      }
+    } catch {
+      setLoadError("Could not load messages. Check your connection and try again.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => { loadData(); }, []);
@@ -59,11 +88,9 @@ export default function ParentMessagesPage() {
   }
 
   function getRecipientCount() {
-    if (recipientType === "all") {
-      return students.length;
-    } else if (selectedStudentIds.length > 0) {
-      return selectedStudentIds.length;
-    } else if (selectedGrades.length > 0) {
+    if (recipientType === "all") return students.length;
+    if (selectedStudentIds.length > 0) return selectedStudentIds.length;
+    if (selectedGrades.length > 0) {
       return students.filter((s) => selectedGrades.includes(s.grade)).length;
     }
     return 0;
@@ -71,6 +98,18 @@ export default function ParentMessagesPage() {
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
+    if (
+      recipientType === "specific" &&
+      selectedStudentIds.length === 0 &&
+      selectedGrades.length === 0
+    ) {
+      setSendResult({
+        success: false,
+        message: "Select at least one student or grade.",
+      });
+      return;
+    }
+
     setSending(true);
     setSendResult(null);
 
@@ -85,16 +124,16 @@ export default function ParentMessagesPage() {
           recipientIds: selectedStudentIds.length > 0 ? selectedStudentIds : undefined,
           recipientGrades: selectedGrades.length > 0 ? selectedGrades : undefined,
           sendVia,
-          createdBy: "admin", // TODO: Get from auth
+          createdBy: adminUser?.email ?? adminUser?.displayName ?? "admin",
         }),
       });
 
       const data = await response.json();
 
-      if (response.ok) {
+      if (response.ok && data.success) {
         setSendResult({
           success: true,
-          message: `Message sent successfully! ${data.emailRecipients} emails, ${data.smsRecipients} SMS.`,
+          message: data.message || `Sent: ${data.emailSentCount ?? 0} email(s), ${data.smsSentCount ?? 0} SMS.`,
         });
         setTitle("");
         setBody("");
@@ -102,13 +141,26 @@ export default function ParentMessagesPage() {
         setSelectedGrades([]);
         setRecipientType("all");
         await loadData();
+        setTimeout(() => {
+          setModalOpen(false);
+          setSendResult(null);
+        }, 1800);
       } else {
+        const extra = [
+          ...(data.emailErrors ?? []),
+          ...(data.smsErrors ?? []),
+        ].filter(Boolean);
         setSendResult({
           success: false,
-          message: data.error || "Failed to send message",
+          message:
+            data.message ||
+            data.error ||
+            "Failed to deliver message" +
+              (extra.length ? `: ${extra.slice(0, 2).join("; ")}` : ""),
         });
+        await loadData();
       }
-    } catch (error) {
+    } catch {
       setSendResult({
         success: false,
         message: "Network error. Please try again.",
@@ -120,7 +172,7 @@ export default function ParentMessagesPage() {
 
   async function handleDelete(id: string) {
     if (!confirm("Delete this message record?")) return;
-    await deleteParentMessage(id);
+    await deleteParentMessage(id).catch(() => {});
     await loadData();
   }
 
@@ -129,7 +181,7 @@ export default function ParentMessagesPage() {
     return (
       s.firstName.toLowerCase().includes(search) ||
       s.lastName.toLowerCase().includes(search) ||
-      s.parentEmail.toLowerCase().includes(search) ||
+      (s.parentEmail ?? "").toLowerCase().includes(search) ||
       s.studentId.toLowerCase().includes(search)
     );
   });
@@ -139,24 +191,36 @@ export default function ParentMessagesPage() {
   return (
     <AdminLayout>
       <div className="w-full space-y-5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between flex-wrap gap-3">
           <div>
-            <h1 className="text-xl font-bold text-gray-900">Parent Messages</h1>
-            <p className="text-gray-500 text-sm mt-0.5">Send announcements to parents and guardians</p>
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-400 mb-1">
+              Communication
+            </p>
+            <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
+              Parent Messages
+            </h1>
+            <p className="text-slate-500 text-sm mt-1">
+              Email or SMS parents directly (not shown in the student portal)
+            </p>
           </div>
-          <button onClick={() => setModalOpen(true)} className="btn-primary flex items-center gap-2">
+          <button onClick={() => { setSendResult(null); setModalOpen(true); }} className="btn-primary flex items-center gap-2">
             <MdSend size={18} /> New Message
           </button>
         </div>
 
-        {/* Message History */}
+        {loadError && (
+          <div className="admin-card border-amber-200 bg-amber-50 text-amber-800 text-sm">
+            {loadError}
+          </div>
+        )}
+
         <div className="admin-card !p-0 overflow-hidden">
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
           ) : messageHistory.length === 0 ? (
             <div className="p-12 text-center">
               <MdSend size={40} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">No messages sent yet. Create one to notify parents.</p>
+              <p className="text-gray-500">No messages yet. Send one to notify parents by email or SMS.</p>
             </div>
           ) : (
             <>
@@ -166,9 +230,9 @@ export default function ParentMessagesPage() {
                     <th>Title</th>
                     <th>Recipients</th>
                     <th>Method</th>
-                    <th>Emails</th>
-                    <th>SMS</th>
-                    <th>Sent</th>
+                    <th>Delivered</th>
+                    <th>Status</th>
+                    <th>When</th>
                     <th>Actions</th>
                   </tr>
                 </thead>
@@ -178,7 +242,7 @@ export default function ParentMessagesPage() {
                       <td>
                         <p className="font-medium text-gray-800">{msg.title}</p>
                         <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">
-                          {msg.body.slice(0, 60)}...
+                          {msg.body.slice(0, 80)}
                         </p>
                       </td>
                       <td>
@@ -196,30 +260,45 @@ export default function ParentMessagesPage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-1">
-                          {msg.sendVia === "email" || msg.sendVia === "both" ? (
+                          {(msg.sendVia === "email" || msg.sendVia === "both") && (
                             <MdEmail size={16} className="text-blue-600" />
-                          ) : null}
-                          {msg.sendVia === "sms" || msg.sendVia === "both" ? (
+                          )}
+                          {(msg.sendVia === "sms" || msg.sendVia === "both") && (
                             <MdSms size={16} className="text-green-600" />
-                          ) : null}
+                          )}
                         </div>
                       </td>
-                      <td>{msg.emailCount || 0}</td>
-                      <td>{msg.smsCount || 0}</td>
-                      <td>
-                        {msg.sentAt ? (
-                          <span className="badge badge-green">Sent</span>
-                        ) : (
-                          <span className="badge badge-yellow">Draft</span>
-                        )}
+                      <td className="text-xs text-slate-600">
+                        {msg.emailSentCount ?? (msg.sentByEmail ? msg.emailCount : 0)} email ·{" "}
+                        {msg.smsSentCount ?? (msg.sentBySms ? msg.smsCount : 0)} SMS
                       </td>
                       <td>
-                        <button
-                          onClick={() => handleDelete(msg.id!)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
-                        >
-                          <MdDelete size={16} />
-                        </button>
+                        {msg.sentAt || msg.sentByEmail || msg.sentBySms ? (
+                          <span className="badge badge-green">Sent</span>
+                        ) : (
+                          <span className="badge badge-yellow">Not delivered</span>
+                        )}
+                      </td>
+                      <td className="text-xs text-slate-500">
+                        {formatWhen(msg.sentAt ?? msg.createdAt)}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => setViewing(msg)}
+                            className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors"
+                            title="View message"
+                          >
+                            <MdVisibility size={16} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(msg.id!)}
+                            className="p-1.5 text-gray-400 hover:text-red-500 transition-colors"
+                            title="Delete"
+                          >
+                            <MdDelete size={16} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -231,7 +310,56 @@ export default function ParentMessagesPage() {
         </div>
       </div>
 
-      {/* New Message Modal */}
+      {viewing && (
+        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewing(null)}>
+          <div className="modal-box max-w-lg">
+            <div className="modal-header">
+              <h2 className="font-semibold text-gray-900">Message details</h2>
+              <button onClick={() => setViewing(null)} className="text-gray-400 hover:text-gray-600">
+                <MdClose size={20} />
+              </button>
+            </div>
+            <div className="p-6 space-y-4">
+              <div>
+                <p className="admin-label">Title</p>
+                <p className="font-semibold text-[#001233]">{viewing.title}</p>
+              </div>
+              <div>
+                <p className="admin-label">Body</p>
+                <p className="text-sm text-slate-700 whitespace-pre-wrap border border-slate-200 rounded-xl p-4 bg-slate-50">
+                  {viewing.body}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="admin-label">Status</p>
+                  <p>{viewing.sentAt || viewing.sentByEmail || viewing.sentBySms ? "Sent" : "Not delivered"}</p>
+                </div>
+                <div>
+                  <p className="admin-label">When</p>
+                  <p>{formatWhen(viewing.sentAt ?? viewing.createdAt)}</p>
+                </div>
+                <div>
+                  <p className="admin-label">Email</p>
+                  <p>{viewing.emailSentCount ?? 0} delivered / {viewing.emailCount ?? 0} targeted</p>
+                </div>
+                <div>
+                  <p className="admin-label">SMS</p>
+                  <p>{viewing.smsSentCount ?? 0} delivered / {viewing.smsCount ?? 0} targeted</p>
+                </div>
+              </div>
+              {viewing.deliveryErrors && viewing.deliveryErrors.length > 0 && (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
+                  {viewing.deliveryErrors.map((err, i) => (
+                    <p key={i}>{err}</p>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {modalOpen && (
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
           <div className="modal-box max-w-2xl max-h-[90vh] overflow-y-auto">
@@ -252,174 +380,129 @@ export default function ParentMessagesPage() {
                   placeholder="Message subject"
                 />
               </div>
-
               <div>
                 <label className="admin-label">Message *</label>
                 <textarea
                   required
                   value={body}
                   onChange={(e) => setBody(e.target.value)}
-                  rows={6}
+                  rows={5}
                   className="admin-input resize-none"
-                  placeholder="Write your message to parents..."
+                  placeholder="Write your message to parents…"
                 />
               </div>
 
               <div>
-                <label className="admin-label">Recipients</label>
-                <div className="flex gap-2 mt-1">
+                <label className="admin-label">Send via *</label>
+                <div className="flex flex-wrap gap-2">
+                  {([
+                    ["email", "Email"],
+                    ["sms", "SMS"],
+                    ["both", "Email + SMS"],
+                  ] as const).map(([value, label]) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setSendVia(value)}
+                      className={`filter-pill${sendVia === value ? " active" : ""}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="admin-label">Recipients *</label>
+                <div className="flex flex-wrap gap-2 mb-3">
                   <button
                     type="button"
                     onClick={() => setRecipientType("all")}
-                    className={`px-4 py-2 text-sm font-semibold border transition-all ${
-                      recipientType === "all"
-                        ? "bg-[#00369b] text-white border-[#00369b]"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
-                    }`}
+                    className={`filter-pill${recipientType === "all" ? " active" : ""}`}
                   >
-                    All Parents
+                    All parents ({students.length})
                   </button>
                   <button
                     type="button"
                     onClick={() => setRecipientType("specific")}
-                    className={`px-4 py-2 text-sm font-semibold border transition-all ${
-                      recipientType === "specific"
-                        ? "bg-[#00369b] text-white border-[#00369b]"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
-                    }`}
+                    className={`filter-pill${recipientType === "specific" ? " active" : ""}`}
                   >
-                    Specific Parents
+                    Specific
                   </button>
                 </div>
-              </div>
 
-              {recipientType === "specific" && (
-                <>
-                  <div>
-                    <label className="admin-label">Filter by Grade</label>
-                    <div className="flex flex-wrap gap-2 mt-1">
-                      {GRADES.map((g) => (
-                        <button
-                          key={g}
-                          type="button"
-                          onClick={() => toggleGrade(g)}
-                          className={`px-3 py-1 text-xs font-semibold border transition-all ${
-                            selectedGrades.includes(g)
-                              ? "bg-[#00369b] text-white border-[#00369b]"
-                              : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
-                          }`}
-                        >
-                          Grade {g}
-                        </button>
-                      ))}
+                {recipientType === "specific" && (
+                  <div className="space-y-3 border border-slate-200 rounded-xl p-4">
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 mb-2">By grade</p>
+                      <div className="flex flex-wrap gap-2">
+                        {GRADES.map((g) => (
+                          <button
+                            key={g}
+                            type="button"
+                            onClick={() => toggleGrade(g)}
+                            className={`filter-pill${selectedGrades.includes(g) ? " active" : ""}`}
+                          >
+                            {g}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <label className="admin-label">Select Individual Students</label>
-                    <input
-                      value={studentSearch}
-                      onChange={(e) => setStudentSearch(e.target.value)}
-                      placeholder="Search students..."
-                      className="admin-input mb-2"
-                    />
-                    <div className="border border-gray-200 rounded-lg max-h-48 overflow-y-auto">
-                      {filteredStudents.length === 0 ? (
-                        <div className="p-4 text-center text-gray-400 text-sm">No students found</div>
-                      ) : (
-                        filteredStudents.slice(0, 20).map((s) => (
+                    <div>
+                      <p className="text-xs font-semibold text-slate-500 mb-2">Or pick students</p>
+                      <input
+                        value={studentSearch}
+                        onChange={(e) => setStudentSearch(e.target.value)}
+                        className="admin-input mb-2"
+                        placeholder="Search students…"
+                      />
+                      <div className="max-h-40 overflow-y-auto space-y-1">
+                        {filteredStudents.slice(0, 40).map((s) => (
                           <label
                             key={s.id}
-                            className="flex items-center gap-3 px-4 py-2 hover:bg-gray-50 cursor-pointer border-b border-gray-100 last:border-0"
+                            className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
                           >
                             <input
                               type="checkbox"
                               checked={selectedStudentIds.includes(s.id!)}
                               onChange={() => toggleStudentId(s.id!)}
-                              className="w-4 h-4 text-[#00369b] rounded"
                             />
-                            <div className="flex-1">
-                              <p className="text-sm font-medium text-gray-800">
-                                {s.firstName} {s.lastName}
-                              </p>
-                              <p className="text-xs text-gray-400">
-                                {s.parentEmail} · {s.parentPhone}
-                              </p>
-                            </div>
-                            <span className="text-xs text-gray-500">Grade {s.grade}</span>
+                            <span>
+                              {s.firstName} {s.lastName}
+                              <span className="text-xs text-slate-400 ml-1">
+                                · {s.parentEmail || "no parent email"}
+                              </span>
+                            </span>
                           </label>
-                        ))
-                      )}
+                        ))}
+                      </div>
                     </div>
                   </div>
-                </>
-              )}
-
-              <div>
-                <label className="admin-label">Send Via</label>
-                <div className="flex gap-2 mt-1">
-                  <button
-                    type="button"
-                    onClick={() => setSendVia("email")}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border transition-all ${
-                      sendVia === "email"
-                        ? "bg-[#00369b] text-white border-[#00369b]"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
-                    }`}
-                  >
-                    <MdEmail size={16} /> Email
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSendVia("sms")}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border transition-all ${
-                      sendVia === "sms"
-                        ? "bg-[#00369b] text-white border-[#00369b]"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
-                    }`}
-                  >
-                    <MdSms size={16} /> SMS
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setSendVia("both")}
-                    className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold border transition-all ${
-                      sendVia === "both"
-                        ? "bg-[#00369b] text-white border-[#00369b]"
-                        : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
-                    }`}
-                  >
-                    <MdEmail size={16} /> <MdSms size={16} /> Both
-                  </button>
-                </div>
-              </div>
-
-              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                <div className="flex items-center gap-2 text-sm">
-                  <MdPeople className="text-[#00369b]" size={18} />
-                  <span className="font-medium text-gray-700">
-                    This will reach approximately <strong>{getRecipientCount()}</strong> parent(s)
-                  </span>
-                </div>
+                )}
+                <p className="text-xs text-slate-400 mt-2">
+                  ~{getRecipientCount()} student profile(s) selected
+                </p>
               </div>
 
               {sendResult && (
                 <div
-                  className={`p-4 rounded-lg flex items-center gap-2 ${
-                    sendResult.success ? "bg-green-50 text-green-800" : "bg-red-50 text-red-800"
+                  className={`rounded-xl border px-4 py-3 text-sm ${
+                    sendResult.success
+                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                      : "bg-red-50 border-red-200 text-red-800"
                   }`}
                 >
-                  {sendResult.success ? <MdCheckCircle size={18} /> : <MdDelete size={18} />}
-                  <span className="text-sm">{sendResult.message}</span>
+                  {sendResult.message}
                 </div>
               )}
 
-              <div className="flex gap-3 pt-2 border-t border-gray-100">
-                <button type="submit" disabled={sending} className="btn-primary disabled:opacity-60">
-                  {sending ? "Sending…" : "Send Message"}
-                </button>
+              <div className="flex justify-end gap-2 pt-2">
                 <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">
                   Cancel
+                </button>
+                <button type="submit" disabled={sending} className="btn-primary flex items-center gap-2">
+                  <MdSend size={16} />
+                  {sending ? "Sending…" : "Send to parents"}
                 </button>
               </div>
             </form>

@@ -1,8 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAllStudents, createParentMessage, updateParentMessage, type ParentMessage } from "@/lib/firestore";
+import { FieldValue } from "firebase-admin/firestore";
+import { adminDb } from "@/lib/firebaseAdmin";
+import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 import { sendEmailToMany, brandedEmail, isSesConfigured } from "@/lib/email";
 import { Twilio } from "twilio";
-import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
+
+type StudentRow = {
+  id: string;
+  grade?: string;
+  parentEmail?: string;
+  parentPhone?: string;
+  firstName?: string;
+  lastName?: string;
+};
+
+async function loadStudents(): Promise<StudentRow[]> {
+  const snap = await adminDb().collection("students").get();
+  return snap.docs.map((d) => ({ id: d.id, ...(d.data() as Omit<StudentRow, "id">) }));
+}
+
+export async function GET(request: NextRequest) {
+  try {
+    const adminAuthResult = await requireAdmin(request);
+    if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
+
+    const snap = await adminDb()
+      .collection("parentMessages")
+      .orderBy("createdAt", "desc")
+      .get();
+
+    const messages = snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        ...data,
+        createdAt: data.createdAt?.toDate?.()?.toISOString?.() ?? data.createdAt ?? null,
+        sentAt: data.sentAt?.toDate?.()?.toISOString?.() ?? data.sentAt ?? null,
+      };
+    });
+
+    return NextResponse.json({ messages });
+  } catch (error) {
+    console.error("Error listing parent messages:", error);
+    return NextResponse.json({ error: "Failed to load messages" }, { status: 500 });
+  }
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,58 +52,109 @@ export async function POST(request: NextRequest) {
     if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
 
     const body = await request.json();
-    const { title, body: messageBody, recipientType, recipientIds, recipientGrades, sendVia, createdBy } = body;
-
-    if (!title || !messageBody || !recipientType || !sendVia) {
-      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-    }
-
-    const allStudents = await getAllStudents();
-    let targetStudents = allStudents;
-
-    if (recipientType === "specific") {
-      if (recipientIds && recipientIds.length > 0) {
-        targetStudents = allStudents.filter((s) => recipientIds!.includes(s.id!));
-      } else if (recipientGrades && recipientGrades.length > 0) {
-        targetStudents = allStudents.filter((s) => recipientGrades!.includes(s.grade));
-      }
-    }
-
-    const parentEmails = [...new Set(targetStudents.map((s) => s.parentEmail).filter(Boolean))];
-    const parentPhones = [...new Set(targetStudents.map((s) => s.parentPhone).filter(Boolean))];
-
-    const parentMessageData: Omit<ParentMessage, "id"> = {
+    const {
       title,
       body: messageBody,
       recipientType,
       recipientIds,
       recipientGrades,
       sendVia,
+      createdBy,
+    } = body;
+
+    if (!title || !messageBody || !recipientType || !sendVia) {
+      return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
+    }
+
+    if (
+      recipientType === "specific" &&
+      !(recipientIds?.length > 0) &&
+      !(recipientGrades?.length > 0)
+    ) {
+      return NextResponse.json(
+        { error: "Select at least one student or grade for specific recipients." },
+        { status: 400 },
+      );
+    }
+
+    const allStudents = await loadStudents();
+    let targetStudents = allStudents;
+
+    if (recipientType === "specific") {
+      if (recipientIds?.length > 0) {
+        const idSet = new Set(recipientIds as string[]);
+        targetStudents = allStudents.filter((s) => idSet.has(s.id));
+      } else if (recipientGrades?.length > 0) {
+        const gradeSet = new Set(recipientGrades as string[]);
+        targetStudents = allStudents.filter((s) => s.grade && gradeSet.has(s.grade));
+      }
+    }
+
+    const parentEmails = [
+      ...new Set(
+        targetStudents
+          .map((s) => s.parentEmail?.trim())
+          .filter((e): e is string => Boolean(e)),
+      ),
+    ];
+    const parentPhones = [
+      ...new Set(
+        targetStudents
+          .map((s) => s.parentPhone?.trim())
+          .filter((p): p is string => Boolean(p)),
+      ),
+    ];
+
+    if (
+      (sendVia === "email" || sendVia === "both") &&
+      parentEmails.length === 0 &&
+      (sendVia === "sms" || sendVia === "both") &&
+      parentPhones.length === 0
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "No parent email or phone numbers found for the selected recipients. Add parent contact details on student profiles.",
+        },
+        { status: 400 },
+      );
+    }
+
+    const ref = await adminDb().collection("parentMessages").add({
+      title,
+      body: messageBody,
+      recipientType,
+      recipientIds: recipientIds ?? [],
+      recipientGrades: recipientGrades ?? [],
+      sendVia,
       sentByEmail: false,
       sentBySms: false,
       emailCount: parentEmails.length,
       smsCount: parentPhones.length,
-      createdBy,
-    };
-
-    const messageId = await createParentMessage(parentMessageData);
+      createdBy: createdBy ?? adminAuthResult.uid,
+      createdAt: FieldValue.serverTimestamp(),
+    });
 
     const twilioAccountSid = process.env.TWILIO_ACCOUNT_SID;
     const twilioAuthToken = process.env.TWILIO_AUTH_TOKEN;
     const twilioPhoneNumber = process.env.TWILIO_PHONE_NUMBER;
-    const twilioClient = twilioAccountSid && twilioAuthToken
-      ? new Twilio(twilioAccountSid, twilioAuthToken)
-      : null;
+    const twilioClient =
+      twilioAccountSid && twilioAuthToken
+        ? new Twilio(twilioAccountSid, twilioAuthToken)
+        : null;
 
     let emailSent = false;
     let smsSent = false;
+    let emailSentCount = 0;
+    let smsSentCount = 0;
     const emailErrors: string[] = [];
     const smsErrors: string[] = [];
 
-    // Send emails via Amazon SES
     if ((sendVia === "email" || sendVia === "both") && parentEmails.length > 0) {
       if (!isSesConfigured()) {
-        emailErrors.push("Email is not configured (set SENDGRID_API_KEY + EMAIL_ENABLED=true).");
+        emailErrors.push(
+          "Email is not configured (set SENDGRID_API_KEY and EMAIL_ENABLED=true).",
+        );
       } else {
         try {
           const result = await sendEmailToMany(parentEmails, {
@@ -70,60 +163,86 @@ export async function POST(request: NextRequest) {
             html: brandedEmail(
               title,
               `<p>${String(messageBody).replace(/\n/g, "<br>")}</p>
-               <p style="margin-top:20px;font-size:13px;color:#64748b;">This message was sent by Bridgitus Learning to parents/guardians.</p>`
+               <p style="margin-top:20px;font-size:13px;color:#64748b;">This message was sent by Bridgitus Learning to parents/guardians.</p>`,
             ),
           });
+          emailSentCount = result.sent;
           emailSent = result.sent > 0;
           if (result.failed > 0) {
             emailErrors.push(...result.errors.slice(0, 5));
           }
         } catch (error) {
           console.error("Email parent-message error:", error);
-          emailErrors.push(error instanceof Error ? error.message : "Unknown email error");
+          emailErrors.push(
+            error instanceof Error ? error.message : "Unknown email error",
+          );
         }
       }
+    } else if (sendVia === "email" || sendVia === "both") {
+      emailErrors.push("No parent email addresses on the selected student profiles.");
     }
 
-    // SMS via Twilio (unchanged)
-    if ((sendVia === "sms" || sendVia === "both") && twilioClient && twilioPhoneNumber && parentPhones.length > 0) {
-      try {
-        const smsPromises = parentPhones.map((phone) =>
-          twilioClient!.messages.create({
-            body: `${title}\n\n${messageBody}`,
-            from: twilioPhoneNumber!,
-            to: phone,
-          })
+    if (sendVia === "sms" || sendVia === "both") {
+      if (!twilioClient || !twilioPhoneNumber) {
+        if (parentPhones.length > 0) {
+          smsErrors.push(
+            "SMS is not configured (set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER).",
+          );
+        }
+      } else if (parentPhones.length === 0) {
+        smsErrors.push("No parent phone numbers on the selected student profiles.");
+      } else {
+        const results = await Promise.allSettled(
+          parentPhones.map((phone) =>
+            twilioClient!.messages.create({
+              body: `${title}\n\n${messageBody}`,
+              from: twilioPhoneNumber!,
+              to: phone,
+            }),
+          ),
         );
-        await Promise.allSettled(smsPromises);
-        smsSent = true;
-      } catch (error) {
-        console.error("Twilio error:", error);
-        smsErrors.push(error instanceof Error ? error.message : "Unknown error");
+        smsSentCount = results.filter((r) => r.status === "fulfilled").length;
+        smsSent = smsSentCount > 0;
+        results.forEach((r, i) => {
+          if (r.status === "rejected") {
+            const reason =
+              r.reason instanceof Error ? r.reason.message : String(r.reason);
+            smsErrors.push(`${parentPhones[i]}: ${reason}`);
+          }
+        });
       }
     }
 
-    await updateParentMessage(messageId, {
+    const delivered = emailSent || smsSent;
+    await ref.update({
       sentByEmail: emailSent,
       sentBySms: smsSent,
+      emailCount: emailSentCount || parentEmails.length,
+      smsCount: smsSentCount || parentPhones.length,
+      emailSentCount,
+      smsSentCount,
+      ...(delivered ? { sentAt: FieldValue.serverTimestamp() } : {}),
+      deliveryErrors: [...emailErrors, ...smsErrors].slice(0, 10),
     });
 
     return NextResponse.json({
-      success: true,
-      messageId,
+      success: delivered,
+      messageId: ref.id,
       emailRecipients: parentEmails.length,
       smsRecipients: parentPhones.length,
       emailSent,
       smsSent,
+      emailSentCount,
+      smsSentCount,
       emailErrors: emailErrors.length > 0 ? emailErrors : undefined,
       smsErrors: smsErrors.length > 0 ? smsErrors : undefined,
-      message: `Message ${emailSent || smsSent ? "sent successfully" : "created"}${emailErrors.length > 0 ? " (some emails failed)" : ""}${smsErrors.length > 0 ? " (some SMS failed)" : ""}`,
+      message: delivered
+        ? `Delivered: ${emailSentCount} email(s), ${smsSentCount} SMS.`
+        : `Message saved but not delivered. ${[...emailErrors, ...smsErrors].join(" ")}`,
     });
   } catch (error) {
     console.error("Error sending parent message:", error);
-    return NextResponse.json({ error: "Failed to send message" }, { status: 500 });
+    const msg = error instanceof Error ? error.message : "Failed to send message";
+    return NextResponse.json({ error: msg }, { status: 500 });
   }
-}
-
-export async function GET() {
-  return NextResponse.json({ message: "GET not implemented" }, { status: 405 });
 }

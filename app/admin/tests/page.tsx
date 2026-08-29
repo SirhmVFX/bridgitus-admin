@@ -23,6 +23,7 @@ import {
   type QuestionSet,
 } from "@/lib/firestore";
 import { adminFetch } from "@/lib/adminFetch";
+import { formatSchedule } from "@/lib/schedule";
 import { yearsMatch } from "@/lib/yearGrade";
 import {
   MdAdd,
@@ -82,6 +83,8 @@ const EMPTY_TEST: Omit<Test, "id"> = {
   passMark: 60,
   maxAttempts: 3,
   timeLimit: 0,
+  startAt: "",
+  dueAt: "",
   linkedMaterialId: "",
   published: false,
 };
@@ -148,6 +151,8 @@ export default function TestsPage() {
       passMark: t.passMark,
       maxAttempts: t.maxAttempts,
       timeLimit: t.timeLimit ?? 0,
+      startAt: t.startAt ?? "",
+      dueAt: t.dueAt ?? "",
       linkedMaterialId: t.linkedMaterialId ?? "",
       published: t.published,
     });
@@ -362,6 +367,17 @@ export default function TestsPage() {
                       <tr key={t.id}>
                         <td>
                           <p className="font-medium text-gray-800">{t.title}</p>
+                          {(t.startAt || t.dueAt) && (
+                            <p className="text-xs text-gray-400 mt-0.5">
+                              {t.startAt
+                                ? `Starts ${formatSchedule(t.startAt)}`
+                                : null}
+                              {t.startAt && t.dueAt ? " · " : null}
+                              {t.dueAt
+                                ? `Due ${formatSchedule(t.dueAt)}`
+                                : null}
+                            </p>
+                          )}
                         </td>
                         <td>
                           <span className="badge badge-blue">
@@ -557,6 +573,19 @@ export default function TestsPage() {
                   <span className="font-semibold">Passed:</span>{" "}
                   {reviewModal.passed ? "✅ Yes" : "❌ No"}
                 </p>
+                {reviewModal.attachmentUrl && (
+                  <p>
+                    <span className="font-semibold">Attachment:</span>{" "}
+                    <a
+                      href={reviewModal.attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#00369b] hover:underline"
+                    >
+                      {reviewModal.attachmentName || "Download file"}
+                    </a>
+                  </p>
+                )}
               </div>
               <div>
                 <label className="admin-label">Answers Submitted</label>
@@ -840,6 +869,28 @@ export default function TestsPage() {
                     value={form.timeLimit ?? 0}
                     onChange={(e) =>
                       setForm({ ...form, timeLimit: Number(e.target.value) })
+                    }
+                    className="admin-input"
+                  />
+                </div>
+                <div>
+                  <label className="admin-label">Start date &amp; time</label>
+                  <input
+                    type="datetime-local"
+                    value={form.startAt ?? ""}
+                    onChange={(e) =>
+                      setForm({ ...form, startAt: e.target.value })
+                    }
+                    className="admin-input"
+                  />
+                </div>
+                <div>
+                  <label className="admin-label">Due date &amp; time</label>
+                  <input
+                    type="datetime-local"
+                    value={form.dueAt ?? ""}
+                    onChange={(e) =>
+                      setForm({ ...form, dueAt: e.target.value })
                     }
                     className="admin-input"
                   />
