@@ -12,7 +12,7 @@ import {
   formatStudyTime, displayTopic,
   type Student, type TestAttempt, type StudentProgress,
   type MaterialCompletion, type LearningMaterial, type Test, type Assignment,
-  type PracticeAttempt, type LearningGap, type StudySession, type AssignmentSubmission,
+  type AiPracticeAttempt, type LearningGap, type StudySession, type AssignmentSubmission,
   type Question, type AIQuestion,
 } from "@/lib/firestore";
 import { Timestamp } from "firebase/firestore";
@@ -86,7 +86,7 @@ export default function StudentDetailPage() {
   const [tests, setTests] = useState<Test[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [assignmentStatuses, setAssignmentStatuses] = useState<Record<string, string>>({});
-  const [practice, setPractice] = useState<PracticeAttempt[]>([]);
+  const [practice, setPractice] = useState<AiPracticeAttempt[]>([]);
   const [gaps, setGaps] = useState<LearningGap[]>([]);
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [quizSubs, setQuizSubs] = useState<AssignmentSubmission[]>([]);

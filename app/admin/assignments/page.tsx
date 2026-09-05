@@ -1,5 +1,7 @@
 "use client";
 
+import ModalPortal from "@/components/ModalPortal";
+
 import { useEffect, useState, useRef } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
@@ -28,6 +30,7 @@ import {
 import { adminFetch } from "@/lib/adminFetch";
 import { dueDateFromDueAt, formatSchedule } from "@/lib/schedule";
 import { setYearMatchesTarget } from "@/lib/yearGrade";
+import PdfMcqImport from "@/components/PdfMcqImport";
 import {
   MdAdd,
   MdEdit,
@@ -309,6 +312,19 @@ ${data.description ? `\n\n${data.description}` : ""}`,
     }
   }
 
+  function importMcqFromPdf(imported: Question[]) {
+    const existing = (form.questions ?? []).filter((q) => q.text.trim() !== "");
+    const qs = [...existing, ...imported];
+    const total = qs.reduce((s, q) => s + (q.points ?? 1), 0);
+    setForm((f) => ({
+      ...f,
+      type: "quiz",
+      questions: qs,
+      totalPoints: total,
+      maxScore: total,
+    }));
+  }
+
   /** Import as interactive quiz — stores actual Question[] on the assignment */
   function importSetAsQuiz(set: QuestionSet) {
     const targets = form.targetGrades?.length ? form.targetGrades : [];
@@ -582,7 +598,8 @@ ${data.description ? `\n\n${data.description}` : ""}`,
 
         {/* Submissions modal */}
         {subModal && (
-          <div
+          <ModalPortal>
+<div
             className="modal-overlay"
             onClick={(e) => e.target === e.currentTarget && setSubModal(null)}
           >
@@ -691,6 +708,9 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                                 />
                               </div>
                             </div>
+                            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                              Student will see this grade and feedback in their portal
+                            </p>
                             <div className="flex gap-2">
                               <button
                                 onClick={() => handleGrade(sub.id!)}
@@ -714,11 +734,13 @@ ${data.description ? `\n\n${data.description}` : ""}`,
               </div>
             </div>
           </div>
+</ModalPortal>
         )}
 
         {/* Create/Edit modal */}
         {modalOpen && (
-          <div
+          <ModalPortal>
+<div
             className="modal-overlay "
             onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}
           >
@@ -863,7 +885,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                           {form.totalPoints ?? 0} pts total
                         </p>
                       </div>
-                      <div className="flex flex-wrap gap-2">
+                      <div className="flex flex-wrap gap-2 items-center">
                         <button
                           type="button"
                           onClick={() => openLibrary("quiz")}
@@ -871,6 +893,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                         >
                           Import from Library
                         </button>
+                        <PdfMcqImport onImported={importMcqFromPdf} />
                         <button
                           type="button"
                           onClick={() => addQuestion("multiple_choice")}
@@ -1315,10 +1338,12 @@ ${data.description ? `\n\n${data.description}` : ""}`,
               </form>
             </div>
           </div>
+          </ModalPortal>
         )}
 
         {/* Library Picker Modal — rendered after Create modal so it stacks on top */}
         {libModal && (
+          <ModalPortal>
           <div
             className="modal-overlay"
             style={{ zIndex: 99999999 }}
@@ -1448,6 +1473,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
               </div>
             </div>
           </div>
+          </ModalPortal>
         )}
       </div>
     </AdminLayout>

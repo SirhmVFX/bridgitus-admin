@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import ModalPortal from "@/components/ModalPortal";
+
+import { useEffect, useRef, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
 import { paginate } from "@/lib/pagination";
@@ -11,12 +13,14 @@ import {
   type Student,
 } from "@/lib/firestore";
 import { adminFetch } from "@/lib/adminFetch";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { useAuth } from "@/lib/auth";
 import {
-  MdSend, MdEmail, MdSms, MdClose, MdDelete, MdVisibility,
+  MdSend, MdEmail, MdSms, MdClose, MdDelete, MdVisibility, MdAttachFile,
 } from "react-icons/md";
 
 const GRADES = ["Pre-K","K","1","2","3","4","5","6","7","8","9","10","11","12"];
+const ATTACH_ACCEPT = ".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,application/pdf,image/*";
 
 function formatWhen(value: ParentMessage["sentAt"] | ParentMessage["createdAt"]) {
   if (!value) return "—";
@@ -49,6 +53,10 @@ export default function ParentMessagesPage() {
   const [sendVia, setSendVia] = useState<"email" | "sms" | "both">("email");
   const [studentSearch, setStudentSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
+  const [attachmentName, setAttachmentName] = useState<string | null>(null);
+  const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const attachRef = useRef<HTMLInputElement>(null);
 
   async function loadData() {
     setLoadError(null);
@@ -96,6 +104,37 @@ export default function ParentMessagesPage() {
     return 0;
   }
 
+  function resetCompose() {
+    setTitle("");
+    setBody("");
+    setSelectedStudentIds([]);
+    setSelectedGrades([]);
+    setRecipientType("all");
+    setAttachmentUrl(null);
+    setAttachmentName(null);
+    if (attachRef.current) attachRef.current.value = "";
+  }
+
+  async function handleAttachment(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingAttachment(true);
+    setSendResult(null);
+    try {
+      const url = await uploadToCloudinary(file, "bridgitus/parent-messages");
+      setAttachmentUrl(url);
+      setAttachmentName(file.name);
+    } catch (err) {
+      setSendResult({
+        success: false,
+        message: err instanceof Error ? err.message : "Attachment upload failed.",
+      });
+    } finally {
+      setUploadingAttachment(false);
+      if (attachRef.current) attachRef.current.value = "";
+    }
+  }
+
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
     if (
@@ -125,6 +164,12 @@ export default function ParentMessagesPage() {
           recipientGrades: selectedGrades.length > 0 ? selectedGrades : undefined,
           sendVia,
           createdBy: adminUser?.email ?? adminUser?.displayName ?? "admin",
+          ...(attachmentUrl
+            ? {
+                attachmentUrl,
+                attachmentName: attachmentName || "Attachment",
+              }
+            : {}),
         }),
       });
 
@@ -135,11 +180,7 @@ export default function ParentMessagesPage() {
           success: true,
           message: data.message || `Sent: ${data.emailSentCount ?? 0} email(s), ${data.smsSentCount ?? 0} SMS.`,
         });
-        setTitle("");
-        setBody("");
-        setSelectedStudentIds([]);
-        setSelectedGrades([]);
-        setRecipientType("all");
+        resetCompose();
         await loadData();
         setTimeout(() => {
           setModalOpen(false);
@@ -203,7 +244,7 @@ export default function ParentMessagesPage() {
               Email or SMS parents directly (not shown in the student portal)
             </p>
           </div>
-          <button onClick={() => { setSendResult(null); setModalOpen(true); }} className="btn-primary flex items-center gap-2">
+          <button onClick={() => { setSendResult(null); resetCompose(); setModalOpen(true); }} className="btn-primary flex items-center gap-2">
             <MdSend size={18} /> New Message
           </button>
         </div>
@@ -243,6 +284,7 @@ export default function ParentMessagesPage() {
                         <p className="font-medium text-gray-800">{msg.title}</p>
                         <p className="text-xs text-gray-400 mt-0.5 line-clamp-1">
                           {msg.body.slice(0, 80)}
+                          {msg.attachmentUrl ? " · file" : ""}
                         </p>
                       </td>
                       <td>
@@ -311,7 +353,8 @@ export default function ParentMessagesPage() {
       </div>
 
       {viewing && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewing(null)}>
+        <ModalPortal>
+<div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewing(null)}>
           <div className="modal-box max-w-lg">
             <div className="modal-header">
               <h2 className="font-semibold text-gray-900">Message details</h2>
@@ -330,6 +373,20 @@ export default function ParentMessagesPage() {
                   {viewing.body}
                 </p>
               </div>
+              {viewing.attachmentUrl && (
+                <div>
+                  <p className="admin-label">Attachment</p>
+                  <a
+                    href={viewing.attachmentUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-sm text-[#00369b] hover:underline font-medium inline-flex items-center gap-1"
+                  >
+                    <MdAttachFile size={16} />
+                    {viewing.attachmentName || "Download attachment"}
+                  </a>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="admin-label">Status</p>
@@ -358,10 +415,12 @@ export default function ParentMessagesPage() {
             </div>
           </div>
         </div>
+</ModalPortal>
       )}
 
       {modalOpen && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
+        <ModalPortal>
+<div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
           <div className="modal-box max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="modal-header">
               <h2 className="font-semibold text-gray-900">Send Message to Parents</h2>
@@ -390,6 +449,47 @@ export default function ParentMessagesPage() {
                   className="admin-input resize-none"
                   placeholder="Write your message to parents…"
                 />
+              </div>
+
+              <div>
+                <label className="admin-label">Attachment (optional)</label>
+                <p className="text-xs text-slate-400 mb-2">
+                  PDF, DOC, or images — uploaded to Cloudinary before send
+                </p>
+                <input
+                  ref={attachRef}
+                  type="file"
+                  accept={ATTACH_ACCEPT}
+                  disabled={uploadingAttachment || sending}
+                  onChange={handleAttachment}
+                  className="admin-input file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#00369b] file:text-white"
+                />
+                {uploadingAttachment && (
+                  <p className="text-xs text-[#00369b] mt-2">Uploading attachment…</p>
+                )}
+                {attachmentUrl && (
+                  <div className="mt-2 flex items-center gap-2 text-sm">
+                    <a
+                      href={attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[#00369b] hover:underline font-medium inline-flex items-center gap-1"
+                    >
+                      <MdAttachFile size={16} />
+                      {attachmentName || "Attached file"}
+                    </a>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAttachmentUrl(null);
+                        setAttachmentName(null);
+                      }}
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -500,7 +600,11 @@ export default function ParentMessagesPage() {
                 <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">
                   Cancel
                 </button>
-                <button type="submit" disabled={sending} className="btn-primary flex items-center gap-2">
+                <button
+                  type="submit"
+                  disabled={sending || uploadingAttachment}
+                  className="btn-primary flex items-center gap-2"
+                >
                   <MdSend size={16} />
                   {sending ? "Sending…" : "Send to parents"}
                 </button>
@@ -508,6 +612,7 @@ export default function ParentMessagesPage() {
             </form>
           </div>
         </div>
+</ModalPortal>
       )}
     </AdminLayout>
   );

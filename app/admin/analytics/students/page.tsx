@@ -6,7 +6,7 @@ import {
   getAllStudents, getAllTests, getAllAssignments, getAttemptsByStudent,
   getPracticeAttemptsByStudent, getLearningGapsByStudent,
   getStudySessionsByStudent, getSubmissionsByStudent, formatStudyTime, displayTopic,
-  type Student, type Test, type TestAttempt, type PracticeAttempt,
+  type Student, type Test, type TestAttempt, type AiPracticeAttempt,
   type LearningGap, type StudySession, type AIQuestion, type Question,
   type Assignment, type AssignmentSubmission,
 } from "@/lib/firestore";
@@ -52,7 +52,7 @@ function isAnswerCorrect(q: AIQuestion | Question, given: string): boolean {
 /** Flattens test + practice + quiz assignment attempts into answered questions. */
 function collectAnsweredQuestions(
   attempts: TestAttempt[],
-  practice: PracticeAttempt[],
+  practice: AiPracticeAttempt[],
   testsById: Map<string, Test>,
   quizSubs: AssignmentSubmission[] = [],
   assignmentsById: Map<string, Assignment> = new Map()
@@ -309,7 +309,7 @@ export default function StudentAnalyticsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
 
   const [attempts, setAttempts] = useState<TestAttempt[]>([]);
-  const [practice, setPractice] = useState<PracticeAttempt[]>([]);
+  const [practice, setPractice] = useState<AiPracticeAttempt[]>([]);
   const [gaps, setGaps] = useState<LearningGap[]>([]);
   const [sessions, setSessions] = useState<StudySession[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);

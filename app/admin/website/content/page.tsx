@@ -1,4 +1,6 @@
 "use client";
+
+import ModalPortal from "@/components/ModalPortal";
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import ImageUpload from "@/components/ImageUpload";
@@ -73,7 +75,8 @@ function TestimonialsEditor() {
         <button onClick={() => open(t)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={15} /></button>
         <button onClick={() => del(t.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={15} /></button></div>
     </div>))}</div>
-    {modal && (<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+    {modal && (<ModalPortal>
+<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
       <div className="modal-box max-w-lg"><div className="modal-header"><h2 className="font-semibold">{editing ? "Edit" : "Add"} Testimonial</h2><button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button></div>
         <form onSubmit={save} className="p-6 space-y-4">
           <div className="grid sm:grid-cols-2 gap-4">
@@ -88,7 +91,8 @@ function TestimonialsEditor() {
           <ImageUpload label="Avatar (optional)" value={f.avatar ?? ""} onChange={v => setF({ ...f, avatar: v })} folder="bridgitus/testimonials" />
           <label className="flex items-center gap-2 cursor-pointer text-sm"><input type="checkbox" checked={f.published} onChange={e => setF({ ...f, published: e.target.checked })} />Published</label>
           <div className="flex gap-3 pt-2 border-t border-gray-100"><button type="submit" disabled={sv} className="btn-primary disabled:opacity-60">{sv ? "Saving…" : editing ? "Save" : "Create"}</button><button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancel</button></div>
-        </form></div></div>)}
+        </form></div></div>
+</ModalPortal>)}
   </div>);
 }
 
@@ -120,7 +124,8 @@ function PricingEditor() {
         <button onClick={() => open(p)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={15} /></button>
         <button onClick={() => del(p.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={15} /></button></div>
     </div>))}</div>
-    {modal && (<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+    {modal && (<ModalPortal>
+<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
       <div className="modal-box max-w-2xl"><div className="modal-header"><h2 className="font-semibold">{editing ? "Edit" : "Add"} Plan</h2><button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button></div>
         <form onSubmit={save} className="p-6 space-y-5 overflow-y-auto" style={{ maxHeight: "80vh" }}>
 
@@ -208,7 +213,8 @@ function PricingEditor() {
           </div>
 
           <div className="flex gap-3 pt-2 border-t border-gray-100"><button type="submit" disabled={sv} className="btn-primary disabled:opacity-60">{sv ? "Saving…" : editing ? "Save" : "Create"}</button><button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancel</button></div>
-        </form></div></div>)}
+        </form></div></div>
+</ModalPortal>)}
   </div>);
 }
 
@@ -229,7 +235,8 @@ function FaqsEditor() {
         <button onClick={() => open(faq)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={15} /></button>
         <button onClick={() => del(faq.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={15} /></button></div>
     </div>))}</div>
-    {modal && (<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+    {modal && (<ModalPortal>
+<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
       <div className="modal-box max-w-lg"><div className="modal-header"><h2 className="font-semibold">{editing ? "Edit" : "Add"} FAQ</h2><button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button></div>
         <form onSubmit={save} className="p-6 space-y-4">
           <div><label className="admin-label">Question *</label><input required value={f.question} onChange={e => setF({ ...f, question: e.target.value })} className="admin-input" /></div>
@@ -237,7 +244,8 @@ function FaqsEditor() {
           <div><label className="admin-label">Order</label><input type="number" value={f.order} onChange={e => setF({ ...f, order: Number(e.target.value) })} className="admin-input" /></div>
           <label className="flex items-center gap-2 cursor-pointer text-sm"><input type="checkbox" checked={f.published} onChange={e => setF({ ...f, published: e.target.checked })} />Published</label>
           <div className="flex gap-3 pt-2 border-t border-gray-100"><button type="submit" disabled={sv} className="btn-primary disabled:opacity-60">{sv ? "Saving…" : editing ? "Save" : "Create"}</button><button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancel</button></div>
-        </form></div></div>)}
+        </form></div></div>
+</ModalPortal>)}
   </div>);
 }
 
@@ -258,7 +266,8 @@ function ClassesEditor() {
         <button onClick={() => open(c)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={15} /></button>
         <button onClick={() => del(c.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={15} /></button></div>
     </div>))}</div>
-    {modal && (<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
+    {modal && (<ModalPortal>
+<div className="modal-overlay" onClick={e => e.target === e.currentTarget && setModal(false)}>
       <div className="modal-box max-w-lg"><div className="modal-header"><h2 className="font-semibold">{editing ? "Edit" : "Add"} Class</h2><button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20} /></button></div>
         <form onSubmit={save} className="p-6 space-y-4">
           <div><label className="admin-label">Title *</label><input required value={f.title} onChange={e => setF({ ...f, title: e.target.value })} className="admin-input" /></div>
@@ -271,7 +280,8 @@ function ClassesEditor() {
           <ImageUpload label="Class Image" value={f.image ?? ""} onChange={v => setF({ ...f, image: v })} folder="bridgitus/classes" />
           <label className="flex items-center gap-2 cursor-pointer text-sm"><input type="checkbox" checked={f.published} onChange={e => setF({ ...f, published: e.target.checked })} />Published</label>
           <div className="flex gap-3 pt-2 border-t border-gray-100"><button type="submit" disabled={sv} className="btn-primary disabled:opacity-60">{sv ? "Saving…" : editing ? "Save" : "Create"}</button><button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancel</button></div>
-        </form></div></div>)}
+        </form></div></div>
+</ModalPortal>)}
   </div>);
 }
 

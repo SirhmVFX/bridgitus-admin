@@ -124,5 +124,19 @@ service cloud.firestore {
     match /parentMessages/{docId} {
       allow read, write: if request.auth != null;
     }
+
+    // ── Practice Papers (NAPLAN / Selective Entry) ───────────
+    match /practicePapers/{docId} {
+      allow read: if true;
+      allow write: if request.auth != null;
+    }
+
+    // ── Practice Attempts (exam prep + AI practice) ──────────
+    match /practiceAttempts/{docId} {
+      allow read: if request.auth != null;
+      allow create: if request.auth != null;
+      allow update: if request.auth != null;
+      allow delete: if request.auth != null;
+    }
   }
 }

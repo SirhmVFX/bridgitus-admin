@@ -83,7 +83,8 @@ main .bg-white.border {
   flex: 1;
   background: #eef1f6;
   min-height: 100vh;
-  overflow-x: hidden;
+  /* Avoid overflow-x:hidden here — it clips fixed modal overlays when ancestors use transform. */
+  overflow-x: clip;
 }
 
 /* ── Table ── */
@@ -241,28 +242,44 @@ main .bg-white.border {
   border: 1px solid #e2e8f0;
   background: #fff;
   border-radius: 14px;
-  overflow: hidden;
+  /* Keep visible so toolbar palettes/menus aren't clipped by the editor shell */
+  overflow: visible;
 }
 
 .tiptap-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 4px;
-  padding: 8px 12px;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 10px;
   border-bottom: 1px solid #e2e8f0;
   background: #f8fafc;
+  border-radius: 14px 14px 0 0;
+  overflow: visible;
+  position: relative;
+  z-index: 5;
+}
+
+.tiptap-toolbar-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
 }
 
 .tiptap-toolbar button {
-  padding: 4px 8px;
+  padding: 5px 7px;
   font-size: 0.8rem;
   font-weight: 600;
   border: 1px solid #e2e8f0;
   background: #fff;
   cursor: pointer;
   color: #374151;
-  min-width: 28px;
+  min-width: 30px;
+  height: 30px;
   border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .tiptap-toolbar button:hover,
@@ -272,17 +289,117 @@ main .bg-white.border {
   border-color: #00369b;
 }
 
+.tiptap-toolbar button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.tiptap-sep {
+  width: 1px;
+  align-self: stretch;
+  background: #e2e8f0;
+  margin: 0 4px;
+}
+
+.tiptap-format-select {
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  background: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #334155;
+  padding: 4px 8px;
+  height: 30px;
+}
+
+.tiptap-dropdown-wrap {
+  position: relative;
+}
+
+.tiptap-palette,
+.tiptap-char-grid {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1200;
+  margin-top: 4px;
+  background: #fff;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 8px;
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 4px;
+  min-width: 160px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.12);
+}
+
+.tiptap-palette.is-fixed,
+.tiptap-char-grid.is-fixed {
+  position: fixed;
+  margin-top: 0;
+}
+
+.tiptap-char-grid {
+  grid-template-columns: repeat(8, 1fr);
+  max-width: 280px;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.tiptap-char-grid.emoji {
+  grid-template-columns: repeat(6, 1fr);
+}
+
+.tiptap-palette button,
+.tiptap-char-grid button {
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+  padding: 0;
+}
+
+.tiptap-palette-clear {
+  grid-column: 1 / -1;
+  width: 100% !important;
+  height: 26px !important;
+  font-size: 0.7rem !important;
+}
+
+.tiptap-color-btn span,
+.tiptap-hl-btn {
+  font-weight: 800;
+}
+
+.tiptap-hl-btn {
+  background: #fef08a;
+  padding: 0 4px;
+  border-radius: 4px;
+}
+
+.tiptap-uploading {
+  font-size: 0.7rem;
+  color: #00369b;
+  font-weight: 600;
+  margin-left: 6px;
+}
+
 .tiptap-content {
   padding: 16px;
   min-height: 300px;
   outline: none;
   font-size: 0.9rem;
   line-height: 1.7;
+  border-radius: 0 0 14px 14px;
+  overflow: auto;
 }
 
 .tiptap-content h1 { font-size: 1.5em; font-weight: 700; margin: 12px 0 8px; }
 .tiptap-content h2 { font-size: 1.25em; font-weight: 700; margin: 10px 0 6px; }
 .tiptap-content h3 { font-size: 1.1em; font-weight: 600; margin: 8px 0 4px; }
+.tiptap-content h4 { font-size: 1em; font-weight: 600; margin: 8px 0 4px; }
 .tiptap-content p { margin: 6px 0; }
 .tiptap-content ul,
 .tiptap-content ol { padding-left: 24px; margin: 6px 0; }
@@ -292,6 +409,63 @@ main .bg-white.border {
   color: #64748b;
 }
 .tiptap-content a { color: #00369b; text-decoration: underline; }
+.tiptap-content table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 12px 0;
+}
+.tiptap-content td,
+.tiptap-content th {
+  border: 1px solid #e2e8f0;
+  padding: 8px 10px;
+  vertical-align: top;
+}
+.tiptap-content th {
+  background: #f8fafc;
+  font-weight: 700;
+}
+.tiptap-content .tiptap-equation {
+  display: inline-block;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #eff6ff;
+  color: #00369b;
+  border: 1px solid #bfdbfe;
+  border-radius: 8px;
+  padding: 2px 8px;
+  margin: 0 2px;
+}
+.tiptap-content .tiptap-map {
+  margin: 12px 0;
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid #e2e8f0;
+}
+.tiptap-content .tiptap-map iframe {
+  width: 100%;
+  height: 280px;
+  border: 0;
+  display: block;
+}
+.tiptap-content .tiptap-file-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 4px 10px;
+  text-decoration: none;
+  font-weight: 600;
+}
+.tiptap-content img {
+  max-width: 100%;
+  border-radius: 12px;
+  margin: 8px 0;
+}
+.tiptap-content iframe {
+  max-width: 100%;
+  border-radius: 12px;
+}
 .tiptap-content p.is-editor-empty:first-child::before {
   color: #adb5bd;
   content: attr(data-placeholder);
@@ -305,12 +479,14 @@ main .bg-white.border {
   inset: 0;
   background: rgba(0, 18, 51, 0.55);
   backdrop-filter: blur(4px);
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 16px;
   animation: fadeIn 0.2s ease;
+  /* Isolation so nested absolute menus aren't clipped by page shells */
+  isolation: isolate;
 }
 
 .modal-box {
@@ -319,9 +495,12 @@ main .bg-white.border {
   max-width: 720px;
   max-height: 90vh;
   overflow-y: auto;
+  overflow-x: visible;
   box-shadow: none;
   border: 1px solid #e2e8f0;
-  animation: slideUp 0.28s ease;
+  animation: modalIn 0.28s ease both;
+  /* Don't leave a transform containing-block after open (clips nested popovers) */
+  transform: none;
 }
 
 .modal-header {
@@ -380,7 +559,7 @@ main .bg-white.border {
   color: #475569;
 }
 
-/* Page enter animation */
+/* Page enter — opacity only (transform creates a containing block that clips fixed modals) */
 .page-enter {
   animation: pageEnter 0.35s ease both;
 }
@@ -395,14 +574,19 @@ main .bg-white.border {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes modalIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
 @keyframes pageEnter {
-  from { opacity: 0; transform: translateY(10px); }
-  to { opacity: 1; transform: translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 @keyframes popIn {
-  from { opacity: 0; transform: scale(0.96) translateY(6px); }
-  to { opacity: 1; transform: scale(1) translateY(0); }
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 .stat-card {

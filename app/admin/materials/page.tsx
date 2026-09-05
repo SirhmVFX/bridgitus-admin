@@ -1,5 +1,7 @@
 "use client";
 
+import ModalPortal from "@/components/ModalPortal";
+
 import { useEffect, useState, useRef } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
@@ -381,6 +383,7 @@ export default function MaterialsPage() {
 
       {/* Modal */}
       {modalOpen && (
+        <ModalPortal>
         <div
           className="modal-overlay"
           onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}
@@ -671,6 +674,7 @@ export default function MaterialsPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </AdminLayout>
   );

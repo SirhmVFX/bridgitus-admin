@@ -1,5 +1,7 @@
 "use client";
 
+import ModalPortal from "@/components/ModalPortal";
+
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
@@ -550,6 +552,7 @@ export default function StudentsPage() {
 
       {/* View modal */}
       {viewStudent && (
+        <ModalPortal>
         <div
           className="modal-overlay"
           onClick={(e) => e.target === e.currentTarget && setViewStudent(null)}
@@ -785,11 +788,13 @@ export default function StudentsPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
 
       {/* Edit modal */}
       {editStudent && (
-        <div
+        <ModalPortal>
+<div
           className="modal-overlay"
           onClick={(e) => e.target === e.currentTarget && setEditStudent(null)}
         >
@@ -854,6 +859,7 @@ export default function StudentsPage() {
             </div>
           </div>
         </div>
+</ModalPortal>
       )}
     </AdminLayout>
   );

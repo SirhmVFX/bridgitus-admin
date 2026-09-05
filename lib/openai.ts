@@ -1,5 +1,5 @@
 import OpenAI from "openai";
-import type { AIQuestion } from "./firestore";
+import type { AIQuestion, Question } from "./firestore";
 import type {
   CreateSimilarParams,
   GenerateQuestionsParams,
@@ -211,6 +211,97 @@ export async function generateQuestions(params: GenerateQuestionsParams): Promis
   }
 
   return allQuestions;
+}
+
+/** Convert extracted PDF text into multiple-choice Question objects. */
+export async function parseMcqFromText(
+  pdfText: string
+): Promise<{ questions: Question[]; warnings: string[] }> {
+  const truncated = pdfText.length > 60000 ? pdfText.slice(0, 60000) : pdfText;
+  const prompt = `Extract multiple-choice questions from the following exam/worksheet PDF text.
+
+Return ONLY valid JSON with this shape:
+{
+  "questions": [
+    {
+      "id": "q1",
+      "type": "multiple_choice",
+      "text": "Question stem without option letters",
+      "options": ["option A text", "option B text", "option C text", "option D text"],
+      "correctAnswer": "option B text",
+      "points": 1,
+      "explanation": "optional short explanation"
+    }
+  ],
+  "warnings": ["optional notes about ambiguous answers or skipped items"]
+}
+
+RULES:
+- Only multiple_choice questions with exactly 4 options.
+- options must be the option text WITHOUT leading "A)" / "B." labels when possible.
+- correctAnswer must exactly match one of the four option strings.
+- Use answer keys, asterisks, or "Answer: B" markers when present. If unknown, pick best guess and add a warning.
+- Prefer at most 50 questions. Skip non-MCQ items.
+- Preserve math notation from the source text.
+- ids must be sequential: q1, q2, …
+
+PDF TEXT:
+${truncated}`;
+
+  const text = await chatJson(
+    "You convert exam PDF text into structured multiple-choice questions. Respond with valid JSON only.",
+    prompt,
+    16384
+  );
+
+  let parsed: { questions?: Question[]; warnings?: string[] };
+  try {
+    parsed = JSON.parse(text.replace(/^```json\s*/i, "").replace(/^```\s*/i, "").replace(/\s*```$/i, "").trim());
+  } catch {
+    const match = text.match(/\{[\s\S]*\}/);
+    if (!match) throw new Error("AI did not return valid JSON for MCQ conversion.");
+    parsed = JSON.parse(match[0]);
+  }
+
+  const warnings = Array.isArray(parsed.warnings)
+    ? parsed.warnings.filter((w): w is string => typeof w === "string")
+    : [];
+  const raw = Array.isArray(parsed.questions) ? parsed.questions : [];
+  const questions: Question[] = raw
+    .slice(0, 50)
+    .map((q, i) => {
+      let options = Array.isArray(q.options)
+        ? q.options.map((o) => String(o ?? "").trim()).filter(Boolean)
+        : [];
+      while (options.length < 4) options.push("");
+      options = options.slice(0, 4);
+      let correctAnswer = String(q.correctAnswer ?? "").trim();
+      if (correctAnswer && !options.includes(correctAnswer)) {
+        const letter = correctAnswer.replace(/^([A-Da-d])[).:].*$/, "$1").toUpperCase();
+        const idx = "ABCD".indexOf(letter);
+        if (idx >= 0 && options[idx]) correctAnswer = options[idx];
+      }
+      if (!correctAnswer || !options.includes(correctAnswer)) {
+        correctAnswer = options.find(Boolean) || "";
+        warnings.push(`Question ${i + 1}: correct answer was unclear; defaulted to first option.`);
+      }
+      return {
+        id: q.id || `q${i + 1}`,
+        type: "multiple_choice" as const,
+        text: String(q.text ?? "").trim(),
+        options,
+        correctAnswer,
+        points: typeof q.points === "number" && q.points > 0 ? q.points : 1,
+        ...(q.explanation ? { explanation: String(q.explanation) } : {}),
+      };
+    })
+    .filter((q) => q.text && q.options.filter(Boolean).length >= 2);
+
+  if (questions.length === 0) {
+    throw new Error("No multiple-choice questions could be extracted from this PDF.");
+  }
+
+  return { questions, warnings };
 }
 
 export async function analyzeStudentPerformance(

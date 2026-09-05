@@ -6,7 +6,7 @@ import { db } from "./firebase";
 // All addressable admin sections
 export const ADMIN_SECTIONS = [
   "dashboard", "students", "materials", "tests",
-  "assignments", "announcements", "website", "messages",
+  "assignments", "naplan", "selective", "announcements", "website", "messages",
   "parent-messages", "payments", "online-sessions", "account", "permissions",
 ] as const;
 export type AdminSection = (typeof ADMIN_SECTIONS)[number];
@@ -616,6 +616,140 @@ export async function deleteAssignment(id: string): Promise<void> {
 }
 
 // ─────────────────────────────────────────────────────────────
+// PRACTICE PAPERS (NAPLAN / Selective Entry)
+// ─────────────────────────────────────────────────────────────
+
+export type PracticeProgram = "naplan" | "selective";
+
+export interface PracticePaper {
+  id?: string;
+  program: PracticeProgram;
+  title: string;
+  description: string;
+  /** Year levels e.g. "2","3",…,"9" for naplan; "8","9" for selective */
+  yearLevels: string[];
+  subject: string;
+  type: "quiz" | "exam" | "test" | "document" | "custom";
+  questions?: Question[];
+  totalPoints?: number;
+  passMark?: number;
+  timeLimit?: number;
+  maxAttempts?: number;
+  fileUrl?: string;
+  fileName?: string;
+  content?: string;
+  startAt?: string;
+  dueAt?: string;
+  published: boolean;
+  createdAt?: Timestamp;
+  updatedAt?: Timestamp;
+}
+
+export interface PracticeAttempt {
+  id?: string;
+  paperId: string;
+  paperTitle?: string;
+  program: PracticeProgram;
+  studentId: string;
+  studentUid: string;
+  studentName?: string;
+  answers?: Record<string, string>;
+  score?: number;
+  totalPoints?: number;
+  percentage?: number;
+  passed?: boolean;
+  attemptNumber: number;
+  status: "submitted" | "graded" | "pending_review";
+  feedback?: string;
+  attachmentUrl?: string;
+  attachmentName?: string;
+  submittedAt?: Timestamp;
+  gradedAt?: Timestamp;
+}
+
+export async function getPracticePapers(program: PracticeProgram): Promise<PracticePaper[]> {
+  const snap = await getDocs(
+    query(collection(db, "practicePapers"), where("program", "==", program))
+  );
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as PracticePaper) }))
+    .sort((a, b) => (b.createdAt as Timestamp)?.toMillis() - (a.createdAt as Timestamp)?.toMillis() || 0);
+}
+
+export async function getPracticePaperById(id: string): Promise<PracticePaper | null> {
+  const snap = await getDoc(doc(db, "practicePapers", id));
+  if (!snap.exists()) return null;
+  return { id: snap.id, ...(snap.data() as PracticePaper) };
+}
+
+export async function createPracticePaper(data: Omit<PracticePaper, "id">): Promise<string> {
+  const ref = await addDoc(collection(db, "practicePapers"), {
+    ...sanitizeFirestoreData(data),
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function updatePracticePaper(
+  id: string,
+  data: Partial<PracticePaper>
+): Promise<void> {
+  await updateDoc(doc(db, "practicePapers", id), {
+    ...sanitizeFirestoreData(data as PracticePaper),
+    updatedAt: serverTimestamp(),
+  });
+}
+
+export async function deletePracticePaper(id: string): Promise<void> {
+  await deleteDoc(doc(db, "practicePapers", id));
+}
+
+export async function getAttemptsByPaper(paperId: string): Promise<PracticeAttempt[]> {
+  const snap = await getDocs(
+    query(collection(db, "practiceAttempts"), where("paperId", "==", paperId))
+  );
+  return snap.docs
+    .map((d) => ({ id: d.id, ...(d.data() as PracticeAttempt) }))
+    .filter((a) => Boolean(a.paperId))
+    .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
+}
+
+export async function submitPracticeAttempt(
+  attempt: Omit<PracticeAttempt, "id" | "submittedAt" | "gradedAt">
+): Promise<string> {
+  const ref = await addDoc(collection(db, "practiceAttempts"), {
+    ...sanitizeFirestoreData(attempt),
+    submittedAt: serverTimestamp(),
+  });
+  return ref.id;
+}
+
+export async function gradePracticeAttempt(
+  id: string,
+  score: number,
+  feedback: string,
+  opts?: { totalPoints?: number; passMark?: number }
+): Promise<void> {
+  const totalPoints = opts?.totalPoints;
+  const percentage =
+    totalPoints && totalPoints > 0 ? Math.round((score / totalPoints) * 100) : undefined;
+  const passed =
+    percentage !== undefined && opts?.passMark !== undefined
+      ? percentage >= opts.passMark
+      : undefined;
+  await updateDoc(doc(db, "practiceAttempts", id), {
+    status: "graded",
+    score,
+    feedback,
+    ...(totalPoints !== undefined ? { totalPoints } : {}),
+    ...(percentage !== undefined ? { percentage } : {}),
+    ...(passed !== undefined ? { passed } : {}),
+    gradedAt: serverTimestamp(),
+  });
+}
+
+// ─────────────────────────────────────────────────────────────
 // ASSIGNMENT SUBMISSIONS
 // ─────────────────────────────────────────────────────────────
 
@@ -830,6 +964,9 @@ export interface ParentMessage {
   recipientIds?: string[];
   recipientGrades?: string[];
   sendVia: "email" | "sms" | "both";
+  /** Optional file attached via Cloudinary */
+  attachmentUrl?: string;
+  attachmentName?: string;
   sentAt?: Timestamp | string | null;
   sentByEmail?: boolean;
   sentBySms?: boolean;
@@ -1185,7 +1322,8 @@ export interface LearningGap {
   updatedAt?: Timestamp;
 }
 
-export interface PracticeAttempt {
+/** AI adaptive practice attempt (portal practice page) — not NAPLAN/Selective papers. */
+export interface AiPracticeAttempt {
   id?: string;
   studentId: string;
   studentUid: string;
@@ -1309,12 +1447,17 @@ export async function upsertLearningGap(
   }
 }
 
-// ── Practice Attempts (admin read) ───────────────────────────────────────
+// ── AI Practice Attempts (admin read) ───────────────────────────────────────
 
-export async function getPracticeAttemptsByStudent(studentId: string): Promise<PracticeAttempt[]> {
+function isExamPrepAttemptDoc(data: Record<string, unknown>): boolean {
+  return Boolean(data.paperId || data.program === "naplan" || data.program === "selective");
+}
+
+export async function getPracticeAttemptsByStudent(studentId: string): Promise<AiPracticeAttempt[]> {
   const snap = await getDocs(query(collection(db, "practiceAttempts"), where("studentId", "==", studentId)));
   return snap.docs
-    .map(d => ({ id: d.id, ...(d.data() as PracticeAttempt) }))
+    .map(d => ({ id: d.id, ...(d.data() as AiPracticeAttempt) }))
+    .filter((a) => !isExamPrepAttemptDoc(a as unknown as Record<string, unknown>))
     .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
 }
 

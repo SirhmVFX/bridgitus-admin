@@ -60,6 +60,8 @@ export async function POST(request: NextRequest) {
       recipientGrades,
       sendVia,
       createdBy,
+      attachmentUrl,
+      attachmentName,
     } = body;
 
     if (!title || !messageBody || !recipientType || !sendVia) {
@@ -120,6 +122,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const safeAttachmentUrl =
+      typeof attachmentUrl === "string" && attachmentUrl.trim()
+        ? attachmentUrl.trim()
+        : undefined;
+    const safeAttachmentName =
+      typeof attachmentName === "string" && attachmentName.trim()
+        ? attachmentName.trim()
+        : undefined;
+
     const ref = await adminDb().collection("parentMessages").add({
       title,
       body: messageBody,
@@ -127,6 +138,12 @@ export async function POST(request: NextRequest) {
       recipientIds: recipientIds ?? [],
       recipientGrades: recipientGrades ?? [],
       sendVia,
+      ...(safeAttachmentUrl
+        ? {
+            attachmentUrl: safeAttachmentUrl,
+            attachmentName: safeAttachmentName || "Attachment",
+          }
+        : {}),
       sentByEmail: false,
       sentBySms: false,
       emailCount: parentEmails.length,
@@ -150,6 +167,13 @@ export async function POST(request: NextRequest) {
     const emailErrors: string[] = [];
     const smsErrors: string[] = [];
 
+    const attachmentHtml = safeAttachmentUrl
+      ? `<p style="margin-top:16px;"><a href="${safeAttachmentUrl.replace(/"/g, "&quot;")}" style="color:#00369b;font-weight:600;">Download attachment${safeAttachmentName ? `: ${String(safeAttachmentName).replace(/</g, "&lt;")}` : ""}</a></p>`
+      : "";
+    const attachmentText = safeAttachmentUrl
+      ? `\n\nAttachment: ${safeAttachmentName || "file"}\n${safeAttachmentUrl}`
+      : "";
+
     if ((sendVia === "email" || sendVia === "both") && parentEmails.length > 0) {
       if (!isSesConfigured()) {
         emailErrors.push(
@@ -159,10 +183,11 @@ export async function POST(request: NextRequest) {
         try {
           const result = await sendEmailToMany(parentEmails, {
             subject: title,
-            text: messageBody,
+            text: `${messageBody}${attachmentText}`,
             html: brandedEmail(
               title,
               `<p>${String(messageBody).replace(/\n/g, "<br>")}</p>
+               ${attachmentHtml}
                <p style="margin-top:20px;font-size:13px;color:#64748b;">This message was sent by Bridgitus Learning to parents/guardians.</p>`,
             ),
           });
@@ -192,10 +217,13 @@ export async function POST(request: NextRequest) {
       } else if (parentPhones.length === 0) {
         smsErrors.push("No parent phone numbers on the selected student profiles.");
       } else {
+        const smsBody = safeAttachmentUrl
+          ? `${title}\n\n${messageBody}\n\nAttachment: ${safeAttachmentUrl}`
+          : `${title}\n\n${messageBody}`;
         const results = await Promise.allSettled(
           parentPhones.map((phone) =>
             twilioClient!.messages.create({
-              body: `${title}\n\n${messageBody}`,
+              body: smsBody,
               from: twilioPhoneNumber!,
               to: phone,
             }),

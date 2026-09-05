@@ -1,5 +1,7 @@
 "use client";
 
+import ModalPortal from "@/components/ModalPortal";
+
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import {
@@ -180,7 +182,8 @@ export default function OnlineSessionsPage() {
       </div>
 
       {modal && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModal(false)}>
+        <ModalPortal>
+<div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModal(false)}>
           <div className="modal-box max-w-lg">
             <div className="modal-header">
               <h2 className="font-semibold text-gray-900">New Microsoft Teams Session</h2>
@@ -237,6 +240,7 @@ export default function OnlineSessionsPage() {
             </form>
           </div>
         </div>
+</ModalPortal>
       )}
     </AdminLayout>
   );

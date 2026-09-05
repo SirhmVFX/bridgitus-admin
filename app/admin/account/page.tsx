@@ -1,5 +1,7 @@
 "use client";
 
+import ModalPortal from "@/components/ModalPortal";
+
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import { useAuth } from "@/lib/auth";
@@ -243,7 +245,8 @@ export default function AccountPage() {
 
       {/* Create admin modal */}
       {createModal && (
-        <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setCreateModal(false)}>
+        <ModalPortal>
+<div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setCreateModal(false)}>
           <div className="modal-box max-w-md">
             <div className="modal-header">
               <h2 className="font-semibold text-gray-900">Create Admin Account</h2>
@@ -277,6 +280,7 @@ export default function AccountPage() {
             </form>
           </div>
         </div>
+</ModalPortal>
       )}
     </AdminLayout>
   );

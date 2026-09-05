@@ -1,4 +1,6 @@
 "use client";
+
+import ModalPortal from "@/components/ModalPortal";
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import ImageUpload from "@/components/ImageUpload";
@@ -57,7 +59,8 @@ function ServicesEditor(){
         <button onClick={()=>open(s)} className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={15}/></button>
         <button onClick={()=>del(s.id!)} className="p-1.5 text-gray-400 hover:text-red-500"><MdDelete size={15}/></button></div>
     </div>))}</div>
-    {modal&&(<div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+    {modal&&(<ModalPortal>
+<div className="modal-overlay" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
       <div className="modal-box max-w-lg"><div className="modal-header"><h2 className="font-semibold">{editing?"Edit":"Add"} Service</h2><button onClick={()=>setModal(false)} className="text-gray-400 hover:text-gray-600"><MdClose size={20}/></button></div>
       <form onSubmit={save} className="p-6 space-y-4">
         <div className="grid sm:grid-cols-2 gap-4">
@@ -70,7 +73,8 @@ function ServicesEditor(){
         <ImageUpload label="Image" value={f.image??""} onChange={v=>setF({...f,image:v})} folder="bridgitus/services"/>
         <label className="flex items-center gap-2 cursor-pointer text-sm"><input type="checkbox" checked={f.published} onChange={e=>setF({...f,published:e.target.checked})}/>Published</label>
         <div className="flex gap-3 pt-2 border-t border-gray-100"><button type="submit" disabled={sv} className="btn-primary disabled:opacity-60">{sv?"Saving…":editing?"Save":"Create"}</button><button type="button" onClick={()=>setModal(false)} className="btn-secondary">Cancel</button></div>
-      </form></div></div>)}
+      </form></div></div>
+</ModalPortal>)}
   </div>);
 }
 

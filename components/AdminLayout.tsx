@@ -6,14 +6,37 @@ import Link from "next/link";
 import { useAuth } from "@/lib/auth";
 import type { AdminSection } from "@/lib/firestore";
 import {
-  MdDashboard, MdMenuBook, MdQuiz, MdPeople,
-  MdAssignment, MdPerson, MdLogout, MdMenu,
-  MdSchool, MdNotifications, MdClose, MdShield,
-  MdLock, MdCampaign, MdWeb, MdEmail,
-  MdExpandMore, MdExpandLess, MdImage, MdInfo,
-  MdGavel, MdSettings, MdBarChart, MdSend,
-  MdAutoAwesome, MdLibraryBooks,
-  MdPayment, MdVideocam, MdSearch, MdOpenInNew,
+  MdDashboard,
+  MdMenuBook,
+  MdQuiz,
+  MdPeople,
+  MdAssignment,
+  MdPerson,
+  MdLogout,
+  MdMenu,
+  MdSchool,
+  MdNotifications,
+  MdClose,
+  MdShield,
+  MdLock,
+  MdCampaign,
+  MdWeb,
+  MdEmail,
+  MdExpandMore,
+  MdExpandLess,
+  MdImage,
+  MdInfo,
+  MdGavel,
+  MdSettings,
+  MdBarChart,
+  MdSend,
+  MdAutoAwesome,
+  MdLibraryBooks,
+  MdPayment,
+  MdVideocam,
+  MdSearch,
+  MdOpenInNew,
+  MdFactCheck,
 } from "react-icons/md";
 
 interface NavItem {
@@ -21,35 +44,164 @@ interface NavItem {
   label: string;
   icon: React.ElementType;
   section: AdminSection;
-  group?: "overview" | "learning" | "tools" | "account";
+  group?: "overview" | "learning" | "exam-prep" | "tools" | "account";
 }
 
 const MAIN_NAV: NavItem[] = [
-  { href: "/admin/dashboard", label: "Dashboard", icon: MdDashboard, section: "dashboard", group: "overview" },
-  { href: "/admin/students", label: "Students", icon: MdPeople, section: "students", group: "overview" },
-  { href: "/admin/payments", label: "Payments", icon: MdPayment, section: "payments", group: "overview" },
-  { href: "/admin/materials", label: "Materials", icon: MdMenuBook, section: "materials", group: "learning" },
-  { href: "/admin/tests", label: "Assessments", icon: MdQuiz, section: "tests", group: "learning" },
-  { href: "/admin/assignments", label: "Assignments", icon: MdAssignment, section: "assignments", group: "learning" },
-  { href: "/admin/announcements", label: "Announcements", icon: MdCampaign, section: "announcements", group: "learning" },
-  { href: "/admin/online-sessions", label: "Online Sessions", icon: MdVideocam, section: "online-sessions", group: "learning" },
-  { href: "/admin/analytics/students", label: "Student Analytics", icon: MdBarChart, section: "students", group: "tools" },
-  { href: "/admin/ai-generator", label: "AI Generator", icon: MdAutoAwesome, section: "materials", group: "tools" },
-  { href: "/admin/question-library", label: "Question Library", icon: MdLibraryBooks, section: "materials", group: "tools" },
-  { href: "/admin/parent-messages", label: "Parent Messages", icon: MdSend, section: "parent-messages", group: "tools" },
-  { href: "/admin/messages", label: "Contact Messages", icon: MdEmail, section: "messages", group: "tools" },
+  {
+    href: "/admin/dashboard",
+    label: "Dashboard",
+    icon: MdDashboard,
+    section: "dashboard",
+    group: "overview",
+  },
+  {
+    href: "/admin/students",
+    label: "Students",
+    icon: MdPeople,
+    section: "students",
+    group: "overview",
+  },
+  {
+    href: "/admin/payments",
+    label: "Payments",
+    icon: MdPayment,
+    section: "payments",
+    group: "overview",
+  },
+  {
+    href: "/admin/materials",
+    label: "Materials",
+    icon: MdMenuBook,
+    section: "materials",
+    group: "learning",
+  },
+  {
+    href: "/admin/tests",
+    label: "Assessments",
+    icon: MdQuiz,
+    section: "tests",
+    group: "learning",
+  },
+  {
+    href: "/admin/assignments",
+    label: "Assignments",
+    icon: MdAssignment,
+    section: "assignments",
+    group: "learning",
+  },
+  {
+    href: "/admin/announcements",
+    label: "Announcements",
+    icon: MdCampaign,
+    section: "announcements",
+    group: "learning",
+  },
+  {
+    href: "/admin/online-sessions",
+    label: "Online Sessions",
+    icon: MdVideocam,
+    section: "online-sessions",
+    group: "learning",
+  },
+  {
+    href: "/admin/naplan",
+    label: "NAPLAN",
+    icon: MdFactCheck,
+    section: "naplan",
+    group: "exam-prep",
+  },
+  {
+    href: "/admin/selective",
+    label: "Selective Entry",
+    icon: MdQuiz,
+    section: "selective",
+    group: "exam-prep",
+  },
+  {
+    href: "/admin/analytics/students",
+    label: "Student Analytics",
+    icon: MdBarChart,
+    section: "students",
+    group: "tools",
+  },
+  {
+    href: "/admin/ai-generator",
+    label: "AI Generator",
+    icon: MdAutoAwesome,
+    section: "materials",
+    group: "tools",
+  },
+  {
+    href: "/admin/question-library",
+    label: "Question Library",
+    icon: MdLibraryBooks,
+    section: "materials",
+    group: "tools",
+  },
+  {
+    href: "/admin/parent-messages",
+    label: "Parent Messages",
+    icon: MdSend,
+    section: "parent-messages",
+    group: "tools",
+  },
+  {
+    href: "/admin/messages",
+    label: "Contact Messages",
+    icon: MdEmail,
+    section: "messages",
+    group: "tools",
+  },
 ];
 
-const WEBSITE_SUBNAV: { label: string; icon: React.ElementType; href: string; section: AdminSection }[] = [
-  { label: "General", icon: MdSettings, href: "/admin/website/general", section: "website" },
-  { label: "Hero & Brief", icon: MdImage, href: "/admin/website/content", section: "website" },
-  { label: "About Page", icon: MdInfo, href: "/admin/website/about", section: "website" },
-  { label: "Legal Pages", icon: MdGavel, href: "/admin/website/legal", section: "website" },
+const WEBSITE_SUBNAV: {
+  label: string;
+  icon: React.ElementType;
+  href: string;
+  section: AdminSection;
+}[] = [
+  {
+    label: "General",
+    icon: MdSettings,
+    href: "/admin/website/general",
+    section: "website",
+  },
+  {
+    label: "Hero & Brief",
+    icon: MdImage,
+    href: "/admin/website/content",
+    section: "website",
+  },
+  {
+    label: "About Page",
+    icon: MdInfo,
+    href: "/admin/website/about",
+    section: "website",
+  },
+  {
+    label: "Legal Pages",
+    icon: MdGavel,
+    href: "/admin/website/legal",
+    section: "website",
+  },
 ];
 
 const ADMIN_NAV: NavItem[] = [
-  { href: "/admin/account", label: "My Account", icon: MdPerson, section: "account", group: "account" },
-  { href: "/admin/permissions", label: "Permissions", icon: MdShield, section: "permissions", group: "account" },
+  {
+    href: "/admin/account",
+    label: "My Account",
+    icon: MdPerson,
+    section: "account",
+    group: "account",
+  },
+  {
+    href: "/admin/permissions",
+    label: "Permissions",
+    icon: MdShield,
+    section: "permissions",
+    group: "account",
+  },
 ];
 
 const ALL_NAV: NavItem[] = [
@@ -64,14 +216,21 @@ const ALL_NAV: NavItem[] = [
 ];
 
 const PORTAL_URL =
-  process.env.NEXT_PUBLIC_PORTAL_URL || "https://www.bridgitus.com/portal/login";
+  process.env.NEXT_PUBLIC_PORTAL_URL ||
+  "https://www.bridgitus.com/portal/login";
 
-export default function AdminLayout({ children }: { children: React.ReactNode }) {
+export default function AdminLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const { user, adminUser, loading, signOut } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [websiteOpen, setWebsiteOpen] = useState(pathname.startsWith("/admin/website"));
+  const [websiteOpen, setWebsiteOpen] = useState(
+    pathname.startsWith("/admin/website"),
+  );
   const [search, setSearch] = useState("");
 
   useEffect(() => {
@@ -85,7 +244,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     }
     if (!loading && user && adminUser && adminUser.role !== "super") {
       const matched = ALL_NAV.find(
-        (n) => pathname === n.href || pathname.startsWith(n.href + "/")
+        (n) => pathname === n.href || pathname.startsWith(n.href + "/"),
       );
       if (matched && !adminUser.permissions?.includes(matched.section)) {
         router.replace("/admin/dashboard");
@@ -139,9 +298,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const isCurrentAccessible = (() => {
     if (isSuper) return true;
     const matched = ALL_NAV.find(
-      (n) => pathname === n.href || pathname.startsWith(n.href + "/")
+      (n) => pathname === n.href || pathname.startsWith(n.href + "/"),
     );
-    return !matched || canSee(matched.section) || pathname === "/admin/dashboard";
+    return (
+      !matched || canSee(matched.section) || pathname === "/admin/dashboard"
+    );
   })();
 
   const SidebarContent = () => (
@@ -171,21 +332,52 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {MAIN_NAV.filter((n) => n.group === "overview")
           .filter((n) => canSee(n.section))
           .map((item) => (
-            <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} />
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+            />
           ))}
 
         <p className="nav-section-label">Learning</p>
         {MAIN_NAV.filter((n) => n.group === "learning")
           .filter((n) => canSee(n.section))
           .map((item) => (
-            <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} />
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+            />
           ))}
+
+        {(canSee("naplan") || canSee("selective")) && (
+          <>
+            <p className="nav-section-label">Exam Prep</p>
+            {MAIN_NAV.filter((n) => n.group === "exam-prep")
+              .filter((n) => canSee(n.section))
+              .map((item) => (
+                <NavLink
+                  key={item.href}
+                  href={item.href}
+                  icon={item.icon}
+                  label={item.label}
+                />
+              ))}
+          </>
+        )}
 
         <p className="nav-section-label">Tools</p>
         {MAIN_NAV.filter((n) => n.group === "tools")
           .filter((n) => canSee(n.section))
           .map((item) => (
-            <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} />
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+            />
           ))}
 
         {canSee("website") && (
@@ -199,7 +391,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
             >
               <MdWeb size={17} />
               <span className="flex-1">Website Content</span>
-              {websiteOpen ? <MdExpandLess size={16} /> : <MdExpandMore size={16} />}
+              {websiteOpen ? (
+                <MdExpandLess size={16} />
+              ) : (
+                <MdExpandMore size={16} />
+              )}
             </button>
             {websiteOpen && (
               <div className="pb-1">
@@ -218,9 +414,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         )}
 
         <p className="nav-section-label">Account</p>
-        {ADMIN_NAV.filter((n) => n.section !== "permissions" || isSuper).map((item) => (
-          <NavLink key={item.href} href={item.href} icon={item.icon} label={item.label} />
-        ))}
+        {ADMIN_NAV.filter((n) => n.section !== "permissions" || isSuper).map(
+          (item) => (
+            <NavLink
+              key={item.href}
+              href={item.href}
+              icon={item.icon}
+              label={item.label}
+            />
+          ),
+        )}
       </nav>
 
       <div className="p-4 border-t border-white/10 space-y-3">
@@ -235,7 +438,9 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className="flex items-center gap-3 px-2 py-2 rounded-2xl bg-white/5">
           <div className="w-9 h-9 rounded-full bg-[#00369b] flex items-center justify-center shrink-0">
             <span className="text-white text-sm font-bold">
-              {adminUser?.displayName?.[0] ?? user.email?.[0]?.toUpperCase() ?? "A"}
+              {adminUser?.displayName?.[0] ??
+                user.email?.[0]?.toUpperCase() ??
+                "A"}
             </span>
           </div>
           <div className="overflow-hidden flex-1">
@@ -277,7 +482,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
       <div className="flex-1 flex flex-col min-w-0">
         <header className="sticky top-0 z-40 px-4 lg:px-6 pt-4 pb-2">
-          <div className="bg-white/90 backdrop-blur-md border border-slate-200 rounded-2xl px-4 lg:px-5 h-14 flex items-center gap-3">
+          <div className="bg-white/90 backdrop-blur-md border border-slate-200 rounded-full px-4 lg:px-2 h-14 flex items-center gap-3">
             <button
               className="lg:hidden p-2 text-slate-500 hover:text-slate-900 transition-colors rounded-xl hover:bg-slate-50"
               onClick={() => setSidebarOpen(true)}
@@ -309,15 +514,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           </div>
         </header>
 
-        <main className="flex-1 px-4 lg:px-6 pb-8 pt-2 overflow-x-hidden relative">
+        <main className="flex-1 px-4 lg:px-6 pb-8 pt-2 min-w-0">
           {!isCurrentAccessible ? (
             <div className="admin-card flex flex-col items-center justify-center min-h-[50vh] text-center">
               <MdLock size={48} className="text-slate-300 mb-4" />
-              <h2 className="text-lg font-bold text-slate-900">Access Restricted</h2>
+              <h2 className="text-lg font-bold text-slate-900">
+                Access Restricted
+              </h2>
               <p className="text-slate-500 text-sm mt-2 max-w-sm">
                 You don&apos;t have permission to view this section.
               </p>
-              <Link href="/admin/dashboard" className="btn-primary mt-6 text-sm">
+              <Link
+                href="/admin/dashboard"
+                className="btn-primary mt-6 text-sm"
+              >
                 Back to Dashboard
               </Link>
             </div>

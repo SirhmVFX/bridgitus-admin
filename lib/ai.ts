@@ -1,7 +1,7 @@
 /**
  * AI provider router — OpenAI first (when OPENAI_API_KEY is set), else Gemini.
  */
-import type { AIQuestion } from "./firestore";
+import type { AIQuestion, Question } from "./firestore";
 import * as gemini from "./gemini";
 import * as openai from "./openai";
 
@@ -35,6 +35,13 @@ export async function generateQuestions(
 ): Promise<AIQuestion[]> {
   if (getAiProvider() === "openai") return openai.generateQuestions(params);
   return gemini.generateQuestions(params);
+}
+
+export async function parseMcqFromText(
+  pdfText: string
+): Promise<{ questions: Question[]; warnings: string[] }> {
+  if (getAiProvider() === "openai") return openai.parseMcqFromText(pdfText);
+  return gemini.parseMcqFromText(pdfText);
 }
 
 export async function createSimilarQuestions(

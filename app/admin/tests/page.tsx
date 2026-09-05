@@ -1,5 +1,7 @@
 "use client";
 
+import ModalPortal from "@/components/ModalPortal";
+
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
@@ -25,6 +27,7 @@ import {
 import { adminFetch } from "@/lib/adminFetch";
 import { formatSchedule } from "@/lib/schedule";
 import { yearsMatch } from "@/lib/yearGrade";
+import PdfMcqImport from "@/components/PdfMcqImport";
 import {
   MdAdd,
   MdEdit,
@@ -223,6 +226,18 @@ export default function TestsPage() {
       totalPoints: calcTotal(merged),
     }));
     setLibraryModal(false);
+  }
+
+  function importMcqFromPdf(imported: Question[]) {
+    const merged = [
+      ...form.questions.filter((q) => q.text.trim() !== ""),
+      ...imported,
+    ];
+    setForm((f) => ({
+      ...f,
+      questions: merged,
+      totalPoints: calcTotal(merged),
+    }));
   }
 
   async function handleSave(e: React.FormEvent) {
@@ -540,7 +555,8 @@ export default function TestsPage() {
 
       {/* Review modal */}
       {reviewModal && (
-        <div
+        <ModalPortal>
+<div
           className="modal-overlay"
           onClick={(e) => e.target === e.currentTarget && setReviewModal(null)}
         >
@@ -635,17 +651,20 @@ export default function TestsPage() {
             </div>
           </div>
         </div>
+</ModalPortal>
       )}
 
       {/* Create/Edit Test Modal */}
       {modalOpen && (
+        <ModalPortal>
         <div
           className="modal-overlay"
           onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}
         >
           {/* Library Picker Modal */}
           {libraryModal && (
-            <div
+            <ModalPortal>
+<div
               className="modal-overlay"
               onClick={(e) =>
                 e.target === e.currentTarget && setLibraryModal(false)
@@ -758,6 +777,7 @@ export default function TestsPage() {
                 </div>
               </div>
             </div>
+</ModalPortal>
           )}
           <div className="modal-box" style={{ maxWidth: 860 }}>
             <div className="modal-header">
@@ -946,7 +966,7 @@ export default function TestsPage() {
                       total)
                     </span>
                   </h3>
-                  <div className="flex gap-2">
+                  <div className="flex flex-wrap gap-2">
                     <button
                       type="button"
                       onClick={openLibrary}
@@ -954,6 +974,7 @@ export default function TestsPage() {
                     >
                       <MdAutoAwesome size={12} /> Import from Library
                     </button>
+                    <PdfMcqImport onImported={importMcqFromPdf} />
                     {(
                       [
                         "multiple_choice",
@@ -1165,6 +1186,7 @@ export default function TestsPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </AdminLayout>
   );

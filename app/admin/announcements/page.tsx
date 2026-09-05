@@ -1,5 +1,7 @@
 "use client";
 
+import ModalPortal from "@/components/ModalPortal";
+
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
@@ -160,6 +162,7 @@ export default function AnnouncementsPage() {
 
       {/* Modal */}
       {modalOpen && (
+        <ModalPortal>
         <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
           <div className="modal-box max-w-lg">
             <div className="modal-header">
@@ -216,6 +219,7 @@ export default function AnnouncementsPage() {
             </form>
           </div>
         </div>
+        </ModalPortal>
       )}
     </AdminLayout>
   );

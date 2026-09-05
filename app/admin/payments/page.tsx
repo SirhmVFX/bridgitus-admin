@@ -1,5 +1,7 @@
 "use client";
 
+import ModalPortal from "@/components/ModalPortal";
+
 import { useEffect, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
@@ -468,6 +470,7 @@ export default function PaymentsPage() {
 
       {/* Auto-pay setup modal */}
       {setupFor && (
+        <ModalPortal>
         <div
           className="modal-overlay"
           onClick={(e) => e.target === e.currentTarget && setSetupFor(null)}
@@ -577,6 +580,7 @@ export default function PaymentsPage() {
             </div>
           </div>
         </div>
+        </ModalPortal>
       )}
     </AdminLayout>
   );

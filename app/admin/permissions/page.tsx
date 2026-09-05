@@ -15,7 +15,9 @@ import {
 
 const SECTION_LABELS: Record<AdminSection, string> = {
   dashboard: "Dashboard", students: "Students", materials: "Learning Materials",
-  tests: "Tests & Exams", assignments: "Assignments", announcements: "Announcements",
+  tests: "Tests & Exams", assignments: "Assignments",
+  naplan: "NAPLAN", selective: "Selective Entry",
+  announcements: "Announcements",
   website: "Website Content", messages: "Contact Messages",
   "parent-messages": "Parent Messages",
   payments: "Payment Management",
@@ -28,6 +30,8 @@ const SECTION_DESCRIPTIONS: Record<AdminSection, string> = {
   materials: "Upload and manage learning materials",
   tests: "Create tests/exams, review submissions",
   assignments: "Create and assign tasks",
+  naplan: "Create and grade NAPLAN practice papers",
+  selective: "Create and grade Selective Entry practice papers",
   announcements: "Publish grade-targeted notices",
   website: "Edit all public website content",
   messages: "View contact form enquiries",
