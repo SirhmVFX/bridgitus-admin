@@ -468,7 +468,7 @@ export default function StudentAnalyticsPage() {
               {students.length === 0 && <option value="">No students</option>}
               {students.map(s => (
                 <option key={s.id} value={s.id}>
-                  {s.firstName} {s.lastName} · {s.studentId} · Grade {s.grade}
+                  {s.firstName} {s.lastName} · Grade {s.grade}
                 </option>
               ))}
             </select>

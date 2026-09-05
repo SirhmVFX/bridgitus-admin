@@ -15,12 +15,15 @@ import {
   deletePracticePaper,
   getAttemptsByPaper,
   gradePracticeAttempt,
+  getAllStudents,
   type PracticePaper,
   type PracticeAttempt,
   type PracticeProgram,
   type Question,
   type QuestionType,
+  type Student,
 } from "@/lib/firestore";
+import { personDisplayName } from "@/lib/displayName";
 import {
   MdAdd,
   MdEdit,
@@ -104,11 +107,17 @@ export default function PracticePapersAdmin({
   const [gradingId, setGradingId] = useState<string | null>(null);
   const [gradeScore, setGradeScore] = useState("");
   const [gradeFeedback, setGradeFeedback] = useState("");
+  const [students, setStudents] = useState<Student[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
 
   async function load() {
     try {
-      setPapers(await getPracticePapers(program));
+      const [p, studs] = await Promise.all([
+        getPracticePapers(program),
+        getAllStudents(),
+      ]);
+      setPapers(p);
+      setStudents(studs);
     } catch (err) {
       console.error("Practice papers load error:", err);
     } finally {
@@ -451,7 +460,10 @@ export default function PracticePapersAdmin({
                         <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium text-gray-800">
-                              {att.studentName ?? att.studentId}
+                              {personDisplayName({
+                                studentName: att.studentName,
+                                student: students.find((s) => s.id === att.studentId),
+                              })}
                             </p>
                             <p className="text-xs text-gray-400 mt-0.5">
                               Attempt #{att.attemptNumber}

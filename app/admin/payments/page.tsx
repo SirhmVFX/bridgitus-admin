@@ -367,8 +367,8 @@ export default function PaymentsPage() {
                               <p className="font-medium text-gray-800">
                                 {s.firstName} {s.lastName}
                               </p>
-                              <p className="text-xs text-gray-400 font-mono">
-                                {s.studentId}
+                              <p className="text-xs text-gray-400">
+                                {s.email || s.parentEmail || "—"}
                               </p>
                             </div>
                           </div>
@@ -494,7 +494,7 @@ export default function PaymentsPage() {
                   {setupFor.firstName} {setupFor.lastName}
                 </p>
                 <p className="text-xs text-gray-400 font-mono">
-                  {setupFor.studentId} · {setupFor.email}
+                  {setupFor.firstName} {setupFor.lastName} · {setupFor.email}
                 </p>
                 {setupFor.stripePaymentMethod && (
                   <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">

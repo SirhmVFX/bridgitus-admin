@@ -19,6 +19,7 @@ import {
 } from "@/lib/firestore";
 import FirebaseStatus from "@/components/FirebaseStatus";
 import { adminFetch } from "@/lib/adminFetch";
+import { personDisplayName, titleDisplayName } from "@/lib/displayName";
 import {
   MdPeople,
   MdMenuBook,
@@ -52,6 +53,7 @@ export default function DashboardPage() {
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [alerts, setAlerts] = useState<AdminAlert[]>([]);
   const [loading, setLoading] = useState(true);
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
 
   useEffect(() => {
     async function load() {
@@ -65,6 +67,7 @@ export default function DashboardPage() {
         ]);
         setStats(s);
         setPending(p.slice(0, 5));
+        setAllStudents(students);
         setRecentStudents(students.slice(0, 5));
         setAnnouncements(ann.filter((a) => a.published).slice(0, 3));
         setAlerts(al.slice(0, 10));
@@ -372,10 +375,14 @@ export default function DashboardPage() {
                     >
                       <div>
                         <p className="text-sm font-semibold text-slate-800">
-                          {a.testTitle ?? "Test"}
+                          {titleDisplayName(a.testTitle, "Untitled test")}
                         </p>
                         <p className="text-xs text-slate-400 mt-0.5">
-                          {a.studentName ?? a.studentId} · Attempt #{a.attemptNumber}
+                          {personDisplayName({
+                            studentName: a.studentName,
+                            student: allStudents.find((s) => s.id === a.studentId),
+                          })}{" "}
+                          · Attempt #{a.attemptNumber}
                         </p>
                       </div>
                       <span className="badge badge-yellow">
@@ -427,7 +434,7 @@ export default function DashboardPage() {
                           {s.firstName} {s.lastName}
                         </p>
                         <p className="text-xs text-slate-400">
-                          Grade {s.grade} · {s.studentId}
+                          Grade {s.grade}
                         </p>
                       </div>
                       <span

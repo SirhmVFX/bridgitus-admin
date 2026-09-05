@@ -77,7 +77,7 @@ export default function MaterialAnalyticsPage() {
                       <div key={s.id} className="flex items-center justify-between px-4 py-2.5 bg-emerald-50 border border-emerald-200">
                         <div className="flex items-center gap-3">
                           <div className="w-7 h-7 bg-[#00369b] flex items-center justify-center text-white text-xs font-bold">{s.firstName?.[0]}{s.lastName?.[0]}</div>
-                          <div><p className="text-sm font-medium text-gray-800">{s.firstName} {s.lastName}</p><p className="text-xs text-gray-400">{s.studentId}</p></div>
+                          <div><p className="text-sm font-medium text-gray-800">{s.firstName} {s.lastName}</p></div>
                         </div>
                         <div className="flex items-center gap-3">
                           {comp?.completedAt && <p className="text-xs text-gray-400">{(comp.completedAt as { toDate?: () => Date })?.toDate?.()?.toLocaleDateString("en-AU", { day: "numeric", month: "short", year: "numeric" })}</p>}
@@ -99,7 +99,7 @@ export default function MaterialAnalyticsPage() {
                     <div key={s.id} className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border border-gray-200">
                       <div className="flex items-center gap-3">
                         <div className="w-7 h-7 bg-gray-300 flex items-center justify-center text-white text-xs font-bold">{s.firstName?.[0]}{s.lastName?.[0]}</div>
-                        <div><p className="text-sm font-medium text-gray-700">{s.firstName} {s.lastName}</p><p className="text-xs text-gray-400">{s.studentId}</p></div>
+                        <div><p className="text-sm font-medium text-gray-700">{s.firstName} {s.lastName}</p></div>
                       </div>
                       <Link href={`/admin/students/${s.id}`} className="text-xs text-[#00369b] hover:underline">View →</Link>
                     </div>

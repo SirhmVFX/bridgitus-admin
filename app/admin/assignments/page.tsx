@@ -30,6 +30,7 @@ import {
 import { adminFetch } from "@/lib/adminFetch";
 import { dueDateFromDueAt, formatSchedule } from "@/lib/schedule";
 import { setYearMatchesTarget } from "@/lib/yearGrade";
+import { personDisplayName } from "@/lib/displayName";
 import PdfMcqImport from "@/components/PdfMcqImport";
 import {
   MdAdd,
@@ -438,10 +439,11 @@ ${data.description ? `\n\n${data.description}` : ""}`,
 
   const pageSlice = paginate(filtered, page);
 
-  const studentName = (id: string) => {
-    const s = students.find((s) => s.id === id);
-    return s ? `${s.firstName} ${s.lastName}` : id;
-  };
+  const studentName = (id: string, denormName?: string) =>
+    personDisplayName({
+      studentName: denormName,
+      student: students.find((s) => s.id === id),
+    });
 
   return (
     <AdminLayout>
@@ -633,7 +635,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                         <div className="flex items-start justify-between">
                           <div>
                             <p className="font-medium text-gray-800">
-                              {sub.studentName ?? studentName(sub.studentId)}
+                              {studentName(sub.studentId, sub.studentName)}
                             </p>
                             <span
                               className={`badge text-xs ${sub.status === "graded" ? "badge-green" : sub.status === "submitted" ? "badge-blue" : "badge-yellow"}`}
@@ -1278,9 +1280,6 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                               setForm({ ...form, targetStudentIds: ids });
                             }}
                           />
-                          <span className="font-mono text-xs text-[#00369b]">
-                            {s.studentId}
-                          </span>
                           <span>
                             {s.firstName} {s.lastName}
                           </span>

@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AdminLayout from "@/components/AdminLayout";
 import { getTestById, getAttemptsByTest, getAllStudents, type Test, type TestAttempt, type Student } from "@/lib/firestore";
+import { personDisplayName } from "@/lib/displayName";
 import { MdArrowBack, MdCheckCircle, MdCancel, MdPending, MdQuiz } from "react-icons/md";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 
@@ -81,8 +82,12 @@ export default function TestAnalyticsPage() {
                       return (
                         <tr key={studentId}>
                           <td>
-                            <p className="font-medium text-gray-800">{s ? `${s.firstName} ${s.lastName}` : studentId}</p>
-                            <p className="text-xs text-gray-400">{s?.studentId ?? ""}</p>
+                            <p className="font-medium text-gray-800">
+                              {personDisplayName({
+                                studentName: atts[0]?.studentName,
+                                student: s,
+                              })}
+                            </p>
                           </td>
                           <td className="text-gray-600">{atts.length}</td>
                           <td>{best !== null ? <span className={`font-bold ${best >= test.passMark ? "text-emerald-600" : "text-red-500"}`}>{best}%</span> : <span className="text-gray-400">—</span>}</td>

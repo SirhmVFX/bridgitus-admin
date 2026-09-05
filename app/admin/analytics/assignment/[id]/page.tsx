@@ -79,7 +79,6 @@ export default function AssignmentAnalyticsPage() {
                         <tr key={s.id}>
                           <td>
                             <p className="font-medium text-gray-800">{s.firstName} {s.lastName}</p>
-                            <p className="text-xs text-gray-400">{s.studentId}</p>
                           </td>
                           <td><span className="badge badge-blue">Grade {s.grade}</span></td>
                           <td><span className={`badge ${STATUS_COLOR[status]}`}>{status.replace("_", " ")}</span></td>

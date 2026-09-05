@@ -115,7 +115,7 @@ export async function POST(request: NextRequest) {
       const student =
         [s.firstName, s.lastName].filter(Boolean).join(" ").trim() ||
         s.studentId ||
-        s.id;
+        "Unknown student";
       return `${student} — ${parent}`;
     });
 

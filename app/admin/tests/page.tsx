@@ -17,13 +17,16 @@ import {
   getAllMaterials,
   getAllQuestionSets,
   createAnnouncement,
+  getAllStudents,
   type Test,
   type TestAttempt,
   type Question,
   type QuestionType,
   type LearningMaterial,
   type QuestionSet,
+  type Student,
 } from "@/lib/firestore";
+import { personDisplayName, titleDisplayName } from "@/lib/displayName";
 import { adminFetch } from "@/lib/adminFetch";
 import { formatSchedule } from "@/lib/schedule";
 import { yearsMatch } from "@/lib/yearGrade";
@@ -97,6 +100,7 @@ export default function TestsPage() {
   const [tests, setTests] = useState<Test[]>([]);
   const [materials, setMaterials] = useState<LearningMaterial[]>([]);
   const [attempts, setAttempts] = useState<TestAttempt[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Test | null>(null);
@@ -113,14 +117,16 @@ export default function TestsPage() {
 
   async function load() {
     try {
-      const [t, a, mats] = await Promise.all([
+      const [t, a, mats, studs] = await Promise.all([
         getAllTests(),
         getAllAttempts(),
         getAllMaterials(),
+        getAllStudents(),
       ]);
       setTests(t);
       setAttempts(a);
       setMaterials(mats);
+      setStudents(studs);
     } catch (err) {
       console.error("Tests load error:", err);
     } finally {
@@ -130,6 +136,27 @@ export default function TestsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  const studentById = Object.fromEntries(
+    students.filter((s) => s.id).map((s) => [s.id!, s]),
+  );
+  const testById = Object.fromEntries(
+    tests.filter((t) => t.id).map((t) => [t.id!, t]),
+  );
+
+  function attemptStudentLabel(a: TestAttempt) {
+    return personDisplayName({
+      studentName: a.studentName,
+      student: studentById[a.studentId],
+    });
+  }
+
+  function attemptTestLabel(a: TestAttempt) {
+    return titleDisplayName(
+      a.testTitle || testById[a.testId]?.title,
+      "Untitled test",
+    );
+  }
 
   function calcTotal(qs: Question[]) {
     return qs.reduce((s, q) => s + (q.points || 0), 0);
@@ -492,11 +519,11 @@ export default function TestsPage() {
                       <tr key={a.id}>
                         <td>
                           <p className="font-medium text-gray-800">
-                            {a.studentName ?? a.studentId}
+                            {attemptStudentLabel(a)}
                           </p>
                         </td>
                         <td className="text-gray-600">
-                          {a.testTitle ?? a.testId}
+                          {attemptTestLabel(a)}
                         </td>
                         <td className="text-gray-500">#{a.attemptNumber}</td>
                         <td>
@@ -574,11 +601,11 @@ export default function TestsPage() {
               <div className="bg-gray-50 rounded-lg p-4 text-sm space-y-1">
                 <p>
                   <span className="font-semibold">Student:</span>{" "}
-                  {reviewModal.studentName ?? reviewModal.studentId}
+                  {attemptStudentLabel(reviewModal)}
                 </p>
                 <p>
                   <span className="font-semibold">Test:</span>{" "}
-                  {reviewModal.testTitle}
+                  {attemptTestLabel(reviewModal)}
                 </p>
                 <p>
                   <span className="font-semibold">Score:</span>{" "}
