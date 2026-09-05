@@ -2,7 +2,8 @@
 
 import ModalPortal from "@/components/ModalPortal";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, Suspense } from "react";
+import { useSearchParams, useRouter } from "next/navigation";
 import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
 import { paginate } from "@/lib/pagination";
@@ -17,10 +18,13 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import { useAuth } from "@/lib/auth";
 import {
   MdSend, MdEmail, MdSms, MdClose, MdDelete, MdVisibility, MdAttachFile,
+  MdPhone,
 } from "react-icons/md";
 
 const GRADES = ["Pre-K","K","1","2","3","4","5","6","7","8","9","10","11","12"];
 const ATTACH_ACCEPT = ".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,application/pdf,image/*";
+
+type RecipientMode = "all" | "single" | "specific";
 
 function formatWhen(value: ParentMessage["sentAt"] | ParentMessage["createdAt"]) {
   if (!value) return "—";
@@ -34,8 +38,24 @@ function formatWhen(value: ParentMessage["sentAt"] | ParentMessage["createdAt"])
   return "—";
 }
 
-export default function ParentMessagesPage() {
+function parentLabel(s: Student) {
+  const name = [s.parentFirstName, s.parentLastName].filter(Boolean).join(" ").trim();
+  return name || s.parentEmail || "Parent / Guardian";
+}
+
+function studentLabel(s: Student) {
+  return `${s.firstName} ${s.lastName}`.trim() || s.studentId;
+}
+
+/** Admin-facing label: "Student Name — Parent / Guardian" */
+function recipientPairLabel(s: Student) {
+  return `${studentLabel(s)} — ${parentLabel(s)}`;
+}
+
+function ParentMessagesInner() {
   const { adminUser } = useAuth();
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const [students, setStudents] = useState<Student[]>([]);
   const [messageHistory, setMessageHistory] = useState<ParentMessage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -47,7 +67,8 @@ export default function ParentMessagesPage() {
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [recipientType, setRecipientType] = useState<"all" | "specific">("all");
+  const [recipientType, setRecipientType] = useState<RecipientMode>("single");
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [selectedGrades, setSelectedGrades] = useState<string[]>([]);
   const [sendVia, setSendVia] = useState<"email" | "sms" | "both">("email");
@@ -57,6 +78,7 @@ export default function ParentMessagesPage() {
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
   const attachRef = useRef<HTMLInputElement>(null);
+  const prefillHandled = useRef(false);
 
   async function loadData() {
     setLoadError(null);
@@ -83,20 +105,42 @@ export default function ParentMessagesPage() {
 
   useEffect(() => { loadData(); }, []);
 
+  // Prefill from ?studentId=… (e.g. from student analytics “Message parent”)
+  useEffect(() => {
+    if (prefillHandled.current || loading || students.length === 0) return;
+    const sid = searchParams.get("studentId");
+    if (!sid) return;
+    const match = students.find((s) => s.id === sid);
+    if (!match) return;
+    prefillHandled.current = true;
+    setRecipientType("single");
+    setSelectedStudentId(match.id!);
+    setSelectedStudentIds([]);
+    setSelectedGrades([]);
+    setTitle(`Progress update — ${match.firstName} ${match.lastName}`);
+    setBody(
+      `Dear ${parentLabel(match)},\n\nPlease find an update on ${match.firstName}'s learning progress with Bridgitus.\n\nYou can review the attached report for full analytics.\n\nKind regards,\nBridgitus Learning`,
+    );
+    setSendResult(null);
+    setModalOpen(true);
+    router.replace("/admin/parent-messages", { scroll: false });
+  }, [loading, students, searchParams, router]);
+
   function toggleStudentId(id: string) {
     setSelectedStudentIds((prev) =>
-      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   }
 
   function toggleGrade(grade: string) {
     setSelectedGrades((prev) =>
-      prev.includes(grade) ? prev.filter((x) => x !== grade) : [...prev, grade]
+      prev.includes(grade) ? prev.filter((x) => x !== grade) : [...prev, grade],
     );
   }
 
   function getRecipientCount() {
     if (recipientType === "all") return students.length;
+    if (recipientType === "single") return selectedStudentId ? 1 : 0;
     if (selectedStudentIds.length > 0) return selectedStudentIds.length;
     if (selectedGrades.length > 0) {
       return students.filter((s) => selectedGrades.includes(s.grade)).length;
@@ -104,12 +148,18 @@ export default function ParentMessagesPage() {
     return 0;
   }
 
+  const selectedSingle = selectedStudentId
+    ? students.find((s) => s.id === selectedStudentId) ?? null
+    : null;
+
   function resetCompose() {
     setTitle("");
     setBody("");
+    setSelectedStudentId(null);
     setSelectedStudentIds([]);
     setSelectedGrades([]);
-    setRecipientType("all");
+    setRecipientType("single");
+    setStudentSearch("");
     setAttachmentUrl(null);
     setAttachmentName(null);
     if (attachRef.current) attachRef.current.value = "";
@@ -137,6 +187,13 @@ export default function ParentMessagesPage() {
 
   async function handleSend(e: React.FormEvent) {
     e.preventDefault();
+    if (recipientType === "single" && !selectedStudentId) {
+      setSendResult({
+        success: false,
+        message: "Select one student’s parent/guardian to send to.",
+      });
+      return;
+    }
     if (
       recipientType === "specific" &&
       selectedStudentIds.length === 0 &&
@@ -152,6 +209,13 @@ export default function ParentMessagesPage() {
     setSending(true);
     setSendResult(null);
 
+    const recipientIds =
+      recipientType === "single" && selectedStudentId
+        ? [selectedStudentId]
+        : recipientType === "specific" && selectedStudentIds.length > 0
+          ? selectedStudentIds
+          : undefined;
+
     try {
       const response = await adminFetch("/api/parent-messages", {
         method: "POST",
@@ -160,8 +224,11 @@ export default function ParentMessagesPage() {
           title,
           body,
           recipientType,
-          recipientIds: selectedStudentIds.length > 0 ? selectedStudentIds : undefined,
-          recipientGrades: selectedGrades.length > 0 ? selectedGrades : undefined,
+          recipientIds,
+          recipientGrades:
+            recipientType === "specific" && selectedGrades.length > 0
+              ? selectedGrades
+              : undefined,
           sendVia,
           createdBy: adminUser?.email ?? adminUser?.displayName ?? "admin",
           ...(attachmentUrl
@@ -219,15 +286,51 @@ export default function ParentMessagesPage() {
 
   const filteredStudents = students.filter((s) => {
     const search = studentSearch.toLowerCase();
+    if (!search) return true;
     return (
       s.firstName.toLowerCase().includes(search) ||
       s.lastName.toLowerCase().includes(search) ||
+      (s.parentFirstName ?? "").toLowerCase().includes(search) ||
+      (s.parentLastName ?? "").toLowerCase().includes(search) ||
       (s.parentEmail ?? "").toLowerCase().includes(search) ||
       s.studentId.toLowerCase().includes(search)
     );
   });
 
   const pageSlice = paginate(messageHistory, page);
+
+  function recipientSummary(msg: ParentMessage) {
+    if (msg.recipientType === "all") {
+      return <span className="badge badge-blue">All Parents</span>;
+    }
+    if (msg.recipientType === "single" || (msg.recipientIds?.length === 1 && !msg.recipientGrades?.length)) {
+      const label = msg.recipientLabels?.[0];
+      return (
+        <span className="text-xs text-gray-700 font-medium">
+          {label || "1 parent"}
+        </span>
+      );
+    }
+    if (msg.recipientLabels && msg.recipientLabels.length > 0 && msg.recipientLabels.length <= 3) {
+      return (
+        <span className="text-xs text-gray-600">
+          {msg.recipientLabels.join("; ")}
+        </span>
+      );
+    }
+    if (msg.recipientGrades && msg.recipientGrades.length > 0) {
+      return (
+        <span className="text-xs text-gray-600">
+          Grades: {msg.recipientGrades.join(", ")}
+        </span>
+      );
+    }
+    return (
+      <span className="text-xs text-gray-600">
+        {msg.recipientIds?.length || 0} selected
+      </span>
+    );
+  }
 
   return (
     <AdminLayout>
@@ -241,10 +344,17 @@ export default function ParentMessagesPage() {
               Parent Messages
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              Email or SMS parents directly (not shown in the student portal)
+              Email or SMS one parent, a group, or all parents (not shown in the student portal)
             </p>
           </div>
-          <button onClick={() => { setSendResult(null); resetCompose(); setModalOpen(true); }} className="btn-primary flex items-center gap-2">
+          <button
+            onClick={() => {
+              setSendResult(null);
+              resetCompose();
+              setModalOpen(true);
+            }}
+            className="btn-primary flex items-center gap-2"
+          >
             <MdSend size={18} /> New Message
           </button>
         </div>
@@ -261,7 +371,9 @@ export default function ParentMessagesPage() {
           ) : messageHistory.length === 0 ? (
             <div className="p-12 text-center">
               <MdSend size={40} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500">No messages yet. Send one to notify parents by email or SMS.</p>
+              <p className="text-gray-500">
+                No messages yet. Send one to a single parent or a group by email or SMS.
+              </p>
             </div>
           ) : (
             <>
@@ -287,19 +399,7 @@ export default function ParentMessagesPage() {
                           {msg.attachmentUrl ? " · file" : ""}
                         </p>
                       </td>
-                      <td>
-                        {msg.recipientType === "all" ? (
-                          <span className="badge badge-blue">All Parents</span>
-                        ) : msg.recipientGrades && msg.recipientGrades.length > 0 ? (
-                          <span className="text-xs text-gray-600">
-                            Grades: {msg.recipientGrades.join(", ")}
-                          </span>
-                        ) : (
-                          <span className="text-xs text-gray-600">
-                            {msg.recipientIds?.length || 0} selected
-                          </span>
-                        )}
-                      </td>
+                      <td>{recipientSummary(msg)}</td>
                       <td>
                         <div className="flex items-center gap-1">
                           {(msg.sendVia === "email" || msg.sendVia === "both") && (
@@ -354,266 +454,397 @@ export default function ParentMessagesPage() {
 
       {viewing && (
         <ModalPortal>
-<div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewing(null)}>
-          <div className="modal-box max-w-lg">
-            <div className="modal-header">
-              <h2 className="font-semibold text-gray-900">Message details</h2>
-              <button onClick={() => setViewing(null)} className="text-gray-400 hover:text-gray-600">
-                <MdClose size={20} />
-              </button>
-            </div>
-            <div className="p-6 space-y-4">
-              <div>
-                <p className="admin-label">Title</p>
-                <p className="font-semibold text-[#001233]">{viewing.title}</p>
+          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setViewing(null)}>
+            <div className="modal-box max-w-lg">
+              <div className="modal-header">
+                <h2 className="font-semibold text-gray-900">Message details</h2>
+                <button onClick={() => setViewing(null)} className="text-gray-400 hover:text-gray-600">
+                  <MdClose size={20} />
+                </button>
               </div>
-              <div>
-                <p className="admin-label">Body</p>
-                <p className="text-sm text-slate-700 whitespace-pre-wrap border border-slate-200 rounded-xl p-4 bg-slate-50">
-                  {viewing.body}
-                </p>
+              <div className="p-6 space-y-4">
+                <div>
+                  <p className="admin-label">Title</p>
+                  <p className="font-semibold text-[#001233]">{viewing.title}</p>
+                </div>
+                <div>
+                  <p className="admin-label">Recipients</p>
+                  <div className="text-sm text-slate-700 space-y-1">
+                    {viewing.recipientType === "all" ? (
+                      <p>All parents</p>
+                    ) : viewing.recipientLabels?.length ? (
+                      viewing.recipientLabels.map((l, i) => <p key={i}>{l}</p>)
+                    ) : (
+                      recipientSummary(viewing)
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <p className="admin-label">Body</p>
+                  <p className="text-sm text-slate-700 whitespace-pre-wrap border border-slate-200 rounded-xl p-4 bg-slate-50">
+                    {viewing.body}
+                  </p>
+                </div>
+                {viewing.attachmentUrl && (
+                  <div>
+                    <p className="admin-label">Attachment</p>
+                    <a
+                      href={viewing.attachmentUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm text-[#00369b] hover:underline font-medium inline-flex items-center gap-1"
+                    >
+                      <MdAttachFile size={16} />
+                      {viewing.attachmentName || "Download attachment"}
+                    </a>
+                  </div>
+                )}
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  <div>
+                    <p className="admin-label">Status</p>
+                    <p>{viewing.sentAt || viewing.sentByEmail || viewing.sentBySms ? "Sent" : "Not delivered"}</p>
+                  </div>
+                  <div>
+                    <p className="admin-label">When</p>
+                    <p>{formatWhen(viewing.sentAt ?? viewing.createdAt)}</p>
+                  </div>
+                  <div>
+                    <p className="admin-label">Email</p>
+                    <p>{viewing.emailSentCount ?? 0} delivered / {viewing.emailCount ?? 0} targeted</p>
+                  </div>
+                  <div>
+                    <p className="admin-label">SMS</p>
+                    <p>{viewing.smsSentCount ?? 0} delivered / {viewing.smsCount ?? 0} targeted</p>
+                  </div>
+                </div>
+                {viewing.deliveryErrors && viewing.deliveryErrors.length > 0 && (
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
+                    {viewing.deliveryErrors.map((err, i) => (
+                      <p key={i}>{err}</p>
+                    ))}
+                  </div>
+                )}
               </div>
-              {viewing.attachmentUrl && (
-                <div>
-                  <p className="admin-label">Attachment</p>
-                  <a
-                    href={viewing.attachmentUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-sm text-[#00369b] hover:underline font-medium inline-flex items-center gap-1"
-                  >
-                    <MdAttachFile size={16} />
-                    {viewing.attachmentName || "Download attachment"}
-                  </a>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-3 text-sm">
-                <div>
-                  <p className="admin-label">Status</p>
-                  <p>{viewing.sentAt || viewing.sentByEmail || viewing.sentBySms ? "Sent" : "Not delivered"}</p>
-                </div>
-                <div>
-                  <p className="admin-label">When</p>
-                  <p>{formatWhen(viewing.sentAt ?? viewing.createdAt)}</p>
-                </div>
-                <div>
-                  <p className="admin-label">Email</p>
-                  <p>{viewing.emailSentCount ?? 0} delivered / {viewing.emailCount ?? 0} targeted</p>
-                </div>
-                <div>
-                  <p className="admin-label">SMS</p>
-                  <p>{viewing.smsSentCount ?? 0} delivered / {viewing.smsCount ?? 0} targeted</p>
-                </div>
-              </div>
-              {viewing.deliveryErrors && viewing.deliveryErrors.length > 0 && (
-                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800 space-y-1">
-                  {viewing.deliveryErrors.map((err, i) => (
-                    <p key={i}>{err}</p>
-                  ))}
-                </div>
-              )}
             </div>
           </div>
-        </div>
-</ModalPortal>
+        </ModalPortal>
       )}
 
       {modalOpen && (
         <ModalPortal>
-<div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
-          <div className="modal-box max-w-2xl max-h-[90vh] overflow-y-auto">
-            <div className="modal-header">
-              <h2 className="font-semibold text-gray-900">Send Message to Parents</h2>
-              <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
-                <MdClose size={20} />
-              </button>
-            </div>
-            <form onSubmit={handleSend} className="p-6 space-y-5">
-              <div>
-                <label className="admin-label">Title *</label>
-                <input
-                  required
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  className="admin-input"
-                  placeholder="Message subject"
-                />
+          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModalOpen(false)}>
+            <div className="modal-box max-w-2xl max-h-[90vh] overflow-y-auto">
+              <div className="modal-header">
+                <h2 className="font-semibold text-gray-900">Send Message to Parents</h2>
+                <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                  <MdClose size={20} />
+                </button>
               </div>
-              <div>
-                <label className="admin-label">Message *</label>
-                <textarea
-                  required
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={5}
-                  className="admin-input resize-none"
-                  placeholder="Write your message to parents…"
-                />
-              </div>
+              <form onSubmit={handleSend} className="p-6 space-y-5">
+                <div>
+                  <label className="admin-label">Title *</label>
+                  <input
+                    required
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
+                    className="admin-input"
+                    placeholder="Message subject"
+                  />
+                </div>
+                <div>
+                  <label className="admin-label">Message *</label>
+                  <textarea
+                    required
+                    value={body}
+                    onChange={(e) => setBody(e.target.value)}
+                    rows={5}
+                    className="admin-input resize-none"
+                    placeholder="Write your message to parents…"
+                  />
+                </div>
 
-              <div>
-                <label className="admin-label">Attachment (optional)</label>
-                <p className="text-xs text-slate-400 mb-2">
-                  PDF, DOC, or images — uploaded to Cloudinary before send
-                </p>
-                <input
-                  ref={attachRef}
-                  type="file"
-                  accept={ATTACH_ACCEPT}
-                  disabled={uploadingAttachment || sending}
-                  onChange={handleAttachment}
-                  className="admin-input file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#00369b] file:text-white"
-                />
-                {uploadingAttachment && (
-                  <p className="text-xs text-[#00369b] mt-2">Uploading attachment…</p>
-                )}
-                {attachmentUrl && (
-                  <div className="mt-2 flex items-center gap-2 text-sm">
-                    <a
-                      href={attachmentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#00369b] hover:underline font-medium inline-flex items-center gap-1"
-                    >
-                      <MdAttachFile size={16} />
-                      {attachmentName || "Attached file"}
-                    </a>
+                <div>
+                  <label className="admin-label">Attachment (optional)</label>
+                  <p className="text-xs text-slate-400 mb-2">
+                    Ideal for analytics/PDF reports — PDF, DOC, or images
+                  </p>
+                  <input
+                    ref={attachRef}
+                    type="file"
+                    accept={ATTACH_ACCEPT}
+                    disabled={uploadingAttachment || sending}
+                    onChange={handleAttachment}
+                    className="admin-input file:mr-3 file:py-1 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-[#00369b] file:text-white"
+                  />
+                  {uploadingAttachment && (
+                    <p className="text-xs text-[#00369b] mt-2">Uploading attachment…</p>
+                  )}
+                  {attachmentUrl && (
+                    <div className="mt-2 flex items-center gap-2 text-sm">
+                      <a
+                        href={attachmentUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-[#00369b] hover:underline font-medium inline-flex items-center gap-1"
+                      >
+                        <MdAttachFile size={16} />
+                        {attachmentName || "Attached file"}
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAttachmentUrl(null);
+                          setAttachmentName(null);
+                        }}
+                        className="text-xs text-red-500 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div>
+                  <label className="admin-label">Send via *</label>
+                  <div className="flex flex-wrap gap-2">
+                    {([
+                      ["email", "Email"],
+                      ["sms", "SMS"],
+                      ["both", "Email + SMS"],
+                    ] as const).map(([value, label]) => (
+                      <button
+                        key={value}
+                        type="button"
+                        onClick={() => setSendVia(value)}
+                        className={`filter-pill${sendVia === value ? " active" : ""}`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="admin-label">Recipients *</label>
+                  <div className="flex flex-wrap gap-2 mb-3">
                     <button
                       type="button"
                       onClick={() => {
-                        setAttachmentUrl(null);
-                        setAttachmentName(null);
+                        setRecipientType("single");
+                        setSelectedStudentIds([]);
+                        setSelectedGrades([]);
                       }}
-                      className="text-xs text-red-500 hover:underline"
+                      className={`filter-pill${recipientType === "single" ? " active" : ""}`}
                     >
-                      Remove
+                      Single parent
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecipientType("specific");
+                        setSelectedStudentId(null);
+                      }}
+                      className={`filter-pill${recipientType === "specific" ? " active" : ""}`}
+                    >
+                      Multiple / by grade
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setRecipientType("all");
+                        setSelectedStudentId(null);
+                        setSelectedStudentIds([]);
+                        setSelectedGrades([]);
+                      }}
+                      className={`filter-pill${recipientType === "all" ? " active" : ""}`}
+                    >
+                      All parents ({students.length})
                     </button>
                   </div>
-                )}
-              </div>
 
-              <div>
-                <label className="admin-label">Send via *</label>
-                <div className="flex flex-wrap gap-2">
-                  {([
-                    ["email", "Email"],
-                    ["sms", "SMS"],
-                    ["both", "Email + SMS"],
-                  ] as const).map(([value, label]) => (
-                    <button
-                      key={value}
-                      type="button"
-                      onClick={() => setSendVia(value)}
-                      className={`filter-pill${sendVia === value ? " active" : ""}`}
-                    >
-                      {label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div>
-                <label className="admin-label">Recipients *</label>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <button
-                    type="button"
-                    onClick={() => setRecipientType("all")}
-                    className={`filter-pill${recipientType === "all" ? " active" : ""}`}
-                  >
-                    All parents ({students.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setRecipientType("specific")}
-                    className={`filter-pill${recipientType === "specific" ? " active" : ""}`}
-                  >
-                    Specific
-                  </button>
-                </div>
-
-                {recipientType === "specific" && (
-                  <div className="space-y-3 border border-slate-200 rounded-xl p-4">
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 mb-2">By grade</p>
-                      <div className="flex flex-wrap gap-2">
-                        {GRADES.map((g) => (
-                          <button
-                            key={g}
-                            type="button"
-                            onClick={() => toggleGrade(g)}
-                            className={`filter-pill${selectedGrades.includes(g) ? " active" : ""}`}
-                          >
-                            {g}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-slate-500 mb-2">Or pick students</p>
+                  {recipientType === "single" && (
+                    <div className="space-y-3 border border-slate-200 rounded-xl p-4">
+                      <p className="text-xs text-slate-500">
+                        Choose one student — the message goes to their parent/guardian contact only.
+                      </p>
                       <input
                         value={studentSearch}
                         onChange={(e) => setStudentSearch(e.target.value)}
-                        className="admin-input mb-2"
-                        placeholder="Search students…"
+                        className="admin-input"
+                        placeholder="Search by student, parent name, or email…"
                       />
-                      <div className="max-h-40 overflow-y-auto space-y-1">
-                        {filteredStudents.slice(0, 40).map((s) => (
-                          <label
-                            key={s.id}
-                            className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={selectedStudentIds.includes(s.id!)}
-                              onChange={() => toggleStudentId(s.id!)}
-                            />
-                            <span>
-                              {s.firstName} {s.lastName}
-                              <span className="text-xs text-slate-400 ml-1">
-                                · {s.parentEmail || "no parent email"}
+                      <div className="max-h-56 overflow-y-auto space-y-1.5">
+                        {filteredStudents.length === 0 ? (
+                          <p className="text-sm text-slate-400 py-4 text-center">No students match.</p>
+                        ) : (
+                          filteredStudents.slice(0, 60).map((s) => {
+                            const active = selectedStudentId === s.id;
+                            return (
+                              <button
+                                key={s.id}
+                                type="button"
+                                onClick={() => setSelectedStudentId(s.id!)}
+                                className={`w-full text-left rounded-xl border px-3 py-2.5 transition-colors ${
+                                  active
+                                    ? "border-[#00369b] bg-[#00369b]/5"
+                                    : "border-slate-200 hover:border-slate-300 hover:bg-slate-50"
+                                }`}
+                              >
+                                <div className="flex items-start gap-3">
+                                  <span
+                                    className={`mt-1 w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center ${
+                                      active ? "border-[#00369b]" : "border-slate-300"
+                                    }`}
+                                  >
+                                    {active && <span className="w-2 h-2 rounded-full bg-[#00369b]" />}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    <p className="text-sm font-semibold text-[#001233]">
+                                      {studentLabel(s)} — {parentLabel(s)}
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-0.5">
+                                      Student · Grade {s.grade}
+                                      <span className="mx-1.5 text-slate-300">|</span>
+                                      Parent / Guardian
+                                    </p>
+                                    <p className="text-xs text-slate-500 mt-1 flex flex-wrap gap-x-3">
+                                      <span className="inline-flex items-center gap-1">
+                                        <MdEmail size={12} />
+                                        {s.parentEmail || "No parent email"}
+                                      </span>
+                                      {s.parentPhone && (
+                                        <span className="inline-flex items-center gap-1">
+                                          <MdPhone size={12} />
+                                          {s.parentPhone}
+                                        </span>
+                                      )}
+                                    </p>
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })
+                        )}
+                      </div>
+                      {selectedSingle && (
+                        <div className="rounded-xl bg-slate-50 border border-slate-200 px-3 py-2 text-xs text-slate-600">
+                          Sending to parent of{" "}
+                          <strong>{recipientPairLabel(selectedSingle)}</strong>
+                          {" "}({selectedSingle.parentEmail || "no email"}
+                          {selectedSingle.parentPhone ? ` · ${selectedSingle.parentPhone}` : ""})
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {recipientType === "specific" && (
+                    <div className="space-y-3 border border-slate-200 rounded-xl p-4">
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 mb-2">By grade</p>
+                        <div className="flex flex-wrap gap-2">
+                          {GRADES.map((g) => (
+                            <button
+                              key={g}
+                              type="button"
+                              onClick={() => toggleGrade(g)}
+                              className={`filter-pill${selectedGrades.includes(g) ? " active" : ""}`}
+                            >
+                              {g}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <p className="text-xs font-semibold text-slate-500 mb-2">Or pick students</p>
+                        <input
+                          value={studentSearch}
+                          onChange={(e) => setStudentSearch(e.target.value)}
+                          className="admin-input mb-2"
+                          placeholder="Search students…"
+                        />
+                        <div className="max-h-40 overflow-y-auto space-y-1">
+                          {filteredStudents.slice(0, 40).map((s) => (
+                            <label
+                              key={s.id}
+                              className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
+                            >
+                              <input
+                                type="checkbox"
+                                checked={selectedStudentIds.includes(s.id!)}
+                                onChange={() => toggleStudentId(s.id!)}
+                              />
+                              <span>
+                                <span className="font-medium text-[#001233]">
+                                  {studentLabel(s)} — {parentLabel(s)}
+                                </span>
+                                <span className="text-xs text-slate-400 ml-1">
+                                  · Grade {s.grade} · {s.parentEmail || "no email"}
+                                </span>
                               </span>
-                            </span>
-                          </label>
-                        ))}
+                            </label>
+                          ))}
+                        </div>
                       </div>
                     </div>
+                  )}
+
+                  <p className="text-xs text-slate-400 mt-2">
+                    {recipientType === "single"
+                      ? selectedSingle
+                        ? `Selected: ${recipientPairLabel(selectedSingle)}`
+                        : "No student / parent selected yet"
+                      : `~${getRecipientCount()} parent contact(s) selected`}
+                  </p>
+                </div>
+
+                {sendResult && (
+                  <div
+                    className={`rounded-xl border px-4 py-3 text-sm ${
+                      sendResult.success
+                        ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                        : "bg-red-50 border-red-200 text-red-800"
+                    }`}
+                  >
+                    {sendResult.message}
                   </div>
                 )}
-                <p className="text-xs text-slate-400 mt-2">
-                  ~{getRecipientCount()} student profile(s) selected
-                </p>
-              </div>
 
-              {sendResult && (
-                <div
-                  className={`rounded-xl border px-4 py-3 text-sm ${
-                    sendResult.success
-                      ? "bg-emerald-50 border-emerald-200 text-emerald-800"
-                      : "bg-red-50 border-red-200 text-red-800"
-                  }`}
-                >
-                  {sendResult.message}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={sending || uploadingAttachment}
+                    className="btn-primary flex items-center gap-2"
+                  >
+                    <MdSend size={16} />
+                    {sending
+                      ? "Sending…"
+                      : recipientType === "single"
+                        ? "Send to this parent"
+                        : "Send to parents"}
+                  </button>
                 </div>
-              )}
-
-              <div className="flex justify-end gap-2 pt-2">
-                <button type="button" onClick={() => setModalOpen(false)} className="btn-secondary">
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={sending || uploadingAttachment}
-                  className="btn-primary flex items-center gap-2"
-                >
-                  <MdSend size={16} />
-                  {sending ? "Sending…" : "Send to parents"}
-                </button>
-              </div>
-            </form>
+              </form>
+            </div>
           </div>
-        </div>
-</ModalPortal>
+        </ModalPortal>
       )}
     </AdminLayout>
+  );
+}
+
+export default function ParentMessagesPage() {
+  return (
+    <Suspense
+      fallback={
+        <AdminLayout>
+          <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
+        </AdminLayout>
+      }
+    >
+      <ParentMessagesInner />
+    </Suspense>
   );
 }

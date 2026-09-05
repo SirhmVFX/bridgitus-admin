@@ -10,8 +10,11 @@ type StudentRow = {
   grade?: string;
   parentEmail?: string;
   parentPhone?: string;
+  parentFirstName?: string;
+  parentLastName?: string;
   firstName?: string;
   lastName?: string;
+  studentId?: string;
 };
 
 async function loadStudents(): Promise<StudentRow[]> {
@@ -69,12 +72,24 @@ export async function POST(request: NextRequest) {
     }
 
     if (
-      recipientType === "specific" &&
+      (recipientType === "specific" || recipientType === "single") &&
       !(recipientIds?.length > 0) &&
       !(recipientGrades?.length > 0)
     ) {
       return NextResponse.json(
-        { error: "Select at least one student or grade for specific recipients." },
+        {
+          error:
+            recipientType === "single"
+              ? "Select one student whose parent/guardian should receive this message."
+              : "Select at least one student or grade for specific recipients.",
+        },
+        { status: 400 },
+      );
+    }
+
+    if (recipientType === "single" && (recipientIds?.length ?? 0) !== 1) {
+      return NextResponse.json(
+        { error: "Single-parent mode requires exactly one student." },
         { status: 400 },
       );
     }
@@ -82,7 +97,7 @@ export async function POST(request: NextRequest) {
     const allStudents = await loadStudents();
     let targetStudents = allStudents;
 
-    if (recipientType === "specific") {
+    if (recipientType === "single" || recipientType === "specific") {
       if (recipientIds?.length > 0) {
         const idSet = new Set(recipientIds as string[]);
         targetStudents = allStudents.filter((s) => idSet.has(s.id));
@@ -91,6 +106,18 @@ export async function POST(request: NextRequest) {
         targetStudents = allStudents.filter((s) => s.grade && gradeSet.has(s.grade));
       }
     }
+
+    const recipientLabels = targetStudents.map((s) => {
+      const parent =
+        [s.parentFirstName, s.parentLastName].filter(Boolean).join(" ").trim() ||
+        s.parentEmail?.trim() ||
+        "Parent / Guardian";
+      const student =
+        [s.firstName, s.lastName].filter(Boolean).join(" ").trim() ||
+        s.studentId ||
+        s.id;
+      return `${student} — ${parent}`;
+    });
 
     const parentEmails = [
       ...new Set(
@@ -137,6 +164,7 @@ export async function POST(request: NextRequest) {
       recipientType,
       recipientIds: recipientIds ?? [],
       recipientGrades: recipientGrades ?? [],
+      recipientLabels,
       sendVia,
       ...(safeAttachmentUrl
         ? {

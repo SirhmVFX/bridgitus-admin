@@ -960,9 +960,12 @@ export interface ParentMessage {
   id?: string;
   title: string;
   body: string;
-  recipientType: "all" | "specific";
+  /** all = every parent; single = one student's parent; specific = grades and/or multiple students */
+  recipientType: "all" | "single" | "specific";
   recipientIds?: string[];
   recipientGrades?: string[];
+  /** Human-readable labels for history (e.g. parent + student names) */
+  recipientLabels?: string[];
   sendVia: "email" | "sms" | "both";
   /** Optional file attached via Cloudinary */
   attachmentUrl?: string;

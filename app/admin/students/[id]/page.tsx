@@ -808,6 +808,12 @@ export default function StudentDetailPage() {
                     className="btn-primary flex items-center gap-2 text-sm cursor-pointer">
                     <MdDownload size={16} /> Print / PDF for parent
                   </button>
+                  <Link
+                    href={`/admin/parent-messages?studentId=${student.id}`}
+                    className="btn-secondary flex items-center gap-2 text-sm cursor-pointer"
+                  >
+                    <MdEmail size={16} /> Message this parent
+                  </Link>
                 </div>
               </div>
 
