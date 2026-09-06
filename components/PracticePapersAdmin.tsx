@@ -16,6 +16,7 @@ import {
   getAttemptsByPaper,
   gradePracticeAttempt,
   getAllStudents,
+  clearPracticeAttemptsForRetake,
   type PracticePaper,
   type PracticeAttempt,
   type PracticeProgram,
@@ -23,7 +24,11 @@ import {
   type QuestionType,
   type Student,
 } from "@/lib/firestore";
-import { personDisplayName } from "@/lib/displayName";
+import {
+  personDisplayName,
+  buildStudentLookup,
+  resolveStudent,
+} from "@/lib/displayName";
 import {
   MdAdd,
   MdEdit,
@@ -35,8 +40,10 @@ import {
   MdVisibilityOff,
   MdQuiz,
   MdAttachFile,
+  MdReplay,
 } from "react-icons/md";
 import PdfMcqImport from "@/components/PdfMcqImport";
+import QuestionMediaControls from "@/components/QuestionMediaControls";
 
 const QUIZ_TYPES = new Set(["quiz", "exam", "test"]);
 
@@ -276,6 +283,33 @@ export default function PracticePapersAdmin({
     setGradeFeedback("");
   }
 
+  async function handlePracticeRetake(att: PracticeAttempt) {
+    if (!attemptsModal) return;
+    const s = resolveStudent(
+      buildStudentLookup(students),
+      att.studentId,
+      att.studentUid,
+    );
+    const name = personDisplayName({
+      studentName: att.studentName,
+      student: s,
+    });
+    if (
+      !confirm(
+        `Allow ${name} to retake "${attemptsModal.paper.title}"? This clears their previous attempts.`,
+      )
+    )
+      return;
+    const n = await clearPracticeAttemptsForRetake(
+      att.paperId,
+      att.studentId,
+      att.studentUid,
+    );
+    alert(`Cleared ${n} attempt(s). ${name} can take it again.`);
+    const attempts = await getAttemptsByPaper(attemptsModal.paper.id!);
+    setAttemptsModal({ ...attemptsModal, attempts });
+  }
+
   const filtered =
     yearFilter === "all"
       ? papers
@@ -462,7 +496,7 @@ export default function PracticePapersAdmin({
                             <p className="font-medium text-gray-800">
                               {personDisplayName({
                                 studentName: att.studentName,
-                                student: students.find((s) => s.id === att.studentId),
+                                student: resolveStudent(buildStudentLookup(students), att.studentId, att.studentUid),
                               })}
                             </p>
                             <p className="text-xs text-gray-400 mt-0.5">
@@ -530,6 +564,14 @@ export default function PracticePapersAdmin({
                             </a>
                           </p>
                         )}
+                        <button
+                          type="button"
+                          onClick={() => handlePracticeRetake(att)}
+                          className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium inline-flex items-center gap-1"
+                          title="Allow retake"
+                        >
+                          <MdReplay size={12} /> Allow retake
+                        </button>
                         {gradingId === att.id && (
                           <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
                             <div className="flex gap-2">
@@ -815,6 +857,31 @@ export default function PracticePapersAdmin({
                               rows={2}
                               className="admin-input resize-none mb-2"
                               placeholder="Question text"
+                            />
+                            <QuestionMediaControls
+                              imageUrl={q.imageUrl}
+                              videoUrl={q.videoUrl}
+                              videoName={q.videoName}
+                              onChange={(patch) =>
+                                updateQ(qi, {
+                                  ...(patch.imageUrl === null
+                                    ? { imageUrl: undefined }
+                                    : patch.imageUrl !== undefined
+                                      ? { imageUrl: patch.imageUrl }
+                                      : {}),
+                                  ...(patch.videoUrl === null
+                                    ? { videoUrl: undefined, videoName: undefined }
+                                    : patch.videoUrl !== undefined
+                                      ? {
+                                          videoUrl: patch.videoUrl,
+                                          videoName:
+                                            patch.videoName === null
+                                              ? undefined
+                                              : patch.videoName ?? q.videoName,
+                                        }
+                                      : {}),
+                                })
+                              }
                             />
                             <div className="grid sm:grid-cols-2 gap-2">
                               <div>
