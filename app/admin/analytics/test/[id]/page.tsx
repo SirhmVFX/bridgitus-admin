@@ -4,8 +4,8 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import AdminLayout from "@/components/AdminLayout";
 import { getTestById, getAttemptsByTest, getAllStudents, type Test, type TestAttempt, type Student } from "@/lib/firestore";
-import { personDisplayName } from "@/lib/displayName";
-import { MdArrowBack, MdCheckCircle, MdCancel, MdPending, MdQuiz } from "react-icons/md";
+import { personDisplayName, buildStudentLookup, resolveStudent } from "@/lib/displayName";
+import { MdArrowBack, MdCheckCircle, MdCancel, MdPending, MdQuiz, MdAttachFile } from "react-icons/md";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 
 export default function TestAnalyticsPage() {
@@ -25,7 +25,7 @@ export default function TestAnalyticsPage() {
     return () => setDetailLabel(null);
   }, [id, setDetailLabel]);
 
-  const studentMap = Object.fromEntries(students.map((s) => [s.id, s]));
+  const studentLookup = buildStudentLookup(students);
   const approved = attempts.filter((a) => a.status === "approved");
   const passed = approved.filter((a) => a.passed);
   const avgScore = approved.length > 0 ? Math.round(approved.reduce((s, a) => s + a.percentage, 0) / approved.length) : 0;
@@ -71,14 +71,15 @@ export default function TestAnalyticsPage() {
                 <p className="text-sm text-gray-400 text-center py-8">No submissions yet.</p>
               ) : (
                 <table className="admin-table">
-                  <thead><tr><th>Student</th><th>Attempts</th><th>Best Score</th><th>Status</th><th></th></tr></thead>
+                  <thead><tr><th>Student</th><th>Attempts</th><th>Best Score</th><th>Attachment</th><th>Status</th><th></th></tr></thead>
                   <tbody>
                     {Object.entries(byStudent).map(([studentId, atts]) => {
-                      const s = studentMap[studentId];
-                      const approved = atts.filter((a) => a.status === "approved");
-                      const best = approved.length > 0 ? Math.max(...approved.map((a) => a.percentage)) : null;
-                      const hasPassed = approved.some((a) => a.passed);
+                      const s = resolveStudent(studentLookup, studentId, atts[0]?.studentUid);
+                      const approvedAtts = atts.filter((a) => a.status === "approved");
+                      const best = approvedAtts.length > 0 ? Math.max(...approvedAtts.map((a) => a.percentage)) : null;
+                      const hasPassed = approvedAtts.some((a) => a.passed);
                       const hasPending = atts.some((a) => a.status === "pending_review");
+                      const withFile = [...atts].reverse().find((a) => a.attachmentUrl);
                       return (
                         <tr key={studentId}>
                           <td>
@@ -86,15 +87,36 @@ export default function TestAnalyticsPage() {
                               {personDisplayName({
                                 studentName: atts[0]?.studentName,
                                 student: s,
+                                fallback: s?.studentId
+                                  ? `Student ${s.studentId}`
+                                  : "Student (name unavailable)",
                               })}
                             </p>
+                            {s?.grade && (
+                              <p className="text-xs text-gray-400">Grade {s.grade}</p>
+                            )}
                           </td>
                           <td className="text-gray-600">{atts.length}</td>
                           <td>{best !== null ? <span className={`font-bold ${best >= test.passMark ? "text-emerald-600" : "text-red-500"}`}>{best}%</span> : <span className="text-gray-400">—</span>}</td>
                           <td>
+                            {withFile?.attachmentUrl ? (
+                              <a
+                                href={withFile.attachmentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-[#00369b] hover:underline inline-flex items-center gap-1"
+                              >
+                                <MdAttachFile size={12} />
+                                {withFile.attachmentName || "Open file"}
+                              </a>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
+                          <td>
                             {hasPassed ? <span className="badge badge-green flex items-center gap-1"><MdCheckCircle size={11}/>Passed</span>
                               : hasPending ? <span className="badge badge-yellow flex items-center gap-1"><MdPending size={11}/>Pending</span>
-                              : approved.length > 0 ? <span className="badge badge-red flex items-center gap-1"><MdCancel size={11}/>Failed</span>
+                              : approvedAtts.length > 0 ? <span className="badge badge-red flex items-center gap-1"><MdCancel size={11}/>Failed</span>
                               : <span className="badge badge-gray">No Results</span>}
                           </td>
                           <td>{s && <Link href={`/admin/students/${s.id}`} className="text-xs text-[#00369b] hover:underline">View →</Link>}</td>
