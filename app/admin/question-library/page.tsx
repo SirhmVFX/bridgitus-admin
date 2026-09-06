@@ -6,15 +6,34 @@ import AdminLayout from "@/components/AdminLayout";
 import Pagination from "@/components/Pagination";
 import { paginate } from "@/lib/pagination";
 import {
-  getAllQuestionSets, deleteQuestionSet,
-  type QuestionSet, type AIQuestion,
+  getAllQuestionSets, deleteQuestionSet, updateQuestionSet,
+  type QuestionSet, type AIQuestion, type Question,
 } from "@/lib/firestore";
 import {
   MdLibraryBooks, MdDelete, MdExpandMore, MdExpandLess,
   MdSearch, MdAdd, MdPrint, MdContentCopy, MdArrowBack,
-  MdFolder, MdFolderOpen,
+  MdFolder, MdFolderOpen, MdEdit, MdClose,
 } from "react-icons/md";
+import ModalPortal from "@/components/ModalPortal";
+import QuestionMediaControls from "@/components/QuestionMediaControls";
+import PdfMcqImport from "@/components/PdfMcqImport";
 import { Timestamp } from "firebase/firestore";
+
+const DIFFICULTIES = ["Support", "Core", "Extension"] as const;
+
+function normalizeDifficulty(value?: string): string {
+  const v = (value || "").trim();
+  if (DIFFICULTIES.includes(v as (typeof DIFFICULTIES)[number])) return v;
+  const map: Record<string, string> = {
+    Easy: "Support",
+    Medium: "Core",
+    Hard: "Extension",
+    easy: "Support",
+    medium: "Core",
+    hard: "Extension",
+  };
+  return map[v] || "Core";
+}
 
 // ── Question card in detail view ───────────────────────────────────────────
 
@@ -35,6 +54,14 @@ function QuestionItem({ q, i }: { q: AIQuestion; i: number }) {
           alt={`Diagram for question ${i + 1}`}
           className="max-h-56 w-auto border border-gray-200 object-contain bg-white"
         />
+      )}
+      {q.videoUrl && (
+        <div className="space-y-1">
+          <a href={q.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#00369b] hover:underline font-medium">
+            {q.videoName || "Open video"}
+          </a>
+          <video src={q.videoUrl} controls playsInline className="w-full max-h-56 border border-gray-200 bg-black" />
+        </div>
       )}
       {q.options && (
         <div className="grid grid-cols-2 gap-1.5">
@@ -67,11 +94,12 @@ function QuestionItem({ q, i }: { q: AIQuestion; i: number }) {
 // ── Set card inside a folder ───────────────────────────────────────────────
 
 function SetCard({
-  set, onDelete, onViewQuestions,
+  set, onDelete, onViewQuestions, onEdit,
 }: {
   set: QuestionSet;
   onDelete: (id: string) => void;
   onViewQuestions: (set: QuestionSet) => void;
+  onEdit: (set: QuestionSet) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -97,6 +125,8 @@ function SetCard({
           </p>
         </div>
         <div className="flex gap-1 shrink-0">
+          <button onClick={() => onEdit(set)} title="Edit set"
+            className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdEdit size={16} /></button>
           <button onClick={() => onViewQuestions(set)} title="View questions"
             className="p-1.5 text-gray-400 hover:text-[#00369b]"><MdContentCopy size={16} /></button>
           <button onClick={() => setExpanded(!expanded)} className="p-1.5 text-gray-400 hover:text-[#00369b]">
@@ -121,6 +151,11 @@ function SetCard({
                     className="max-h-32 w-auto border border-gray-100 object-contain"
                   />
                 )}
+                {q.videoUrl && (
+                  <a href={q.videoUrl} target="_blank" rel="noopener noreferrer" className="text-xs text-[#00369b] hover:underline">
+                    {q.videoName || "Video"}
+                  </a>
+                )}
                 {q.correctAnswer && (
                   <p className="text-xs text-emerald-600 mt-0.5">✓ {q.correctAnswer}</p>
                 )}
@@ -136,12 +171,13 @@ function SetCard({
 // ── Subject folder component ───────────────────────────────────────────────
 
 function SubjectFolder({
-  subject, sets, onDelete, onViewQuestions, defaultOpen,
+  subject, sets, onDelete, onViewQuestions, onEdit, defaultOpen,
 }: {
   subject: string;
   sets: QuestionSet[];
   onDelete: (id: string) => void;
   onViewQuestions: (set: QuestionSet) => void;
+  onEdit: (set: QuestionSet) => void;
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen ?? false);
@@ -175,7 +211,7 @@ function SubjectFolder({
       {open && (
         <div className="p-4 space-y-3 bg-white border-t border-gray-200">
           {sets.map((set) => (
-            <SetCard key={set.id} set={set} onDelete={onDelete} onViewQuestions={onViewQuestions} />
+            <SetCard key={set.id} set={set} onDelete={onDelete} onViewQuestions={onViewQuestions} onEdit={onEdit} />
           ))}
         </div>
       )}
@@ -194,6 +230,9 @@ export default function QuestionLibraryPage() {
   const [loadError, setLoadError] = useState("");
   const [view, setView] = useState<"folders" | "flat">("folders");
   const [page, setPage] = useState(1);
+  const [yearFilter, setYearFilter] = useState("all");
+  const [editingSet, setEditingSet] = useState<QuestionSet | null>(null);
+  const [editSaving, setEditSaving] = useState(false);
 
   async function load() {
     try {
@@ -213,18 +252,42 @@ export default function QuestionLibraryPage() {
     setSets(prev => prev.filter(s => s.id !== id));
   }
 
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingSet?.id) return;
+    setEditSaving(true);
+    try {
+      const payload = {
+        title: editingSet.title,
+        year: editingSet.year,
+        topic: editingSet.topic,
+        difficulty: normalizeDifficulty(editingSet.difficulty),
+        questions: editingSet.questions,
+        questionCount: editingSet.questions.length,
+      };
+      await updateQuestionSet(editingSet.id, payload);
+      setSets((prev) => prev.map((s) => (s.id === editingSet.id ? { ...s, ...payload } : s)));
+      setEditingSet(null);
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   const difficulties = ["all", "Support", "Core", "Extension"];
+
+  const years = Array.from(new Set(sets.map((s) => s.year).filter(Boolean))).sort();
 
   const filtered = sets.filter(s => {
     const q = search.toLowerCase();
     const textMatch = !search || s.title.toLowerCase().includes(q) || s.topic.toLowerCase().includes(q) || s.subject.toLowerCase().includes(q);
     const diffMatch = filterDifficulty === "all" || s.difficulty === filterDifficulty;
-    return textMatch && diffMatch;
+    const yearMatch = yearFilter === "all" || s.year === yearFilter;
+    return textMatch && diffMatch && yearMatch;
   });
 
   useEffect(() => {
     setPage(1);
-  }, [search, filterDifficulty, view]);
+  }, [search, filterDifficulty, yearFilter, view]);
 
   const pageSlice = paginate(filtered, page);
 
@@ -314,6 +377,12 @@ export default function QuestionLibraryPage() {
           <select value={filterDifficulty} onChange={e => setFilterDifficulty(e.target.value)} className="admin-input w-auto">
             {difficulties.map(d => <option key={d} value={d}>{d === "all" ? "All Difficulties" : d}</option>)}
           </select>
+          <select value={yearFilter} onChange={e => setYearFilter(e.target.value)} className="admin-input w-auto">
+            <option value="all">All Years</option>
+            {years.map((y) => (
+              <option key={y} value={y}>{y}</option>
+            ))}
+          </select>
 
           {/* View toggle */}
           <div className="flex gap-1 bg-gray-100 p-1 rounded">
@@ -361,6 +430,7 @@ export default function QuestionLibraryPage() {
                 sets={subjectMap[subject]}
                 onDelete={handleDelete}
                 onViewQuestions={setViewingSet}
+                onEdit={(set) => setEditingSet({ ...set, difficulty: normalizeDifficulty(set.difficulty) })}
                 defaultOpen={idx === 0}
               />
             ))}
@@ -375,7 +445,7 @@ export default function QuestionLibraryPage() {
                   <span className="text-xs text-gray-400 font-medium">{set.subject}</span>
                 </div>
                 <div className="px-4 pb-4">
-                  <SetCard set={set} onDelete={handleDelete} onViewQuestions={setViewingSet} />
+                  <SetCard set={set} onDelete={handleDelete} onViewQuestions={setViewingSet} onEdit={(set) => setEditingSet({ ...set, difficulty: normalizeDifficulty(set.difficulty) })} />
                 </div>
               </div>
             ))}
@@ -383,6 +453,192 @@ export default function QuestionLibraryPage() {
               <Pagination slice={pageSlice} onPageChange={setPage} />
             </div>
           </div>
+        )}
+
+        {editingSet && (
+          <ModalPortal>
+            <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 p-4">
+              <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl bg-white border border-gray-200">
+                <div className="sticky top-0 flex items-center justify-between gap-3 border-b border-gray-100 bg-white px-5 py-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Edit question set</h2>
+                  <button type="button" onClick={() => setEditingSet(null)} className="p-1.5 text-gray-400 hover:text-gray-700">
+                    <MdClose size={20} />
+                  </button>
+                </div>
+                <form onSubmit={handleSaveEdit} className="space-y-4 p-5">
+                  <div>
+                    <label className="admin-label">Title</label>
+                    <input
+                      className="admin-input w-full"
+                      value={editingSet.title}
+                      onChange={(e) => setEditingSet({ ...editingSet, title: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="admin-label">Year / Grade</label>
+                      <input
+                        className="admin-input w-full"
+                        value={editingSet.year}
+                        onChange={(e) => setEditingSet({ ...editingSet, year: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="admin-label">Topic</label>
+                      <input
+                        className="admin-input w-full"
+                        value={editingSet.topic}
+                        onChange={(e) => setEditingSet({ ...editingSet, topic: e.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <label className="admin-label">Difficulty</label>
+                      <select
+                        className="admin-input w-full"
+                        value={editingSet.difficulty}
+                        onChange={(e) =>
+                          setEditingSet({
+                            ...editingSet,
+                            difficulty: e.target.value as QuestionSet["difficulty"],
+                          })
+                        }
+                      >
+                        {DIFFICULTIES.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <p className="text-sm font-medium text-gray-800">
+                        Questions ({editingSet.questions.length})
+                      </p>
+                      <PdfMcqImport
+                        onImported={(imported: Question[]) => {
+                          const mapped: AIQuestion[] = imported.map((q) => ({
+                            id: q.id || crypto.randomUUID(),
+                            type: "multiple_choice",
+                            text: q.text,
+                            options: q.options ?? ["", "", "", ""],
+                            correctAnswer: q.correctAnswer,
+                            points: q.points ?? 1,
+                            explanation: q.explanation,
+                            ...(q.imageUrl ? { imageUrl: q.imageUrl } : {}),
+                            ...(q.videoUrl ? { videoUrl: q.videoUrl } : {}),
+                            ...(q.videoName ? { videoName: q.videoName } : {}),
+                          }));
+                          setEditingSet({
+                            ...editingSet,
+                            questions: [...editingSet.questions, ...mapped],
+                          });
+                        }}
+                      />
+                    </div>
+                    {editingSet.questions.map((q, qi) => (
+                      <div key={qi} className="rounded-xl border border-gray-200 p-3 space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-xs font-semibold text-gray-500">Q{qi + 1}</span>
+                          <button
+                            type="button"
+                            className="text-xs text-red-500 hover:text-red-700"
+                            onClick={() =>
+                              setEditingSet({
+                                ...editingSet,
+                                questions: editingSet.questions.filter((_, i) => i !== qi),
+                              })
+                            }
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <textarea
+                          className="admin-input w-full min-h-[72px]"
+                          value={q.text}
+                          onChange={(e) => {
+                            const questions = [...editingSet.questions];
+                            questions[qi] = { ...q, text: e.target.value };
+                            setEditingSet({ ...editingSet, questions });
+                          }}
+                        />
+                        {(q.options || []).map((opt, oi) => (
+                          <div key={oi} className="flex items-center gap-2">
+                            <input
+                              type="radio"
+                              name={`edit-correct-${qi}`}
+                              checked={q.correctAnswer === opt}
+                              onChange={() => {
+                                const questions = [...editingSet.questions];
+                                questions[qi] = { ...q, correctAnswer: opt };
+                                setEditingSet({ ...editingSet, questions });
+                              }}
+                            />
+                            <input
+                              className="admin-input flex-1"
+                              value={opt}
+                              onChange={(e) => {
+                                const options = [...(q.options || [])];
+                                const prev = options[oi];
+                                options[oi] = e.target.value;
+                                const questions = [...editingSet.questions];
+                                questions[qi] = {
+                                  ...q,
+                                  options,
+                                  correctAnswer:
+                                    q.correctAnswer === prev ? e.target.value : q.correctAnswer,
+                                };
+                                setEditingSet({ ...editingSet, questions });
+                              }}
+                            />
+                          </div>
+                        ))}
+                        <textarea
+                          className="admin-input w-full min-h-[56px]"
+                          placeholder="Explanation (optional)"
+                          value={q.explanation || ""}
+                          onChange={(e) => {
+                            const questions = [...editingSet.questions];
+                            questions[qi] = { ...q, explanation: e.target.value };
+                            setEditingSet({ ...editingSet, questions });
+                          }}
+                        />
+                        <QuestionMediaControls
+                          imageUrl={q.imageUrl}
+                          videoUrl={q.videoUrl}
+                          videoName={q.videoName}
+                          onChange={(patch) => {
+                            const questions = [...editingSet.questions];
+                            const next = { ...q };
+                            if (patch.imageUrl === null) delete next.imageUrl;
+                            else if (patch.imageUrl !== undefined) next.imageUrl = patch.imageUrl;
+                            if (patch.videoUrl === null) {
+                              delete next.videoUrl;
+                              delete next.videoName;
+                            } else if (patch.videoUrl !== undefined) {
+                              next.videoUrl = patch.videoUrl;
+                              if (patch.videoName === null) delete next.videoName;
+                              else if (patch.videoName !== undefined) next.videoName = patch.videoName;
+                            }
+                            questions[qi] = next;
+                            setEditingSet({ ...editingSet, questions });
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex justify-end gap-2 pt-2">
+                    <button type="button" onClick={() => setEditingSet(null)} className="btn-secondary text-sm">
+                      Cancel
+                    </button>
+                    <button type="submit" disabled={editSaving} className="btn-primary text-sm">
+                      {editSaving ? "Saving…" : "Save changes"}
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          </ModalPortal>
         )}
       </div>
     </AdminLayout>
