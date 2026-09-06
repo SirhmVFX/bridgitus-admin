@@ -2,25 +2,40 @@
 
 import ModalPortal from "@/components/ModalPortal";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import AdminLayout from "@/components/AdminLayout";
+import Pagination from "@/components/Pagination";
+import { paginate } from "@/lib/pagination";
 import {
-  getAllOnlineSessions, deleteOnlineSession, isOnlineSessionLive,
+  getAllOnlineSessions,
+  deleteOnlineSession,
+  updateOnlineSession,
+  isOnlineSessionLive,
   type OnlineSession,
 } from "@/lib/firestore";
 import { adminFetch } from "@/lib/adminFetch";
 import {
-  MdVideocam, MdAdd, MdDelete, MdOpenInNew, MdCheckCircle, MdSchedule,
+  MdVideocam, MdAdd, MdDelete, MdEdit, MdOpenInNew, MdCheckCircle, MdSchedule,
 } from "react-icons/md";
 
 const GRADES = ["Foundation", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+
+function toLocalInput(iso: string) {
+  const d = new Date(iso);
+  const local = new Date(d.getTime() - d.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
 
 export default function OnlineSessionsPage() {
   const [sessions, setSessions] = useState<OnlineSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState<OnlineSession | null>(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{ type: "ok" | "error"; text: string } | null>(null);
+  const [gradeFilter, setGradeFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | "upcoming" | "live" | "ended">("all");
+  const [page, setPage] = useState(1);
 
   const [title, setTitle] = useState("Online Tutoring Class");
   const [teamsUrl, setTeamsUrl] = useState("");
@@ -35,14 +50,12 @@ export default function OnlineSessionsPage() {
   }
   useEffect(() => { load(); }, []);
 
-  function openModal() {
+  function openCreate() {
     const soon = new Date(Date.now() + 15 * 60_000);
-    const local = new Date(soon.getTime() - soon.getTimezoneOffset() * 60_000)
-      .toISOString()
-      .slice(0, 16);
+    setEditing(null);
     setTitle("Online Tutoring Class");
     setTeamsUrl("");
-    setStartsAt(local);
+    setStartsAt(toLocalInput(soon.toISOString()));
     setDurationMinutes(60);
     setTargetGrades([]);
     setNotify(true);
@@ -50,33 +63,68 @@ export default function OnlineSessionsPage() {
     setModal(true);
   }
 
-  function toggleGrade(g: string) {
-    setTargetGrades((prev) => prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]);
+  function openEdit(s: OnlineSession) {
+    setEditing(s);
+    setTitle(s.title);
+    setTeamsUrl(s.teamsUrl);
+    setStartsAt(toLocalInput(s.startsAt));
+    setDurationMinutes(s.durationMinutes);
+    setTargetGrades(s.targetGrades ?? []);
+    setNotify(false);
+    setMessage(null);
+    setModal(true);
   }
 
-  async function handleCreate(e: React.FormEvent) {
+  function toggleGrade(g: string) {
+    setTargetGrades((prev) =>
+      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g],
+    );
+  }
+
+  async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setSaving(true); setMessage(null);
+    setSaving(true);
+    setMessage(null);
     try {
-      const res = await adminFetch("/api/online-sessions", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
+      if (editing?.id) {
+        const endsAt = new Date(
+          new Date(startsAt).getTime() + durationMinutes * 60_000,
+        ).toISOString();
+        await updateOnlineSession(editing.id, {
           title,
           teamsUrl,
           startsAt: new Date(startsAt).toISOString(),
-          durationMinutes,
+          durationMinutes: Number(durationMinutes),
+          endsAt,
           targetGrades,
-          notify,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error ?? "Failed");
-      setMessage({ type: "ok", text: data.message });
-      setModal(false);
-      await load();
+        });
+        setMessage({ type: "ok", text: "Session updated." });
+        setModal(false);
+        await load();
+      } else {
+        const res = await adminFetch("/api/online-sessions", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            teamsUrl,
+            startsAt: new Date(startsAt).toISOString(),
+            durationMinutes,
+            targetGrades,
+            notify,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error ?? "Failed");
+        setMessage({ type: "ok", text: data.message });
+        setModal(false);
+        await load();
+      }
     } catch (err: unknown) {
-      setMessage({ type: "error", text: err instanceof Error ? err.message : "Failed to create session" });
+      setMessage({
+        type: "error",
+        text: err instanceof Error ? err.message : "Failed to save session",
+      });
     } finally {
       setSaving(false);
     }
@@ -87,6 +135,24 @@ export default function OnlineSessionsPage() {
     await deleteOnlineSession(id);
     await load();
   }
+
+  const filtered = useMemo(() => {
+    return sessions.filter((s) => {
+      const live = isOnlineSessionLive(s);
+      const ended = new Date(s.endsAt).getTime() < Date.now();
+      if (statusFilter === "live" && !live) return false;
+      if (statusFilter === "ended" && !ended) return false;
+      if (statusFilter === "upcoming" && (live || ended)) return false;
+      if (gradeFilter !== "all") {
+        const grades = s.targetGrades ?? [];
+        if (grades.length && !grades.includes(gradeFilter)) return false;
+      }
+      return true;
+    });
+  }, [sessions, gradeFilter, statusFilter]);
+
+  useEffect(() => { setPage(1); }, [gradeFilter, statusFilter]);
+  const pageSlice = paginate(filtered, page);
 
   return (
     <AdminLayout>
@@ -100,15 +166,15 @@ export default function OnlineSessionsPage() {
               Online Sessions
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              Post a Microsoft Teams link — students get a live Join button on their dashboard
+              Create, edit, and manage Microsoft Teams sessions for students
             </p>
           </div>
-          <button onClick={openModal} className="btn-primary flex items-center gap-2 text-sm">
+          <button onClick={openCreate} className="btn-primary flex items-center gap-2 text-sm">
             <MdAdd size={16} /> New Teams Session
           </button>
         </div>
 
-        {message && (
+        {message && !modal && (
           <div className={`border rounded-xl px-4 py-3 text-sm ${message.type === "ok"
             ? "border-emerald-300 bg-emerald-50 text-emerald-700"
             : "border-red-200 bg-red-50 text-red-700"}`}>
@@ -116,131 +182,166 @@ export default function OnlineSessionsPage() {
           </div>
         )}
 
+        <div className="flex flex-wrap gap-2">
+          {(["all", "upcoming", "live", "ended"] as const).map((s) => (
+            <button
+              key={s}
+              type="button"
+              onClick={() => setStatusFilter(s)}
+              className={`filter-pill${statusFilter === s ? " active" : ""}`}
+            >
+              {s === "all" ? "All status" : s[0].toUpperCase() + s.slice(1)}
+            </button>
+          ))}
+          <select
+            value={gradeFilter}
+            onChange={(e) => setGradeFilter(e.target.value)}
+            className="admin-input !w-auto text-sm ml-auto"
+          >
+            <option value="all">All grades</option>
+            {GRADES.map((g) => (
+              <option key={g} value={g}>Grade {g}</option>
+            ))}
+          </select>
+        </div>
+
         <div className="admin-card !p-0 overflow-hidden">
           {loading ? (
             <div className="p-12 text-center text-gray-400 text-sm">Loading…</div>
-          ) : sessions.length === 0 ? (
+          ) : pageSlice.items.length === 0 ? (
             <div className="p-12 text-center">
               <MdVideocam size={40} className="mx-auto text-gray-300 mb-3" />
-              <p className="text-gray-500 text-sm">No online sessions yet.</p>
+              <p className="text-gray-500 text-sm">No sessions match these filters.</p>
             </div>
           ) : (
-            <div className="divide-y divide-gray-100">
-              {sessions.map((s) => {
-                const live = isOnlineSessionLive(s);
-                const ended = new Date(s.endsAt).getTime() < Date.now();
-                return (
-                  <div key={s.id} className="px-5 py-4 flex items-start justify-between gap-4">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="font-semibold text-gray-900">{s.title}</p>
-                        {live && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white px-2.5 py-0.5 rounded-full animate-pulse">
-                            Live now
-                          </span>
-                        )}
-                        {!live && !ended && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full">
-                            Upcoming
-                          </span>
-                        )}
-                        {ended && (
-                          <span className="text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-2.5 py-0.5 rounded-full">
-                            Ended
-                          </span>
+            <>
+              <div className="divide-y divide-gray-100">
+                {pageSlice.items.map((s) => {
+                  const live = isOnlineSessionLive(s);
+                  const ended = new Date(s.endsAt).getTime() < Date.now();
+                  return (
+                    <div key={s.id} className="px-5 py-4 flex items-start justify-between gap-4">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <p className="font-semibold text-gray-900">{s.title}</p>
+                          {live && (
+                            <span className="text-[10px] font-bold uppercase tracking-wide bg-emerald-500 text-white px-2.5 py-0.5 rounded-full animate-pulse">
+                              Live now
+                            </span>
+                          )}
+                          {!live && !ended && (
+                            <span className="text-[10px] font-bold uppercase tracking-wide bg-amber-100 text-amber-700 px-2.5 py-0.5 rounded-full">
+                              Upcoming
+                            </span>
+                          )}
+                          {ended && (
+                            <span className="text-[10px] font-bold uppercase tracking-wide bg-gray-100 text-gray-500 px-2.5 py-0.5 rounded-full">
+                              Ended
+                            </span>
+                          )}
+                        </div>
+                        <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
+                          <MdSchedule size={12} />
+                          {new Date(s.startsAt).toLocaleString("en-AU", {
+                            weekday: "short", day: "numeric", month: "short",
+                            hour: "2-digit", minute: "2-digit",
+                          })}
+                          {" · "}{s.durationMinutes} min
+                          {" · "}{s.targetGrades?.length ? `Grades ${s.targetGrades.join(", ")}` : "All grades"}
+                        </p>
+                        <a href={s.teamsUrl} target="_blank" rel="noopener noreferrer"
+                          className="text-xs text-[#5B5FC7] hover:underline inline-flex items-center gap-1 mt-1 break-all">
+                          <MdOpenInNew size={12} /> {s.teamsUrl}
+                        </a>
+                        {s.notified && (
+                          <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">
+                            <MdCheckCircle size={12} /> Students emailed
+                          </p>
                         )}
                       </div>
-                      <p className="text-xs text-gray-500 mt-1 flex items-center gap-1">
-                        <MdSchedule size={12} />
-                        {new Date(s.startsAt).toLocaleString("en-AU", {
-                          weekday: "short", day: "numeric", month: "short",
-                          hour: "2-digit", minute: "2-digit",
-                        })}
-                        {" · "}{s.durationMinutes} min
-                        {" · "}{s.targetGrades?.length ? `Grades ${s.targetGrades.join(", ")}` : "All grades"}
-                      </p>
-                      <a href={s.teamsUrl} target="_blank" rel="noopener noreferrer"
-                        className="text-xs text-[#5B5FC7] hover:underline inline-flex items-center gap-1 mt-1 break-all">
-                        <MdOpenInNew size={12} /> {s.teamsUrl}
-                      </a>
-                      {s.notified && (
-                        <p className="text-[11px] text-emerald-600 mt-1 flex items-center gap-1">
-                          <MdCheckCircle size={12} /> Students emailed
-                        </p>
-                      )}
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button onClick={() => openEdit(s)} className="text-gray-400 hover:text-[#00369b] p-1.5" title="Edit">
+                          <MdEdit size={18} />
+                        </button>
+                        <button onClick={() => s.id && handleDelete(s.id)}
+                          className="text-red-400 hover:text-red-600 p-1.5" title="Delete">
+                          <MdDelete size={18} />
+                        </button>
+                      </div>
                     </div>
-                    <button onClick={() => s.id && handleDelete(s.id)}
-                      className="text-red-400 hover:text-red-600 p-1.5 shrink-0">
-                      <MdDelete size={18} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                  );
+                })}
+              </div>
+              <Pagination slice={pageSlice} onPageChange={setPage} />
+            </>
           )}
         </div>
       </div>
 
       {modal && (
         <ModalPortal>
-<div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModal(false)}>
-          <div className="modal-box max-w-lg">
-            <div className="modal-header">
-              <h2 className="font-semibold text-gray-900">New Microsoft Teams Session</h2>
-              <button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setModal(false)}>
+            <div className="modal-box max-w-lg">
+              <div className="modal-header">
+                <h2 className="font-semibold text-gray-900">
+                  {editing ? "Edit Teams Session" : "New Microsoft Teams Session"}
+                </h2>
+                <button onClick={() => setModal(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">×</button>
+              </div>
+              <form onSubmit={handleSubmit} className="p-6 space-y-4">
+                <div>
+                  <label className="admin-label">Session title</label>
+                  <input value={title} onChange={(e) => setTitle(e.target.value)} required className="admin-input w-full" />
+                </div>
+                <div>
+                  <label className="admin-label">Microsoft Teams meeting link</label>
+                  <input value={teamsUrl} onChange={(e) => setTeamsUrl(e.target.value)} required
+                    placeholder="https://teams.microsoft.com/l/meetup-join/…"
+                    className="admin-input w-full" type="url" />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="admin-label">Starts at</label>
+                    <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)}
+                      required className="admin-input w-full" />
+                  </div>
+                  <div>
+                    <label className="admin-label">Duration (minutes)</label>
+                    <input type="number" min={5} max={480} value={durationMinutes}
+                      onChange={(e) => setDurationMinutes(Number(e.target.value))}
+                      required className="admin-input w-full" />
+                  </div>
+                </div>
+                <div>
+                  <label className="admin-label">Target grades (leave empty = all)</label>
+                  <div className="flex flex-wrap gap-2 mt-1">
+                    {GRADES.map((g) => (
+                      <button key={g} type="button" onClick={() => toggleGrade(g)}
+                        className={`filter-pill${targetGrades.includes(g) ? " active" : ""}`}>
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {!editing && (
+                  <label className="flex items-center gap-2 text-sm cursor-pointer">
+                    <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
+                    Email students & parents when created
+                  </label>
+                )}
+                {message?.type === "error" && (
+                  <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2">{message.text}</p>
+                )}
+                <div className="flex gap-3 pt-2 border-t border-gray-100">
+                  <button type="submit" disabled={saving} className="btn-primary disabled:opacity-60">
+                    {saving ? "Saving…" : editing ? "Save changes" : "Create & notify"}
+                  </button>
+                  <button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancel</button>
+                </div>
+              </form>
             </div>
-            <form onSubmit={handleCreate} className="p-6 space-y-4">
-              <div>
-                <label className="admin-label">Session title</label>
-                <input value={title} onChange={(e) => setTitle(e.target.value)} required className="admin-input w-full" />
-              </div>
-              <div>
-                <label className="admin-label">Microsoft Teams meeting link</label>
-                <input value={teamsUrl} onChange={(e) => setTeamsUrl(e.target.value)} required
-                  placeholder="https://teams.microsoft.com/l/meetup-join/…"
-                  className="admin-input w-full" type="url" />
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="admin-label">Starts at</label>
-                  <input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)}
-                    required className="admin-input w-full" />
-                </div>
-                <div>
-                  <label className="admin-label">Duration (minutes)</label>
-                  <input type="number" min={5} max={480} value={durationMinutes}
-                    onChange={(e) => setDurationMinutes(Number(e.target.value))}
-                    required className="admin-input w-full" />
-                </div>
-              </div>
-              <div>
-                <label className="admin-label">Target grades (leave empty = all)</label>
-                <div className="flex flex-wrap gap-2 mt-1">
-                  {GRADES.map((g) => (
-                    <button key={g} type="button" onClick={() => toggleGrade(g)}
-                      className={`filter-pill${targetGrades.includes(g) ? " active" : ""}`}>
-                      {g}
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <label className="flex items-center gap-2 text-sm cursor-pointer">
-                <input type="checkbox" checked={notify} onChange={(e) => setNotify(e.target.checked)} />
-                Email students & parents when created
-              </label>
-              {message?.type === "error" && (
-                <p className="text-sm text-red-600 bg-red-50 border border-red-200 px-3 py-2">{message.text}</p>
-              )}
-              <div className="flex gap-3 pt-2 border-t border-gray-100">
-                <button type="submit" disabled={saving} className="btn-primary disabled:opacity-60">
-                  {saving ? "Creating…" : "Create & notify"}
-                </button>
-                <button type="button" onClick={() => setModal(false)} className="btn-secondary">Cancel</button>
-              </div>
-            </form>
           </div>
-        </div>
-</ModalPortal>
+        </ModalPortal>
       )}
     </AdminLayout>
   );
