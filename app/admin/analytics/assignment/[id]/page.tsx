@@ -70,7 +70,7 @@ export default function AssignmentAnalyticsPage() {
               <h2 className="font-semibold text-gray-900 mb-4">Student Status ({eligibleStudents.length} students)</h2>
               {eligibleStudents.length === 0 ? <p className="text-sm text-gray-400 text-center py-8">No students assigned yet.</p> : (
                 <table className="admin-table">
-                  <thead><tr><th>Student</th><th>Grade</th><th>Status</th><th>Score</th><th>Feedback</th><th></th></tr></thead>
+                  <thead><tr><th>Student</th><th>Grade</th><th>Status</th><th>Score</th><th>Attachment</th><th>Feedback</th><th></th></tr></thead>
                   <tbody>
                     {eligibleStudents.map((s) => {
                       const sub = submissions.find((sub) => sub.studentId === s.id);
@@ -83,6 +83,20 @@ export default function AssignmentAnalyticsPage() {
                           <td><span className="badge badge-blue">Grade {s.grade}</span></td>
                           <td><span className={`badge ${STATUS_COLOR[status]}`}>{status.replace("_", " ")}</span></td>
                           <td className="font-medium text-gray-800">{sub?.score !== undefined ? `${sub.score}/${assignment.maxScore}` : "—"}</td>
+                          <td>
+                            {sub?.attachmentUrl ? (
+                              <a
+                                href={sub.attachmentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-[#00369b] hover:underline"
+                              >
+                                {sub.attachmentName || "Open file"}
+                              </a>
+                            ) : (
+                              <span className="text-xs text-gray-400">—</span>
+                            )}
+                          </td>
                           <td className="text-xs text-gray-500 max-w-37.5 truncate">{sub?.feedback ?? "—"}</td>
                           <td><Link href={`/admin/students/${s.id}`} className="text-xs text-primary hover:underline">View →</Link></td>
                         </tr>

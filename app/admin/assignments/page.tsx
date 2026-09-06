@@ -19,6 +19,7 @@ import {
   getAllMaterials,
   getAllQuestionSets,
   createAnnouncement,
+  clearAssignmentSubmissionsForRetake,
   type Assignment,
   type Student,
   type AssignmentSubmission,
@@ -32,6 +33,7 @@ import { dueDateFromDueAt, formatSchedule } from "@/lib/schedule";
 import { setYearMatchesTarget } from "@/lib/yearGrade";
 import { personDisplayName } from "@/lib/displayName";
 import PdfMcqImport from "@/components/PdfMcqImport";
+import QuestionMediaControls from "@/components/QuestionMediaControls";
 import {
   MdAdd,
   MdEdit,
@@ -47,6 +49,7 @@ import {
   MdQuiz,
   MdCheckCircle,
   MdCancel,
+  MdReplay,
 } from "react-icons/md";
 
 const GRADES = [
@@ -348,6 +351,8 @@ ${data.description ? `\n\n${data.description}` : ""}`,
       explanation: (aq.explanation ?? "") as string,
       workedSolution: (aq.workedSolution ?? "") as string,
       ...(aq.imageUrl ? { imageUrl: aq.imageUrl } : {}),
+      ...(aq.videoUrl ? { videoUrl: aq.videoUrl } : {}),
+      ...(aq.videoName ? { videoName: aq.videoName } : {}),
     }));
     const total = qs.reduce((s, q) => s + q.points, 0);
     setForm((f) => ({
@@ -377,6 +382,11 @@ ${data.description ? `\n\n${data.description}` : ""}`,
           `<p><img src="${q.imageUrl}" alt="Question ${i + 1} diagram" style="max-height:280px;object-fit:contain;" /></p>`,
         );
       }
+      if (q.videoUrl) {
+        lines.push(
+          `<p><a href="${q.videoUrl}" target="_blank" rel="noopener noreferrer">${q.videoName || "Watch video"}</a></p>`,
+        );
+      }
       if (q.type === "multiple_choice" && q.options)
         lines.push(
           `<ul>${q.options.map((o) => `<li>${o}</li>`).join("")}</ul>`,
@@ -399,6 +409,26 @@ ${data.description ? `\n\n${data.description}` : ""}`,
         `${set.subject} worksheet — ${set.topic} (${set.difficulty})`,
     }));
     setLibModal(false);
+  }
+
+  async function handleAssignmentRetake(sub: AssignmentSubmission) {
+    const name = studentName(sub.studentId, sub.studentName);
+    if (
+      !confirm(
+        `Allow ${name} to retake this assignment? This clears their previous submission(s).`,
+      )
+    )
+      return;
+    const n = await clearAssignmentSubmissionsForRetake(
+      sub.assignmentId,
+      sub.studentId,
+      sub.studentUid,
+    );
+    alert(`Cleared ${n} submission(s). ${name} can submit again.`);
+    if (subModal) {
+      const subs = await getSubmissionsByAssignment(subModal.a.id!);
+      setSubModal({ ...subModal, subs });
+    }
   }
 
   async function openSubmissions(a: Assignment) {
@@ -575,6 +605,24 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                           >
                             <MdVisibility size={16} />
                           </button>
+                          <a
+                            href={`/admin/analytics/assignment/${a.id}`}
+                            className="p-1.5 text-gray-400 hover:text-purple-600 inline-flex"
+                            title="Analytics"
+                          >
+                            <svg
+                              xmlns="http://www.w3.org/2000/svg"
+                              className="w-4 h-4"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <line x1="18" y1="20" x2="18" y2="10" />
+                              <line x1="12" y1="20" x2="12" y2="4" />
+                              <line x1="6" y1="20" x2="6" y2="14" />
+                            </svg>
+                          </a>
                           <button
                             onClick={() => openEdit(a)}
                             className="p-1.5 text-gray-400 hover:text-[#00369b]"
@@ -680,6 +728,18 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                               {sub.attachmentName || "Download attachment"}
                             </a>
                           </p>
+                        )}
+                        {(sub.status === "submitted" ||
+                          sub.status === "graded" ||
+                          sub.status === "in_progress") && (
+                          <button
+                            type="button"
+                            onClick={() => handleAssignmentRetake(sub)}
+                            className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium inline-flex items-center gap-1"
+                            title="Allow retake"
+                          >
+                            <MdReplay size={12} /> Allow retake
+                          </button>
                         )}
                         {gradingId === sub.id && (
                           <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
@@ -1002,14 +1062,32 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                                 rows={2}
                                 placeholder="Question text"
                               />
-                              {question.imageUrl && (
-                                // eslint-disable-next-line @next/next/no-img-element
-                                <img
-                                  src={question.imageUrl}
-                                  alt={`Diagram for question ${qIndex + 1}`}
-                                  className="max-h-48 w-auto border border-gray-200 object-contain bg-gray-50"
-                                />
-                              )}
+                              <QuestionMediaControls
+                                imageUrl={question.imageUrl}
+                                videoUrl={question.videoUrl}
+                                videoName={question.videoName}
+                                onChange={(patch) =>
+                                  updateQuestion(qIndex, {
+                                    ...(patch.imageUrl === null
+                                      ? { imageUrl: undefined }
+                                      : patch.imageUrl !== undefined
+                                        ? { imageUrl: patch.imageUrl }
+                                        : {}),
+                                    ...(patch.videoUrl === null
+                                      ? { videoUrl: undefined, videoName: undefined }
+                                      : patch.videoUrl !== undefined
+                                        ? {
+                                            videoUrl: patch.videoUrl,
+                                            videoName:
+                                              patch.videoName === null
+                                                ? undefined
+                                                : patch.videoName ??
+                                                  question.videoName,
+                                          }
+                                        : {}),
+                                  })
+                                }
+                              />
                             </div>
                             <div className="grid gap-3 w-full sm:w-52">
                               <div>
