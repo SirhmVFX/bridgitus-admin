@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { extractText, getDocumentProxy } from "unpdf";
 import { parseMcqFromText, isAiConfigured, aiConfigError } from "@/lib/ai";
+import { parseMcqLocally } from "@/lib/parseMcqLocal";
 import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
+import type { Question } from "@/lib/firestore";
 
 export const runtime = "nodejs";
 export const maxDuration = 120;
@@ -12,10 +14,6 @@ export async function POST(request: Request) {
   try {
     const adminAuthResult = await requireAdmin(request);
     if (!isAdminAuthOk(adminAuthResult)) return adminAuthResult;
-
-    if (!isAiConfigured()) {
-      return NextResponse.json({ error: aiConfigError() }, { status: 503 });
-    }
 
     const form = await request.formData();
     const file = form.get("file");
@@ -48,7 +46,7 @@ export async function POST(request: Request) {
     try {
       const pdf = await getDocumentProxy(bytes);
       const { text } = await extractText(pdf, { mergePages: true });
-      extracted = (typeof text === "string" ? text : text.join("\n")).trim();
+      extracted = (Array.isArray(text) ? (text as string[]).join("\n") : String(text ?? "")).trim();
     } catch (parseErr) {
       console.error("unpdf extract error:", parseErr);
       const detail =
@@ -71,30 +69,37 @@ export async function POST(request: Request) {
       );
     }
 
-    let questions;
-    let warnings: string[] = [];
-    try {
-      const result = await parseMcqFromText(extracted);
-      questions = result.questions;
-      warnings = result.warnings;
-    } catch (aiErr) {
-      console.error("parseMcqFromText error:", aiErr);
-      const detail =
-        aiErr instanceof Error ? aiErr.message : "AI conversion failed";
-      return NextResponse.json(
-        {
-          error: `Text was extracted, but AI could not convert it to MCQs: ${detail}`,
-        },
-        { status: 502 },
-      );
+    const warnings: string[] = [];
+    let questions: Question[] = [];
+
+    if (isAiConfigured()) {
+      try {
+        const result = await parseMcqFromText(extracted);
+        questions = result.questions ?? [];
+        if (result.warnings?.length) warnings.push(...result.warnings);
+      } catch (aiErr) {
+        console.error("parseMcqFromText error:", aiErr);
+        const detail =
+          aiErr instanceof Error ? aiErr.message : "AI conversion failed";
+        warnings.push(`AI conversion failed (${detail}); used local PDF parser.`);
+      }
+    } else {
+      warnings.push(`${aiConfigError()} Using local PDF parser instead.`);
     }
 
-    if (!questions?.length) {
+    if (!questions.length) {
+      const local = parseMcqLocally(extracted);
+      questions = local.questions;
+      warnings.push(...local.warnings);
+    }
+
+    if (!questions.length) {
       return NextResponse.json(
         {
           error:
-            "No multiple-choice questions were found. Check numbering (1. / Q1), options (A–D), and that answers are indicated.",
+            "No multiple-choice questions were found. Use numbered questions (1. / Q1), options A–D, and answer markers (Answer: B or *).",
           warnings,
+          preview: extracted.slice(0, 400),
         },
         { status: 422 },
       );
