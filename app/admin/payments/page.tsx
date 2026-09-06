@@ -68,6 +68,7 @@ export default function PaymentsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [gradeFilter, setGradeFilter] = useState("all");
   const [page, setPage] = useState(1);
   const [message, setMessage] = useState<{
     type: "ok" | "error";
@@ -177,14 +178,16 @@ export default function PaymentsPage() {
         .toLowerCase()
         .includes(search.toLowerCase());
     const stMatch = statusFilter === "all" || s.paymentStatus === statusFilter;
-    return sMatch && stMatch;
+    const gMatch = gradeFilter === "all" || s.grade === gradeFilter;
+    return sMatch && stMatch && gMatch;
   });
 
   useEffect(() => {
     setPage(1);
-  }, [search, statusFilter]);
+  }, [search, statusFilter, gradeFilter]);
 
   const pageSlice = paginate(filtered, page);
+  const grades = Array.from(new Set(students.map((s) => s.grade).filter(Boolean))).sort();
 
   const stats = {
     paid: students.filter((s) => s.paymentStatus === "paid").length,
@@ -305,6 +308,18 @@ export default function PaymentsPage() {
               </button>
             ))}
           </div>
+          <select
+            value={gradeFilter}
+            onChange={(e) => setGradeFilter(e.target.value)}
+            className="admin-input w-auto"
+          >
+            <option value="all">All Grades</option>
+            {grades.map((g) => (
+              <option key={g} value={g}>
+                Grade {g}
+              </option>
+            ))}
+          </select>
           <button
             onClick={load}
             className="btn-secondary text-sm flex items-center gap-1.5"

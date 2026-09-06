@@ -30,12 +30,14 @@ export default function AnnouncementsPage() {
   const [form, setForm] = useState<Omit<Announcement,"id">>(EMPTY);
   const [saving, setSaving] = useState(false);
   const [page, setPage] = useState(1);
+  const [gradeFilter, setGradeFilter] = useState("all");
 
   async function load() {
     const a = await getAllAnnouncements();
     setAnnouncements(a); setLoading(false);
   }
   useEffect(() => { load(); }, []);
+  useEffect(() => { setPage(1); }, [gradeFilter]);
 
   function openCreate() { setEditing(null); setForm(EMPTY); setModalOpen(true); }
   function openEdit(a: Announcement) {
@@ -77,7 +79,12 @@ export default function AnnouncementsPage() {
     await load();
   }
 
-  const pageSlice = paginate(announcements, page);
+  const filtered = announcements.filter((a) => {
+    if (gradeFilter === "all") return true;
+    if (!a.targetGrades?.length) return true; // all-grades announcements
+    return a.targetGrades.includes(gradeFilter);
+  });
+  const pageSlice = paginate(filtered, page);
 
   return (
     <AdminLayout>
@@ -97,6 +104,13 @@ export default function AnnouncementsPage() {
           <button onClick={openCreate} className="btn-primary flex items-center gap-2">
             <MdAdd size={18} /> New Announcement
           </button>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button type="button" onClick={() => setGradeFilter("all")} className={`filter-pill${gradeFilter === "all" ? " active" : ""}`}>All grades</button>
+          {GRADES.map((g) => (
+            <button key={g} type="button" onClick={() => setGradeFilter(g)} className={`filter-pill${gradeFilter === g ? " active" : ""}`}>{g}</button>
+          ))}
         </div>
 
         <div className="admin-card !p-0 overflow-hidden">

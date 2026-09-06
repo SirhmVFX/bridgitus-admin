@@ -10,6 +10,7 @@ import { paginate } from "@/lib/pagination";
 import {
   getAllStudents,
   deleteParentMessage,
+  updateParentMessage,
   type ParentMessage,
   type Student,
 } from "@/lib/firestore";
@@ -18,7 +19,7 @@ import { uploadToCloudinary } from "@/lib/cloudinary";
 import { useAuth } from "@/lib/auth";
 import {
   MdSend, MdEmail, MdSms, MdClose, MdDelete, MdVisibility, MdAttachFile,
-  MdPhone,
+  MdPhone, MdEdit,
 } from "react-icons/md";
 
 const GRADES = ["Pre-K","K","1","2","3","4","5","6","7","8","9","10","11","12"];
@@ -74,6 +75,11 @@ function ParentMessagesInner() {
   const [sendVia, setSendVia] = useState<"email" | "sms" | "both">("email");
   const [studentSearch, setStudentSearch] = useState("");
   const [page, setPage] = useState(1);
+  const [historyGradeFilter, setHistoryGradeFilter] = useState("all");
+  const [editingMsg, setEditingMsg] = useState<ParentMessage | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [editSaving, setEditSaving] = useState(false);
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
@@ -284,6 +290,28 @@ function ParentMessagesInner() {
     await loadData();
   }
 
+  function openEdit(msg: ParentMessage) {
+    setEditingMsg(msg);
+    setEditTitle(msg.title);
+    setEditBody(msg.body);
+  }
+
+  async function handleSaveEdit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!editingMsg?.id) return;
+    setEditSaving(true);
+    try {
+      await updateParentMessage(editingMsg.id, {
+        title: editTitle.trim(),
+        body: editBody.trim(),
+      });
+      setEditingMsg(null);
+      await loadData();
+    } finally {
+      setEditSaving(false);
+    }
+  }
+
   const filteredStudents = students.filter((s) => {
     const search = studentSearch.toLowerCase();
     if (!search) return true;
@@ -297,7 +325,23 @@ function ParentMessagesInner() {
     );
   });
 
-  const pageSlice = paginate(messageHistory, page);
+  const filteredHistory = messageHistory.filter((msg) => {
+    if (historyGradeFilter === "all") return true;
+    if (msg.recipientGrades?.includes(historyGradeFilter)) return true;
+    if (msg.recipientIds?.length) {
+      return msg.recipientIds.some((id) => {
+        const s = students.find((st) => st.id === id);
+        return s?.grade === historyGradeFilter;
+      });
+    }
+    return false;
+  });
+
+  const pageSlice = paginate(filteredHistory, page);
+
+  useEffect(() => {
+    setPage(1);
+  }, [historyGradeFilter]);
 
   function recipientSummary(msg: ParentMessage) {
     if (msg.recipientType === "all") {
@@ -366,13 +410,32 @@ function ParentMessagesInner() {
         )}
 
         <div className="admin-card !p-0 overflow-hidden">
+          <div className="flex flex-wrap gap-3 items-center px-4 py-3 border-b border-gray-100">
+            <select
+              value={historyGradeFilter}
+              onChange={(e) => setHistoryGradeFilter(e.target.value)}
+              className="admin-input w-auto text-sm"
+            >
+              <option value="all">All Grades</option>
+              {GRADES.map((g) => (
+                <option key={g} value={g}>
+                  Grade {g}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-gray-400">
+              {filteredHistory.length} message{filteredHistory.length !== 1 ? "s" : ""}
+            </span>
+          </div>
           {loading ? (
             <div className="p-8 text-center text-gray-400 text-sm">Loading…</div>
-          ) : messageHistory.length === 0 ? (
+          ) : filteredHistory.length === 0 ? (
             <div className="p-12 text-center">
               <MdSend size={40} className="mx-auto text-gray-300 mb-3" />
               <p className="text-gray-500">
-                No messages yet. Send one to a single parent or a group by email or SMS.
+                {messageHistory.length === 0
+                  ? "No messages yet. Send one to a single parent or a group by email or SMS."
+                  : "No messages match this grade filter."}
               </p>
             </div>
           ) : (
@@ -432,6 +495,13 @@ function ParentMessagesInner() {
                             title="View message"
                           >
                             <MdVisibility size={16} />
+                          </button>
+                          <button
+                            onClick={() => openEdit(msg)}
+                            className="p-1.5 text-gray-400 hover:text-[#00369b] transition-colors"
+                            title="Edit message"
+                          >
+                            <MdEdit size={16} />
                           </button>
                           <button
                             onClick={() => handleDelete(msg.id!)}
@@ -525,6 +595,52 @@ function ParentMessagesInner() {
                   </div>
                 )}
               </div>
+            </div>
+          </div>
+        </ModalPortal>
+      )}
+
+      {editingMsg && (
+        <ModalPortal>
+          <div className="modal-overlay" onClick={(e) => e.target === e.currentTarget && setEditingMsg(null)}>
+            <div className="modal-box max-w-lg">
+              <div className="modal-header">
+                <h2 className="font-semibold text-gray-900">Edit message record</h2>
+                <button onClick={() => setEditingMsg(null)} className="text-gray-400 hover:text-gray-600">
+                  <MdClose size={20} />
+                </button>
+              </div>
+              <form onSubmit={handleSaveEdit} className="p-6 space-y-4">
+                <p className="text-xs text-gray-500">
+                  Updates the stored message record. This does not re-send email or SMS.
+                </p>
+                <div>
+                  <label className="admin-label">Title *</label>
+                  <input
+                    required
+                    className="admin-input w-full"
+                    value={editTitle}
+                    onChange={(e) => setEditTitle(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="admin-label">Body *</label>
+                  <textarea
+                    required
+                    className="admin-input w-full min-h-[140px]"
+                    value={editBody}
+                    onChange={(e) => setEditBody(e.target.value)}
+                  />
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button type="button" onClick={() => setEditingMsg(null)} className="btn-secondary text-sm">
+                    Cancel
+                  </button>
+                  <button type="submit" disabled={editSaving} className="btn-primary text-sm">
+                    {editSaving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         </ModalPortal>
