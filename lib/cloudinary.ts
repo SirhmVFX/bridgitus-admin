@@ -1,12 +1,15 @@
 const MAX_SIZE_MB = 20;
-const MAX_SIZE_BYTES = MAX_SIZE_MB * 1024 * 1024;
+const MAX_VIDEO_MB = 40;
 
 export async function uploadToCloudinary(
   file: File,
-  folder = "bridgitus"
+  folder = "bridgitus",
+  options?: { maxMb?: number }
 ): Promise<string> {
-  if (file.size > MAX_SIZE_BYTES) {
-    throw new Error(`File exceeds the ${MAX_SIZE_MB}MB limit.`);
+  const maxMb = options?.maxMb ?? (file.type.startsWith("video/") ? MAX_VIDEO_MB : MAX_SIZE_MB);
+  const maxBytes = maxMb * 1024 * 1024;
+  if (file.size > maxBytes) {
+    throw new Error(`File exceeds the ${maxMb}MB limit.`);
   }
 
   const cloudName = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
