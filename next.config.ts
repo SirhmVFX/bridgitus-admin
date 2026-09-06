@@ -1,8 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Keep firebase-admin out of the serverless bundle (otherwise import fails on Vercel)
-  serverExternalPackages: ["firebase-admin"],
+  // Keep native/heavy packages out of the serverless bundle
+  serverExternalPackages: ["firebase-admin", "unpdf"],
 };
 
 export default nextConfig;
