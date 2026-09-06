@@ -106,6 +106,9 @@ export interface Question {
   points: number;
   explanation?: string;
   imageUrl?: string;        // optional diagram/illustration for the question
+  /** Uploaded video or external video URL (YouTube/Vimeo/direct) */
+  videoUrl?: string;
+  videoName?: string;
 }
 
 export interface LearningMaterial {
@@ -506,6 +509,108 @@ export async function getAttemptsByStudent(studentId: string): Promise<TestAttem
   return snap.docs
     .map((d) => ({ id: d.id, ...(d.data() as TestAttempt) }))
     .sort((a, b) => (b.submittedAt as Timestamp)?.toMillis() - (a.submittedAt as Timestamp)?.toMillis() || 0);
+}
+
+/** Delete all attempts for a student on a test so they can retake. */
+export async function clearAttemptsForRetake(
+  testId: string,
+  studentId: string,
+  studentUid?: string
+): Promise<number> {
+  const snaps = await Promise.all([
+    getDocs(
+      query(
+        collection(db, "testAttempts"),
+        where("testId", "==", testId),
+        where("studentId", "==", studentId)
+      )
+    ),
+    studentUid
+      ? getDocs(
+          query(
+            collection(db, "testAttempts"),
+            where("testId", "==", testId),
+            where("studentUid", "==", studentUid)
+          )
+        )
+      : Promise.resolve(null),
+  ]);
+
+  const byId = new Map<string, (typeof snaps)[0]["docs"][number]>();
+  for (const snap of snaps) {
+    if (!snap) continue;
+    for (const d of snap.docs) byId.set(d.id, d);
+  }
+  await Promise.all([...byId.values()].map((d) => deleteDoc(d.ref)));
+  return byId.size;
+}
+
+/** Delete assignment submissions for a student so they can retake. */
+export async function clearAssignmentSubmissionsForRetake(
+  assignmentId: string,
+  studentId: string,
+  studentUid?: string
+): Promise<number> {
+  const snaps = await Promise.all([
+    getDocs(
+      query(
+        collection(db, "assignmentSubmissions"),
+        where("assignmentId", "==", assignmentId),
+        where("studentId", "==", studentId)
+      )
+    ),
+    studentUid
+      ? getDocs(
+          query(
+            collection(db, "assignmentSubmissions"),
+            where("assignmentId", "==", assignmentId),
+            where("studentUid", "==", studentUid)
+          )
+        )
+      : Promise.resolve(null),
+  ]);
+
+  const byId = new Map<string, (typeof snaps)[0]["docs"][number]>();
+  for (const snap of snaps) {
+    if (!snap) continue;
+    for (const d of snap.docs) byId.set(d.id, d);
+  }
+  await Promise.all([...byId.values()].map((d) => deleteDoc(d.ref)));
+  return byId.size;
+}
+
+/** Delete NAPLAN/Selective practice attempts for a student so they can retake. */
+export async function clearPracticeAttemptsForRetake(
+  paperId: string,
+  studentId: string,
+  studentUid?: string
+): Promise<number> {
+  const snaps = await Promise.all([
+    getDocs(
+      query(
+        collection(db, "practiceAttempts"),
+        where("paperId", "==", paperId),
+        where("studentId", "==", studentId)
+      )
+    ),
+    studentUid
+      ? getDocs(
+          query(
+            collection(db, "practiceAttempts"),
+            where("paperId", "==", paperId),
+            where("studentUid", "==", studentUid)
+          )
+        )
+      : Promise.resolve(null),
+  ]);
+
+  const byId = new Map<string, (typeof snaps)[0]["docs"][number]>();
+  for (const snap of snaps) {
+    if (!snap) continue;
+    for (const d of snap.docs) byId.set(d.id, d);
+  }
+  await Promise.all([...byId.values()].map((d) => deleteDoc(d.ref)));
+  return byId.size;
 }
 
 export async function reviewAttempt(
@@ -1291,6 +1396,8 @@ export interface AIQuestion {
   subtopic?: string;
   difficulty?: string;
   imageUrl?: string;        // optional diagram/illustration for the question
+  videoUrl?: string;
+  videoName?: string;
 }
 
 export interface QuestionSet {
@@ -1330,6 +1437,7 @@ export interface AiPracticeAttempt {
   id?: string;
   studentId: string;
   studentUid: string;
+  studentName?: string;
   questionSetId?: string;
   questions: AIQuestion[];
   answers: Record<string, string>;
