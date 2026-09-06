@@ -114,8 +114,7 @@ export async function POST(request: NextRequest) {
         "Parent / Guardian";
       const student =
         [s.firstName, s.lastName].filter(Boolean).join(" ").trim() ||
-        s.studentId ||
-        "Unknown student";
+        (s.studentId ? `Student ${s.studentId}` : "Student (name unavailable)");
       return `${student} — ${parent}`;
     });
 
