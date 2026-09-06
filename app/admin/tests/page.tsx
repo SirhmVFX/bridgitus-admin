@@ -18,6 +18,7 @@ import {
   getAllQuestionSets,
   createAnnouncement,
   getAllStudents,
+  clearAttemptsForRetake,
   type Test,
   type TestAttempt,
   type Question,
@@ -26,11 +27,12 @@ import {
   type QuestionSet,
   type Student,
 } from "@/lib/firestore";
-import { personDisplayName, titleDisplayName } from "@/lib/displayName";
+import { personDisplayName, titleDisplayName, buildStudentLookup, resolveStudent } from "@/lib/displayName";
 import { adminFetch } from "@/lib/adminFetch";
 import { formatSchedule } from "@/lib/schedule";
 import { yearsMatch } from "@/lib/yearGrade";
 import PdfMcqImport from "@/components/PdfMcqImport";
+import QuestionMediaControls from "@/components/QuestionMediaControls";
 import {
   MdAdd,
   MdEdit,
@@ -44,6 +46,8 @@ import {
   MdPending,
   MdLibraryBooks,
   MdAutoAwesome,
+  MdReplay,
+  MdAttachFile,
 } from "react-icons/md";
 
 const GRADES = [
@@ -114,6 +118,11 @@ export default function TestsPage() {
   const [libLoading, setLibLoading] = useState(false);
   const [testsPage, setTestsPage] = useState(1);
   const [attemptsPage, setAttemptsPage] = useState(1);
+  const [resultsTestFilter, setResultsTestFilter] = useState<string>("all");
+  const [resultsGradeFilter, setResultsGradeFilter] = useState<string>("all");
+  const [testsGradeFilter, setTestsGradeFilter] = useState<string>("all");
+  const [testsTypeFilter, setTestsTypeFilter] = useState<string>("all");
+  const [testsSearch, setTestsSearch] = useState("");
 
   async function load() {
     try {
@@ -137,9 +146,7 @@ export default function TestsPage() {
     load();
   }, []);
 
-  const studentById = Object.fromEntries(
-    students.filter((s) => s.id).map((s) => [s.id!, s]),
-  );
+  const studentLookup = buildStudentLookup(students);
   const testById = Object.fromEntries(
     tests.filter((t) => t.id).map((t) => [t.id!, t]),
   );
@@ -147,7 +154,7 @@ export default function TestsPage() {
   function attemptStudentLabel(a: TestAttempt) {
     return personDisplayName({
       studentName: a.studentName,
-      student: studentById[a.studentId],
+      student: resolveStudent(studentLookup, a.studentId, a.studentUid),
     });
   }
 
@@ -156,6 +163,19 @@ export default function TestsPage() {
       a.testTitle || testById[a.testId]?.title,
       "Untitled test",
     );
+  }
+
+  async function handleRetake(a: TestAttempt) {
+    const name = attemptStudentLabel(a);
+    if (
+      !confirm(
+        `Allow ${name} to retake "${attemptTestLabel(a)}"? This clears their previous attempts for this test.`,
+      )
+    )
+      return;
+    const n = await clearAttemptsForRetake(a.testId, a.studentId, a.studentUid);
+    alert(`Cleared ${n} attempt(s). ${name} can take the test again.`);
+    await load();
   }
 
   function calcTotal(qs: Question[]) {
@@ -238,6 +258,8 @@ export default function TestsPage() {
         points: aq.points ?? 1,
         explanation: aq.explanation ?? "",
         ...(aq.imageUrl ? { imageUrl: aq.imageUrl } : {}),
+        ...(aq.videoUrl ? { videoUrl: aq.videoUrl } : {}),
+        ...(aq.videoName ? { videoName: aq.videoName } : {}),
       };
       return type === "multiple_choice"
         ? { ...base, options: aq.options ?? ["", "", "", ""] }
@@ -325,8 +347,31 @@ export default function TestsPage() {
   }
 
   const pending = attempts.filter((a) => a.status === "pending_review");
-  const testsSlice = paginate(tests, testsPage);
-  const attemptsSlice = paginate(attempts, attemptsPage);
+  const filteredTests = tests.filter((t) => {
+    if (testsGradeFilter !== "all" && t.grade !== testsGradeFilter) return false;
+    if (testsTypeFilter !== "all" && t.type !== testsTypeFilter) return false;
+    if (testsSearch.trim()) {
+      const q = testsSearch.toLowerCase();
+      const hay = `${t.title} ${t.subject} ${t.grade}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  const testsSlice = paginate(filteredTests, testsPage);
+  const filteredAttempts = attempts.filter((a) => {
+    if (resultsTestFilter !== "all" && a.testId !== resultsTestFilter) return false;
+    if (resultsGradeFilter !== "all") {
+      const test = testById[a.testId];
+      if (!test || test.grade !== resultsGradeFilter) return false;
+    }
+    return true;
+  });
+  const attemptsSlice = paginate(filteredAttempts, attemptsPage);
+  const testGrades = Array.from(new Set(tests.map((t) => t.grade).filter(Boolean))).sort();
+
+  useEffect(() => {
+    setTestsPage(1);
+  }, [testsGradeFilter, testsTypeFilter, testsSearch]);
 
   return (
     <AdminLayout>
@@ -376,16 +421,51 @@ export default function TestsPage() {
         </div>
 
         {tab === "tests" && (
+          <div className="space-y-3">
+            <div className="admin-card flex flex-wrap gap-3 items-center">
+              <input
+                value={testsSearch}
+                onChange={(e) => setTestsSearch(e.target.value)}
+                placeholder="Search tests…"
+                className="admin-input flex-1 min-w-44"
+              />
+              <select
+                value={testsGradeFilter}
+                onChange={(e) => setTestsGradeFilter(e.target.value)}
+                className="admin-input w-auto"
+              >
+                <option value="all">All Grades</option>
+                {testGrades.map((g) => (
+                  <option key={g} value={g}>
+                    Grade {g}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={testsTypeFilter}
+                onChange={(e) => setTestsTypeFilter(e.target.value)}
+                className="admin-input w-auto"
+              >
+                <option value="all">All Types</option>
+                <option value="test">Test</option>
+                <option value="exam">Exam</option>
+              </select>
+              <span className="text-xs text-gray-400">
+                {filteredTests.length} result{filteredTests.length !== 1 ? "s" : ""}
+              </span>
+            </div>
           <div className="admin-card !p-0 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-gray-400 text-sm">
                 Loading…
               </div>
-            ) : tests.length === 0 ? (
+            ) : filteredTests.length === 0 ? (
               <div className="p-12 text-center">
                 <MdQuiz size={40} className="mx-auto text-gray-300 mb-3" />
                 <p className="text-gray-500">
-                  No tests yet. Create your first one.
+                  {tests.length === 0
+                    ? "No tests yet. Create your first one."
+                    : "No tests match your filters."}
                 </p>
               </div>
             ) : (
@@ -451,8 +531,19 @@ export default function TestsPage() {
                             <button
                               onClick={() => openEdit(t)}
                               className="p-1.5 text-gray-400 hover:text-[#00369b]"
+                              title="Edit"
                             >
                               <MdEdit size={16} />
+                            </button>
+                            <button
+                              onClick={() => {
+                                setResultsTestFilter(t.id!);
+                                setTab("results");
+                              }}
+                              className="p-1.5 text-gray-400 hover:text-emerald-600"
+                              title="View results"
+                            >
+                              <MdVisibility size={16} />
                             </button>
                             <a
                               href={`/admin/analytics/test/${t.id}`}
@@ -488,9 +579,33 @@ export default function TestsPage() {
               </>
             )}
           </div>
+          </div>
         )}
 
         {tab === "results" && (
+          <div className="space-y-3">
+          <div className="flex flex-wrap gap-2 items-center">
+            <select
+              value={resultsTestFilter}
+              onChange={(e) => { setResultsTestFilter(e.target.value); setAttemptsPage(1); }}
+              className="admin-input !w-auto text-sm"
+            >
+              <option value="all">All tests</option>
+              {tests.map((tt) => (
+                <option key={tt.id} value={tt.id}>{tt.title}</option>
+              ))}
+            </select>
+            <select
+              value={resultsGradeFilter}
+              onChange={(e) => { setResultsGradeFilter(e.target.value); setAttemptsPage(1); }}
+              className="admin-input !w-auto text-sm"
+            >
+              <option value="all">All grades</option>
+              {GRADES.map((g) => (
+                <option key={g} value={g}>Grade {g}</option>
+              ))}
+            </select>
+          </div>
           <div className="admin-card !p-0 overflow-hidden">
             {loading ? (
               <div className="p-8 text-center text-gray-400 text-sm">
@@ -549,22 +664,47 @@ export default function TestsPage() {
                           </span>
                         </td>
                         <td>
-                          {a.status === "pending_review" && (
+                          <div className="flex flex-wrap items-center gap-1.5">
                             <button
                               onClick={() => {
                                 setReviewModal(a);
                                 setReviewComment("");
                               }}
-                              className="btn-primary text-xs py-1 px-3"
+                              className="btn-secondary text-xs py-1 px-2"
+                              title="View submission"
                             >
-                              Review
+                              View
                             </button>
-                          )}
-                          {a.status !== "pending_review" && (
-                            <span className="text-xs text-gray-400">
-                              {a.adminComment || "—"}
-                            </span>
-                          )}
+                            {a.attachmentUrl && (
+                              <a
+                                href={a.attachmentUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="btn-secondary text-xs py-1 px-2 inline-flex items-center gap-1"
+                                title={a.attachmentName || "Open attachment"}
+                              >
+                                <MdAttachFile size={12} /> File
+                              </a>
+                            )}
+                            {a.status === "pending_review" && (
+                              <button
+                                onClick={() => {
+                                  setReviewModal(a);
+                                  setReviewComment("");
+                                }}
+                                className="btn-primary text-xs py-1 px-2"
+                              >
+                                Review
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleRetake(a)}
+                              className="btn-secondary text-xs py-1 px-2 inline-flex items-center gap-1"
+                              title="Allow retake"
+                            >
+                              <MdReplay size={12} /> Retake
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -576,6 +716,7 @@ export default function TestsPage() {
                 />
               </>
             )}
+          </div>
           </div>
         )}
       </div>
@@ -589,7 +730,7 @@ export default function TestsPage() {
         >
           <div className="modal-box max-w-lg">
             <div className="modal-header">
-              <h2 className="font-semibold text-gray-900">Review Submission</h2>
+              <h2 className="font-semibold text-gray-900">{reviewModal.status === "pending_review" ? "Review Submission" : "Submission details"}</h2>
               <button
                 onClick={() => setReviewModal(null)}
                 className="text-gray-400 hover:text-gray-600"
@@ -1053,14 +1194,31 @@ export default function TestsPage() {
                             className="admin-input resize-none"
                             placeholder="Enter question…"
                           />
-                          {q.imageUrl && (
-                            // eslint-disable-next-line @next/next/no-img-element
-                            <img
-                              src={q.imageUrl}
-                              alt={`Diagram for question ${idx + 1}`}
-                              className="mt-2 max-h-48 w-auto border border-gray-200 object-contain bg-gray-50"
-                            />
-                          )}
+                          <QuestionMediaControls
+                            imageUrl={q.imageUrl}
+                            videoUrl={q.videoUrl}
+                            videoName={q.videoName}
+                            onChange={(patch) =>
+                              updateQ(idx, {
+                                ...(patch.imageUrl === null
+                                  ? { imageUrl: undefined }
+                                  : patch.imageUrl !== undefined
+                                    ? { imageUrl: patch.imageUrl }
+                                    : {}),
+                                ...(patch.videoUrl === null
+                                  ? { videoUrl: undefined, videoName: undefined }
+                                  : patch.videoUrl !== undefined
+                                    ? {
+                                        videoUrl: patch.videoUrl,
+                                        videoName:
+                                          patch.videoName === null
+                                            ? undefined
+                                            : patch.videoName ?? q.videoName,
+                                      }
+                                    : {}),
+                              })
+                            }
+                          />
                         </div>
                         {q.type === "multiple_choice" && (
                           <div>
