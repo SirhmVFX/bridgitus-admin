@@ -548,6 +548,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                     <th>Type</th>
                     <th>Subject</th>
                     <th>Grades</th>
+                    <th>Opens</th>
                     <th>Due</th>
                     <th>Status</th>
                     <th>Actions</th>
@@ -575,6 +576,9 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                       <td className="text-gray-600">{a.subject}</td>
                       <td className="text-gray-500 text-xs">
                         {a.targetGrades.map((g) => `G${g}`).join(", ")}
+                      </td>
+                      <td className="text-gray-500 text-xs">
+                        {a.startAt ? formatSchedule(a.startAt) : "—"}
                       </td>
                       <td className="text-gray-500 text-xs">
                         {formatSchedule(a.dueAt || a.dueDate)}
@@ -881,7 +885,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                     />
                   </div>
                   <div>
-                    <label className="admin-label">Start date &amp; time</label>
+                    <label className="admin-label">Opens at</label>
                     <input
                       type="datetime-local"
                       value={form.startAt ?? ""}
@@ -890,9 +894,12 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                       }
                       className="admin-input"
                     />
+                    <p className="text-[11px] text-slate-400 mt-1">
+                      Students cannot start before this date/time. Leave blank to open immediately.
+                    </p>
                   </div>
                   <div>
-                    <label className="admin-label">Due date &amp; time</label>
+                    <label className="admin-label">Due at</label>
                     <input
                       type="datetime-local"
                       value={form.dueAt ?? ""}
