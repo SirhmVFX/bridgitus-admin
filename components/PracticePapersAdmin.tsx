@@ -957,6 +957,20 @@ export default function PracticePapersAdmin({
                                 )}
                               </div>
                             )}
+                            <div className="mt-2">
+                              <label className="admin-label">
+                                Answer explanation (shown after)
+                              </label>
+                              <textarea
+                                value={q.explanation ?? ""}
+                                onChange={(e) =>
+                                  updateQ(qi, { explanation: e.target.value })
+                                }
+                                rows={2}
+                                className="admin-input resize-none"
+                                placeholder="Optional explanation students see after answering…"
+                              />
+                            </div>
                           </div>
                         ))}
                       </div>
