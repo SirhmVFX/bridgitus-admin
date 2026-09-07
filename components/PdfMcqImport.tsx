@@ -142,6 +142,10 @@ export default function PdfMcqImport({ onImported, className = "" }: Props) {
                       Correct answers indicated (e.g. Answer: B, or * next to correct
                       option, or an answer key section)
                     </li>
+                    <li>
+                      Embedded diagrams/graphs/images are imported when present and
+                      attached to the matching question (vector-only drawings may not extract)
+                    </li>
                     <li>Prefer English; max ~50 questions per PDF</li>
                     <li>File size under 20MB</li>
                   </ol>
@@ -161,7 +165,7 @@ export default function PdfMcqImport({ onImported, className = "" }: Props) {
 
                 {loading && (
                   <p className="text-sm text-[#00369b] font-medium">
-                    Extracting text and converting to MCQs… this can take a minute.
+                    Extracting text, diagrams, and converting to MCQs… this can take a minute.
                   </p>
                 )}
 

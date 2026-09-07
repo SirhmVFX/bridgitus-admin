@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { extractText, getDocumentProxy } from "unpdf";
 import { parseMcqFromText, isAiConfigured, aiConfigError } from "@/lib/ai";
 import { parseMcqLocally } from "@/lib/parseMcqLocal";
+import { attachPdfImagesToQuestions } from "@/lib/pdfMcqImages";
 import { requireAdmin, isAdminAuthOk } from "@/lib/requireAdmin";
 import type { Question } from "@/lib/firestore";
 
@@ -42,11 +43,14 @@ export async function POST(request: Request) {
     }
 
     const bytes = new Uint8Array(await file.arrayBuffer());
+    let pdf;
     let extracted = "";
     try {
-      const pdf = await getDocumentProxy(bytes);
+      pdf = await getDocumentProxy(bytes);
       const { text } = await extractText(pdf, { mergePages: true });
-      extracted = (Array.isArray(text) ? (text as string[]).join("\n") : String(text ?? "")).trim();
+      extracted = (
+        Array.isArray(text) ? (text as string[]).join("\n") : String(text ?? "")
+      ).trim();
     } catch (parseErr) {
       console.error("unpdf extract error:", parseErr);
       const detail =
@@ -102,6 +106,18 @@ export async function POST(request: Request) {
           preview: extracted.slice(0, 400),
         },
         { status: 422 },
+      );
+    }
+
+    // Attach embedded diagrams/graphs from the PDF when present
+    try {
+      const imaged = await attachPdfImagesToQuestions(pdf, questions);
+      questions = imaged.questions;
+      warnings.push(...imaged.warnings);
+    } catch (imgErr) {
+      console.error("attachPdfImagesToQuestions error:", imgErr);
+      warnings.push(
+        "Questions imported, but diagram extraction failed. You can upload images manually per question.",
       );
     }
 
