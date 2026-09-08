@@ -137,7 +137,7 @@ export interface Test {
   description: string;
   grade: string;
   subject: string;
-  type: "test" | "exam";
+  type: "test" | "exam" | "diagnostic" | "assessment";
   questions: Question[];
   totalPoints: number;
   passMark: number;
@@ -1076,6 +1076,10 @@ export interface ParentMessage {
   attachmentUrl?: string;
   attachmentName?: string;
   sentAt?: Timestamp | string | null;
+  /** ISO datetime when this message should be delivered */
+  scheduledAt?: Timestamp | string | null;
+  /** pending | scheduled | sent | failed */
+  status?: "pending" | "scheduled" | "sent" | "failed";
   sentByEmail?: boolean;
   sentBySms?: boolean;
   emailCount?: number;
