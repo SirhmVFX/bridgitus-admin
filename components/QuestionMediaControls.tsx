@@ -151,14 +151,49 @@ export default function QuestionMediaControls({
           <p className="text-xs font-semibold text-slate-700 flex items-center gap-1">
             <MdVideocam size={14} /> {videoName || "Video attached"}
           </p>
-          <a
-            href={videoUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-[#00369b] hover:underline break-all"
-          >
-            {videoUrl}
-          </a>
+          {/youtube\.com|youtu\.be|vimeo\.com/i.test(videoUrl) ? (
+            <div
+              className="relative w-full overflow-hidden rounded-lg border border-gray-200 bg-black"
+              style={{ paddingTop: "56.25%" }}
+            >
+              <iframe
+                src={
+                  (() => {
+                    try {
+                      const u = new URL(videoUrl);
+                      const host = u.hostname.replace(/^www\./, "");
+                      if (host === "youtu.be") {
+                        const id = u.pathname.replace(/^\//, "");
+                        return id ? `https://www.youtube.com/embed/${id}` : videoUrl;
+                      }
+                      if (host.includes("youtube.com")) {
+                        const id = u.searchParams.get("v") || u.pathname.split("/embed/")[1];
+                        return id ? `https://www.youtube.com/embed/${id}` : videoUrl;
+                      }
+                      if (host.includes("vimeo.com")) {
+                        const id = u.pathname.split("/").filter(Boolean)[0];
+                        return id ? `https://player.vimeo.com/video/${id}` : videoUrl;
+                      }
+                    } catch {
+                      /* fall through */
+                    }
+                    return videoUrl;
+                  })()
+                }
+                title={videoName || "Question video"}
+                className="absolute inset-0 h-full w-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          ) : (
+            <video
+              src={videoUrl}
+              controls
+              playsInline
+              className="w-full max-h-56 rounded-lg border border-gray-200 bg-black"
+            />
+          )}
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
