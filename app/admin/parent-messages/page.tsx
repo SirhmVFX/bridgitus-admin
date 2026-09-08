@@ -27,7 +27,7 @@ const ATTACH_ACCEPT = ".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,application/pd
 
 type RecipientMode = "all" | "single" | "specific";
 
-function formatWhen(value: ParentMessage["sentAt"] | ParentMessage["createdAt"]) {
+function formatWhen(value: ParentMessage["sentAt"] | ParentMessage["createdAt"] | ParentMessage["scheduledAt"]) {
   if (!value) return "—";
   if (typeof value === "string") {
     const d = new Date(value);
@@ -83,6 +83,7 @@ function ParentMessagesInner() {
   const [attachmentUrl, setAttachmentUrl] = useState<string | null>(null);
   const [attachmentName, setAttachmentName] = useState<string | null>(null);
   const [uploadingAttachment, setUploadingAttachment] = useState(false);
+  const [scheduledAt, setScheduledAt] = useState("");
   const attachRef = useRef<HTMLInputElement>(null);
   const prefillHandled = useRef(false);
 
@@ -139,9 +140,18 @@ function ParentMessagesInner() {
   }
 
   function toggleGrade(grade: string) {
-    setSelectedGrades((prev) =>
-      prev.includes(grade) ? prev.filter((x) => x !== grade) : [...prev, grade],
-    );
+    setSelectedGrades((prev) => {
+      const next = prev.includes(grade) ? prev.filter((x) => x !== grade) : [...prev, grade];
+      if (next.length > 0) {
+        setSelectedStudentIds((ids) =>
+          ids.filter((id) => {
+            const s = students.find((st) => st.id === id);
+            return s ? next.includes(s.grade) : false;
+          }),
+        );
+      }
+      return next;
+    });
   }
 
   function getRecipientCount() {
@@ -168,6 +178,7 @@ function ParentMessagesInner() {
     setStudentSearch("");
     setAttachmentUrl(null);
     setAttachmentName(null);
+    setScheduledAt("");
     if (attachRef.current) attachRef.current.value = "";
   }
 
@@ -243,6 +254,9 @@ function ParentMessagesInner() {
                 attachmentName: attachmentName || "Attachment",
               }
             : {}),
+          ...(scheduledAt
+            ? { scheduledAt: new Date(scheduledAt).toISOString() }
+            : {}),
         }),
       });
 
@@ -313,6 +327,9 @@ function ParentMessagesInner() {
   }
 
   const filteredStudents = students.filter((s) => {
+    if (recipientType === "specific" && selectedGrades.length > 0) {
+      if (!selectedGrades.includes(s.grade)) return false;
+    }
     const search = studentSearch.toLowerCase();
     if (!search) return true;
     return (
@@ -403,6 +420,11 @@ function ParentMessagesInner() {
           </button>
         </div>
 
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          Messages show the <strong>date and time</strong> they were sent or scheduled.
+          Use <strong>Schedule send</strong> when composing to deliver later.
+        </div>
+
         {loadError && (
           <div className="admin-card border-amber-200 bg-amber-50 text-amber-800 text-sm">
             {loadError}
@@ -478,14 +500,20 @@ function ParentMessagesInner() {
                         {msg.smsSentCount ?? (msg.sentBySms ? msg.smsCount : 0)} SMS
                       </td>
                       <td>
-                        {msg.sentAt || msg.sentByEmail || msg.sentBySms ? (
+                        {msg.status === "scheduled" || (msg.scheduledAt && !msg.sentAt) ? (
+                          <span className="badge badge-blue">Scheduled</span>
+                        ) : msg.sentAt || msg.sentByEmail || msg.sentBySms || msg.status === "sent" ? (
                           <span className="badge badge-green">Sent</span>
+                        ) : msg.status === "failed" ? (
+                          <span className="badge badge-red">Failed</span>
                         ) : (
                           <span className="badge badge-yellow">Not delivered</span>
                         )}
                       </td>
                       <td className="text-xs text-slate-500">
-                        {formatWhen(msg.sentAt ?? msg.createdAt)}
+                        {msg.status === "scheduled" || (msg.scheduledAt && !msg.sentAt)
+                          ? `Scheduled ${formatWhen(msg.scheduledAt)}`
+                          : formatWhen(msg.sentAt ?? msg.createdAt)}
                       </td>
                       <td>
                         <div className="flex items-center gap-1">
@@ -871,7 +899,11 @@ function ParentMessagesInner() {
                         </div>
                       </div>
                       <div>
-                        <p className="text-xs font-semibold text-slate-500 mb-2">Or pick students</p>
+                        <p className="text-xs font-semibold text-slate-500 mb-2">
+                          {selectedGrades.length > 0
+                            ? `Students in Grade ${selectedGrades.join(", ")} (or pick individuals)`
+                            : "Or pick students"}
+                        </p>
                         <input
                           value={studentSearch}
                           onChange={(e) => setStudentSearch(e.target.value)}
@@ -879,26 +911,34 @@ function ParentMessagesInner() {
                           placeholder="Search students…"
                         />
                         <div className="max-h-40 overflow-y-auto space-y-1">
-                          {filteredStudents.slice(0, 40).map((s) => (
-                            <label
-                              key={s.id}
-                              className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
-                            >
-                              <input
-                                type="checkbox"
-                                checked={selectedStudentIds.includes(s.id!)}
-                                onChange={() => toggleStudentId(s.id!)}
-                              />
-                              <span>
-                                <span className="font-medium text-[#001233]">
-                                  {studentLabel(s)} — {parentLabel(s)}
+                          {filteredStudents.length === 0 ? (
+                            <p className="text-xs text-slate-400 px-2 py-3">
+                              {selectedGrades.length > 0
+                                ? "No students found for the selected grade(s)."
+                                : "No students match your search."}
+                            </p>
+                          ) : (
+                            filteredStudents.slice(0, 40).map((s) => (
+                              <label
+                                key={s.id}
+                                className="flex items-center gap-2 text-sm px-2 py-1.5 rounded-lg hover:bg-slate-50 cursor-pointer"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={selectedStudentIds.includes(s.id!)}
+                                  onChange={() => toggleStudentId(s.id!)}
+                                />
+                                <span>
+                                  <span className="font-medium text-[#001233]">
+                                    {studentLabel(s)} — {parentLabel(s)}
+                                  </span>
+                                  <span className="text-xs text-slate-400 ml-1">
+                                    · Grade {s.grade} · {s.parentEmail || "no email"}
+                                  </span>
                                 </span>
-                                <span className="text-xs text-slate-400 ml-1">
-                                  · Grade {s.grade} · {s.parentEmail || "no email"}
-                                </span>
-                              </span>
-                            </label>
-                          ))}
+                              </label>
+                            ))
+                          )}
                         </div>
                       </div>
                     </div>
@@ -911,6 +951,30 @@ function ParentMessagesInner() {
                         : "No student / parent selected yet"
                       : `~${getRecipientCount()} parent contact(s) selected`}
                   </p>
+                </div>
+
+                
+                <div className="border border-slate-200 rounded-xl p-4 space-y-2">
+                  <label className="admin-label">Schedule send (optional)</label>
+                  <input
+                    type="datetime-local"
+                    value={scheduledAt}
+                    onChange={(e) => setScheduledAt(e.target.value)}
+                    className="admin-input"
+                  />
+                  <p className="text-[11px] text-slate-400">
+                    Leave blank to send immediately. Set a future date and time to deliver later.
+                    Scheduled messages are sent automatically within a few minutes of the chosen time.
+                  </p>
+                  {scheduledAt && (
+                    <button
+                      type="button"
+                      onClick={() => setScheduledAt("")}
+                      className="text-xs text-red-500 hover:underline"
+                    >
+                      Clear schedule (send now)
+                    </button>
+                  )}
                 </div>
 
                 {sendResult && (
@@ -936,10 +1000,14 @@ function ParentMessagesInner() {
                   >
                     <MdSend size={16} />
                     {sending
-                      ? "Sending…"
-                      : recipientType === "single"
-                        ? "Send to this parent"
-                        : "Send to parents"}
+                      ? scheduledAt
+                        ? "Scheduling…"
+                        : "Sending…"
+                      : scheduledAt
+                        ? "Schedule message"
+                        : recipientType === "single"
+                          ? "Send to this parent"
+                          : "Send to parents"}
                   </button>
                 </div>
               </form>
