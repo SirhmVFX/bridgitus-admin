@@ -44,6 +44,7 @@ import {
 } from "react-icons/md";
 import PdfMcqImport from "@/components/PdfMcqImport";
 import QuestionMediaControls from "@/components/QuestionMediaControls";
+import SubmittedFileButton from "@/components/SubmittedFileButton";
 
 const QUIZ_TYPES = new Set(["quiz", "exam", "test"]);
 
@@ -551,19 +552,13 @@ export default function PracticePapersAdmin({
                             {att.feedback}
                           </p>
                         )}
-                        {att.attachmentUrl && (
-                          <p className="text-xs mt-2">
-                            <a
-                              href={att.attachmentUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[#00369b] hover:underline font-medium inline-flex items-center gap-1"
-                            >
-                              <MdAttachFile size={12} />
-                              {att.attachmentName || "Download attachment"}
-                            </a>
-                          </p>
-                        )}
+                        <div className="mt-2">
+                          <SubmittedFileButton
+                            url={att.attachmentUrl}
+                            name={att.attachmentName}
+                            emptyLabel=""
+                          />
+                        </div>
                         <button
                           type="button"
                           onClick={() => handlePracticeRetake(att)}

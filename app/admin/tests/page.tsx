@@ -31,8 +31,15 @@ import { personDisplayName, titleDisplayName, buildStudentLookup, resolveStudent
 import { adminFetch } from "@/lib/adminFetch";
 import { formatSchedule } from "@/lib/schedule";
 import { yearsMatch } from "@/lib/yearGrade";
+import {
+  ASSESSMENT_TYPES,
+  assessmentTypeLabel,
+  assessmentTypeBadgeClass,
+  type AssessmentType,
+} from "@/lib/assessmentTypes";
 import PdfMcqImport from "@/components/PdfMcqImport";
 import QuestionMediaControls from "@/components/QuestionMediaControls";
+import SubmittedFileButton from "@/components/SubmittedFileButton";
 import {
   MdAdd,
   MdEdit,
@@ -47,7 +54,6 @@ import {
   MdLibraryBooks,
   MdAutoAwesome,
   MdReplay,
-  MdAttachFile,
 } from "react-icons/md";
 
 const GRADES = [
@@ -301,7 +307,7 @@ export default function TestsPage() {
           title: editing
             ? `Updated ${data.type}: ${data.title}`
             : `New ${data.type}: ${data.title}`,
-          body: `A new ${data.type === "exam" ? "exam" : "test"} is now published for Grade ${data.grade}. Check your portal to start it now.`,
+          body: `A new ${assessmentTypeLabel(data.type).toLowerCase()} is now published for Grade ${data.grade}. Check your portal to start it now.`,
           targetGrades: [data.grade],
           pinned: false,
           published: true,
@@ -311,7 +317,7 @@ export default function TestsPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            type: data.type === "exam" ? "exam" : "test",
+            type: data.type,
             title: data.title,
             subject: data.subject,
             description: data.description,
@@ -328,7 +334,7 @@ export default function TestsPage() {
   }
 
   async function handleDelete(id: string) {
-    if (!confirm("Delete this test?")) return;
+    if (!confirm("Delete this assessment?")) return;
     await deleteTest(id);
     await load();
   }
@@ -382,10 +388,10 @@ export default function TestsPage() {
               Assessments
             </p>
             <h1 className="text-2xl lg:text-[1.75rem] font-extrabold text-[#001233] tracking-tight">
-              Tests &amp; Exams
+              Assessments
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              Create assessments and review student results
+              Create diagnostics, assessments, tests, and exams — review submissions and results
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -393,7 +399,7 @@ export default function TestsPage() {
               onClick={openCreate}
               className="btn-primary flex items-center gap-2"
             >
-              <MdAdd size={18} /> Create Test
+              <MdAdd size={18} /> Create Assessment
             </button>
             <a
               href="/admin/question-library"
@@ -447,8 +453,9 @@ export default function TestsPage() {
                 className="admin-input w-auto"
               >
                 <option value="all">All Types</option>
-                <option value="test">Test</option>
-                <option value="exam">Exam</option>
+                {ASSESSMENT_TYPES.map((ty) => (
+                  <option key={ty} value={ty}>{assessmentTypeLabel(ty)}</option>
+                ))}
               </select>
               <span className="text-xs text-gray-400">
                 {filteredTests.length} result{filteredTests.length !== 1 ? "s" : ""}
@@ -508,10 +515,8 @@ export default function TestsPage() {
                         </td>
                         <td className="text-gray-600">{t.subject}</td>
                         <td>
-                          <span
-                            className={`badge ${t.type === "exam" ? "badge-red" : "badge-blue"}`}
-                          >
-                            {t.type}
+                          <span className={`badge ${assessmentTypeBadgeClass(t.type)}`}>
+                            {assessmentTypeLabel(t.type)}
                           </span>
                         </td>
                         <td className="text-gray-600">
@@ -584,6 +589,11 @@ export default function TestsPage() {
 
         {tab === "results" && (
           <div className="space-y-3">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+            <strong className="text-slate-800">Student file submissions:</strong> use the
+            <span className="font-semibold"> Submitted file </span>
+            column — click <span className="font-semibold">View submitted file</span> when a student uploaded a PDF or document with their attempt.
+          </div>
           <div className="flex flex-wrap gap-2 items-center">
             <select
               value={resultsTestFilter}
@@ -622,10 +632,11 @@ export default function TestsPage() {
                   <thead>
                     <tr>
                       <th>Student</th>
-                      <th>Test</th>
+                      <th>Assessment</th>
                       <th>Attempt</th>
                       <th>Score</th>
                       <th>Status</th>
+                      <th>Submitted file</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -664,6 +675,12 @@ export default function TestsPage() {
                           </span>
                         </td>
                         <td>
+                          <SubmittedFileButton
+                            url={a.attachmentUrl}
+                            name={a.attachmentName}
+                          />
+                        </td>
+                        <td>
                           <div className="flex flex-wrap items-center gap-1.5">
                             <button
                               onClick={() => {
@@ -675,17 +692,6 @@ export default function TestsPage() {
                             >
                               View
                             </button>
-                            {a.attachmentUrl && (
-                              <a
-                                href={a.attachmentUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="btn-secondary text-xs py-1 px-2 inline-flex items-center gap-1"
-                                title={a.attachmentName || "Open attachment"}
-                              >
-                                <MdAttachFile size={12} /> File
-                              </a>
-                            )}
                             {a.status === "pending_review" && (
                               <button
                                 onClick={() => {
@@ -758,17 +764,13 @@ export default function TestsPage() {
                   {reviewModal.passed ? "✅ Yes" : "❌ No"}
                 </p>
                 {reviewModal.attachmentUrl && (
-                  <p>
-                    <span className="font-semibold">Attachment:</span>{" "}
-                    <a
-                      href={reviewModal.attachmentUrl}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#00369b] hover:underline"
-                    >
-                      {reviewModal.attachmentName || "Download file"}
-                    </a>
-                  </p>
+                  <div className="pt-1">
+                    <p className="font-semibold text-sm text-gray-700 mb-2">Submitted file</p>
+                    <SubmittedFileButton
+                      url={reviewModal.attachmentUrl}
+                      name={reviewModal.attachmentName}
+                    />
+                  </div>
                 )}
               </div>
               <div>
@@ -950,7 +952,7 @@ export default function TestsPage() {
           <div className="modal-box" style={{ maxWidth: 860 }}>
             <div className="modal-header">
               <h2 className="font-semibold text-gray-900">
-                {editing ? "Edit Test" : "Create Test / Exam"}
+                {editing ? "Edit Test" : "Create Assessment / Exam"}
               </h2>
               <button
                 onClick={() => setModalOpen(false)}
@@ -1013,13 +1015,14 @@ export default function TestsPage() {
                     onChange={(e) =>
                       setForm({
                         ...form,
-                        type: e.target.value as "test" | "exam",
+                        type: e.target.value as AssessmentType,
                       })
                     }
                     className="admin-input"
                   >
-                    <option value="test">Test</option>
-                    <option value="exam">Exam</option>
+                    {ASSESSMENT_TYPES.map((ty) => (
+                      <option key={ty} value={ty}>{assessmentTypeLabel(ty)}</option>
+                    ))}
                   </select>
                 </div>
                 <div>
@@ -1358,7 +1361,7 @@ export default function TestsPage() {
                     ? "Saving…"
                     : editing
                       ? "Save Changes"
-                      : "Create Test"}
+                      : "Create Assessment"}
                 </button>
                 <button
                   type="button"

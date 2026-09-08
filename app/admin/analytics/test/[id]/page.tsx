@@ -5,7 +5,9 @@ import Link from "next/link";
 import AdminLayout from "@/components/AdminLayout";
 import { getTestById, getAttemptsByTest, getAllStudents, type Test, type TestAttempt, type Student } from "@/lib/firestore";
 import { personDisplayName, buildStudentLookup, resolveStudent } from "@/lib/displayName";
-import { MdArrowBack, MdCheckCircle, MdCancel, MdPending, MdQuiz, MdAttachFile } from "react-icons/md";
+import { MdArrowBack, MdCheckCircle, MdCancel, MdPending, MdQuiz } from "react-icons/md";
+import { assessmentTypeLabel } from "@/lib/assessmentTypes";
+import SubmittedFileButton from "@/components/SubmittedFileButton";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 
 export default function TestAnalyticsPage() {
@@ -47,7 +49,7 @@ export default function TestAnalyticsPage() {
                 <MdQuiz size={24} className={test.type === "exam" ? "text-red-500" : "text-[#00369b]"}/>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">{test.title}</h1>
-                  <p className="text-gray-500 text-sm">{test.subject} · Grade {test.grade} · {test.type} · Pass mark: {test.passMark}%</p>
+                  <p className="text-gray-500 text-sm">{test.subject} · Grade {test.grade} · {assessmentTypeLabel(test.type)} · Pass mark: {test.passMark}%</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
@@ -71,7 +73,7 @@ export default function TestAnalyticsPage() {
                 <p className="text-sm text-gray-400 text-center py-8">No submissions yet.</p>
               ) : (
                 <table className="admin-table">
-                  <thead><tr><th>Student</th><th>Attempts</th><th>Best Score</th><th>Attachment</th><th>Status</th><th></th></tr></thead>
+                  <thead><tr><th>Student</th><th>Attempts</th><th>Best Score</th><th>Submitted file</th><th>Status</th><th></th></tr></thead>
                   <tbody>
                     {Object.entries(byStudent).map(([studentId, atts]) => {
                       const s = resolveStudent(studentLookup, studentId, atts[0]?.studentUid);
@@ -99,19 +101,10 @@ export default function TestAnalyticsPage() {
                           <td className="text-gray-600">{atts.length}</td>
                           <td>{best !== null ? <span className={`font-bold ${best >= test.passMark ? "text-emerald-600" : "text-red-500"}`}>{best}%</span> : <span className="text-gray-400">—</span>}</td>
                           <td>
-                            {withFile?.attachmentUrl ? (
-                              <a
-                                href={withFile.attachmentUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-[#00369b] hover:underline inline-flex items-center gap-1"
-                              >
-                                <MdAttachFile size={12} />
-                                {withFile.attachmentName || "Open file"}
-                              </a>
-                            ) : (
-                              <span className="text-xs text-gray-400">—</span>
-                            )}
+                            <SubmittedFileButton
+                              url={withFile?.attachmentUrl}
+                              name={withFile?.attachmentName}
+                            />
                           </td>
                           <td>
                             {hasPassed ? <span className="badge badge-green flex items-center gap-1"><MdCheckCircle size={11}/>Passed</span>

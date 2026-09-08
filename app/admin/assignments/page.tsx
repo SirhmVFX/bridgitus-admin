@@ -34,6 +34,7 @@ import { setYearMatchesTarget } from "@/lib/yearGrade";
 import { personDisplayName } from "@/lib/displayName";
 import PdfMcqImport from "@/components/PdfMcqImport";
 import QuestionMediaControls from "@/components/QuestionMediaControls";
+import SubmittedFileButton from "@/components/SubmittedFileButton";
 import {
   MdAdd,
   MdEdit,
@@ -499,6 +500,11 @@ ${data.description ? `\n\n${data.description}` : ""}`,
           </button>
         </div>
 
+        <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+          <strong className="text-slate-800">Student uploaded files:</strong> open submissions with the eye icon.
+          Each student row shows a <span className="font-semibold">View submitted file</span> button when they uploaded a PDF/document.
+        </div>
+
         <div className="admin-card flex flex-wrap gap-3 items-center">
           <div className="relative flex-1 min-w-48">
             <MdSearch
@@ -605,7 +611,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                           <button
                             onClick={() => openSubmissions(a)}
                             className="p-1.5 text-gray-400 hover:text-[#00369b]"
-                            title="View submissions"
+                            title="View submissions & student files"
                           >
                             <MdVisibility size={16} />
                           </button>
@@ -684,7 +690,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                         key={sub.id}
                         className="border border-gray-200 rounded-xl p-4"
                       >
-                        <div className="flex items-start justify-between">
+                        <div className="flex items-start justify-between gap-3">
                           <div>
                             <p className="font-medium text-gray-800">
                               {studentName(sub.studentId, sub.studentName)}
@@ -695,12 +701,17 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                               {sub.status}
                             </span>
                           </div>
-                          <div className="text-right">
+                          <div className="text-right space-y-2">
                             {sub.score !== undefined && (
                               <p className="font-bold text-[#00369b]">
                                 {sub.score}/{subModal.a.maxScore}
                               </p>
                             )}
+                            <SubmittedFileButton
+                              url={sub.attachmentUrl}
+                              name={sub.attachmentName}
+                              emptyLabel=""
+                            />
                             {sub.status === "submitted" &&
                               gradingId !== sub.id && (
                                 <button
@@ -709,7 +720,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                                     setGradeScore("");
                                     setGradeFeedback("");
                                   }}
-                                  className="btn-primary text-xs py-1 px-2 mt-1 flex items-center gap-1"
+                                  className="btn-primary text-xs py-1 px-2 mt-1 flex items-center gap-1 ml-auto"
                                 >
                                   <MdGrade size={12} /> Grade
                                 </button>
@@ -719,18 +730,6 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                         {sub.feedback && (
                           <p className="text-xs text-gray-500 mt-2 italic">
                             {sub.feedback}
-                          </p>
-                        )}
-                        {sub.attachmentUrl && (
-                          <p className="text-xs mt-2">
-                            <a
-                              href={sub.attachmentUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-[#00369b] hover:underline font-medium"
-                            >
-                              {sub.attachmentName || "Download attachment"}
-                            </a>
                           </p>
                         )}
                         {(sub.status === "submitted" ||
