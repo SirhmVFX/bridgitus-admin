@@ -19,7 +19,10 @@ import {
   MdCreditCard,
   MdWarning,
   MdRefresh,
+  MdLockOpen,
 } from "react-icons/md";
+import ReactivateAccessModal from "@/components/ReactivateAccessModal";
+import Link from "next/link";
 
 const CURRENCY = (
   process.env.NEXT_PUBLIC_PAYMENT_CURRENCY || "AUD"
@@ -78,6 +81,7 @@ export default function PaymentsPage() {
   // Auto-pay setup modal
   const [setupFor, setSetupFor] = useState<Student | null>(null);
   const [interval, setIntervalValue] = useState<"weekly" | "monthly">("weekly");
+  const [reactivateFor, setReactivateFor] = useState<Student | null>(null);
   const [amount, setAmount] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [cancellingFor, setCancellingFor] = useState<string | null>(null);
@@ -439,31 +443,50 @@ export default function PaymentsPage() {
                           )}
                         </td>
                         <td>
-                          {autoPayActive ? (
+                          <div className="flex flex-col gap-1.5 items-start">
                             <button
-                              onClick={() => handleCancelAutoPay(s)}
-                              disabled={cancellingFor === s.id}
-                              className="text-xs font-semibold text-red-600 hover:text-red-800 flex items-center gap-1 disabled:opacity-50"
+                              type="button"
+                              onClick={() => setReactivateFor(s)}
+                              className="text-xs font-semibold text-[#00369b] hover:underline flex items-center gap-1"
                             >
-                              <MdCancel size={13} />{" "}
-                              {cancellingFor === s.id
-                                ? "Cancelling…"
-                                : "Cancel auto-pay"}
+                              <MdLockOpen size={13} />
+                              {s.status === "suspended" ||
+                              s.paymentStatus === "expired"
+                                ? "Reactivate"
+                                : "Extend"}
                             </button>
-                          ) : (
-                            <button
-                              onClick={() => openSetup(s)}
-                              disabled={!s.stripePaymentMethod?.paymentMethodId}
-                              title={
-                                s.stripePaymentMethod?.paymentMethodId
-                                  ? "Set up automatic direct debit"
-                                  : "Student must complete one Stripe payment first to save a card"
-                              }
-                              className="text-xs font-semibold text-[#00369b] hover:underline flex items-center gap-1 disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                            <Link
+                              href={`/admin/students/${s.id}`}
+                              className="text-[11px] text-gray-400 hover:text-gray-600"
                             >
-                              <MdAutorenew size={13} /> Set up auto-pay
-                            </button>
-                          )}
+                              View student
+                            </Link>
+                            {autoPayActive ? (
+                              <button
+                                onClick={() => handleCancelAutoPay(s)}
+                                disabled={cancellingFor === s.id}
+                                className="text-xs font-semibold text-red-600 hover:text-red-800 flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <MdCancel size={13} />{" "}
+                                {cancellingFor === s.id
+                                  ? "Cancelling…"
+                                  : "Cancel auto-pay"}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={() => openSetup(s)}
+                                disabled={!s.stripePaymentMethod?.paymentMethodId}
+                                title={
+                                  s.stripePaymentMethod?.paymentMethodId
+                                    ? "Set up automatic direct debit"
+                                    : "Student must complete one Stripe payment first to save a card"
+                                }
+                                className="text-xs font-semibold text-[#00369b] hover:underline flex items-center gap-1 disabled:opacity-40 disabled:no-underline disabled:cursor-not-allowed"
+                              >
+                                <MdAutorenew size={13} /> Set up auto-pay
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );
@@ -596,6 +619,35 @@ export default function PaymentsPage() {
           </div>
         </div>
         </ModalPortal>
+      )}
+
+      {reactivateFor?.id && (
+        <ReactivateAccessModal
+          student={reactivateFor}
+          open={!!reactivateFor}
+          onClose={() => setReactivateFor(null)}
+          onDone={(updated) => {
+            setStudents((list) =>
+              list.map((s) =>
+                s.id === updated.id
+                  ? {
+                      ...s,
+                      status: "active",
+                      paymentStatus:
+                        updated.paymentStatus === "waived" ? "waived" : "paid",
+                      planExpiresAt: updated.planExpiresAt ?? s.planExpiresAt,
+                    }
+                  : s
+              )
+            );
+            setMessage({
+              type: "ok",
+              text: `Access restored for ${reactivateFor.firstName} ${reactivateFor.lastName}.`,
+            });
+            // Refresh from server so expiry Timestamp is accurate
+            getAllStudents().then(setStudents).catch(() => {});
+          }}
+        />
       )}
     </AdminLayout>
   );

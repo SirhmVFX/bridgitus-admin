@@ -15,16 +15,19 @@ import {
   type AiPracticeAttempt, type LearningGap, type StudySession, type AssignmentSubmission,
   type Question, type AIQuestion,
 } from "@/lib/firestore";
-import { Timestamp } from "firebase/firestore";
 import {
   MdArrowBack, MdPerson, MdEmail, MdPhone,
   MdCheckCircle, MdPending, MdCancel, MdBarChart,
   MdMenuBook, MdQuiz, MdAssignment, MdEdit, MdSave,
   MdDownload, MdLockReset, MdGroupAdd, MdVisibility, MdVisibilityOff,
+  MdLockOpen,
 } from "react-icons/md";
 import { PracticePieChart, SkillMountainChart } from "@/components/AnalyticsCharts";
 import { adminFetch } from "@/lib/adminFetch";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
+import ReactivateAccessModal from "@/components/ReactivateAccessModal";
+import { formatPlanExpiresAt } from "@/lib/planEntitlements";
+import { Timestamp } from "firebase/firestore";
 
 type Tab = "overview" | "materials" | "tests" | "assignments" | "progress" | "analytics";
 
@@ -103,6 +106,7 @@ export default function StudentDetailPage() {
   });
   const [siblingBusy, setSiblingBusy] = useState(false);
   const [siblingMsg, setSiblingMsg] = useState("");
+  const [reactivateOpen, setReactivateOpen] = useState(false);
 
   useEffect(() => {
     if (!id) return;
@@ -440,8 +444,21 @@ export default function StudentDetailPage() {
     ? Math.round(approvedAttempts.reduce((s, a) => s + a.percentage, 0) / approvedAttempts.length) : 0;
   const myTests = tests.filter((t) => t.grade === student.grade);
   const myAssignments = assignments.filter((a) => a.targetGrades.includes(student.grade));
-  const paymentColor = student.paymentStatus === "paid" ? "badge-green" : student.paymentStatus === "waived" ? "badge-blue" : student.paymentStatus === "failed" ? "badge-red" : "badge-yellow";
+  const paymentColor =
+    student.paymentStatus === "paid"
+      ? "badge-green"
+      : student.paymentStatus === "waived"
+        ? "badge-blue"
+        : student.paymentStatus === "failed" || student.paymentStatus === "expired"
+          ? "badge-red"
+          : "badge-yellow";
   const isFamily = /family/i.test(student.planTitle || "");
+  const needsReactivation =
+    student.status === "suspended" ||
+    student.status === "inactive" ||
+    student.paymentStatus === "expired" ||
+    student.paymentStatus === "failed" ||
+    student.paymentStatus === "pending";
 
   const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: "overview", label: "Overview", icon: MdPerson },
@@ -478,18 +495,43 @@ export default function StudentDetailPage() {
                   <span className="badge badge-blue">Grade {student.grade}</span>
                   {student.planTitle && <span className="badge badge-blue">{student.planTitle}</span>}
                   <span className={`badge ${paymentColor}`}>
-                    {student.paymentStatus === "paid" ? "✓ Paid" : student.paymentStatus === "waived" ? "Waived" : student.paymentStatus === "failed" ? "Failed" : "Pending Payment"}
+                    {student.paymentStatus === "paid"
+                      ? "✓ Paid"
+                      : student.paymentStatus === "waived"
+                        ? "Waived"
+                        : student.paymentStatus === "failed"
+                          ? "Failed"
+                          : student.paymentStatus === "expired"
+                            ? "Expired"
+                            : "Pending Payment"}
                   </span>
                 </div>
                 <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
                   <span className="flex items-center gap-1"><MdEmail size={13}/>{student.parentEmail || student.email}</span>
                   {student.parentPhone && <span className="flex items-center gap-1"><MdPhone size={13}/>{student.parentPhone}</span>}
+                  <span className="text-xs text-gray-400">
+                    Access until: {formatPlanExpiresAt(student)}
+                  </span>
                 </div>
               </div>
             </div>
-            <button onClick={() => setEditing(!editing)} className="btn-secondary flex items-center gap-2 text-sm py-1.5 cursor-pointer">
-              <MdEdit size={14}/>{editing ? "Cancel" : "Edit details"}
-            </button>
+            <div className="flex flex-wrap gap-2">
+              <button
+                type="button"
+                onClick={() => setReactivateOpen(true)}
+                className={`flex items-center gap-2 text-sm py-1.5 px-3 rounded-lg font-semibold cursor-pointer ${
+                  needsReactivation
+                    ? "bg-[#00369b] text-white hover:bg-[#002a7a]"
+                    : "btn-secondary"
+                }`}
+              >
+                <MdLockOpen size={16} />
+                {needsReactivation ? "Reactivate access" : "Extend access"}
+              </button>
+              <button onClick={() => setEditing(!editing)} className="btn-secondary flex items-center gap-2 text-sm py-1.5 cursor-pointer">
+                <MdEdit size={14}/>{editing ? "Cancel" : "Edit details"}
+              </button>
+            </div>
           </div>
 
           {editing && (
@@ -850,6 +892,31 @@ export default function StudentDetailPage() {
           )}
         </div>
       </div>
+
+      <ReactivateAccessModal
+        student={student}
+        open={reactivateOpen}
+        onClose={() => setReactivateOpen(false)}
+        onDone={(updated) => {
+          setStudent((s) => {
+            if (!s) return s;
+            const next = { ...s, ...updated };
+            // Reload expiry from Firestore after short delay so Timestamp is real
+            if (s.id) {
+              getStudentById(s.id).then((fresh) => {
+                if (fresh) setStudent(fresh);
+              });
+            }
+            return next;
+          });
+          setEdit((e) => ({
+            ...e,
+            status: "active",
+            paymentStatus:
+              updated.paymentStatus === "waived" ? "waived" : "paid",
+          }));
+        }}
+      />
     </AdminLayout>
   );
 }

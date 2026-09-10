@@ -57,6 +57,14 @@ export interface Student {
   planId?: string;
   planTitle?: string;
   planExpiresAt?: Timestamp;
+  planQuota?: {
+    classesAllowed: number;
+    assessmentsAllowed: number;
+    classesUsed: number;
+    assessmentsUsed: number;
+    assignmentMinutesAllowed?: number;
+    assignmentMinutesUsed?: number;
+  };
   /** Last password issued at registration or admin reset (for staff to share). */
   issuedPassword?: string;
   authEmail?: string;
