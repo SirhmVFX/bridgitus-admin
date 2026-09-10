@@ -83,6 +83,8 @@ export function buildQuotaState(planTitle?: string | null): PlanQuotaState | nul
 export type AccessDurationPreset =
   | "plan_default"
   | "7"
+  | "14"
+  | "21"
   | "30"
   | "70"
   | "105"
@@ -101,6 +103,8 @@ export const ACCESS_DURATION_OPTIONS: {
     hint: "Family = 7 days; quota plans reset classes/assessments",
   },
   { value: "7", label: "1 week (7 days)", hint: "Typical Family / weekly billing" },
+  { value: "14", label: "2 weeks (14 days)", hint: "Extend for a fortnight" },
+  { value: "21", label: "3 weeks (21 days)", hint: "Extend for three weeks" },
   { value: "30", label: "1 month (30 days)", hint: "Use when parent paid for a month" },
   { value: "70", label: "10 weeks (70 days)", hint: "Standard-length calendar access" },
   { value: "105", label: "15 weeks (105 days)", hint: "Premium-length calendar access" },
