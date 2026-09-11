@@ -488,7 +488,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
               Assignments
             </h1>
             <p className="text-slate-500 text-sm mt-1">
-              IXL, DeltaMath, custom and auto-graded quiz assignments
+              Edpuzzle, DeltaMath, custom and auto-graded quiz assignments
             </p>
           </div>
           <button
@@ -568,10 +568,10 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                       </td>
                       <td>
                         <span
-                          className={`badge text-white ${a.type === "ixl" ? "bg-orange-500" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}
+                          className={`badge text-white ${a.type === "ixl" ? "bg-[#5B2EFF]" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}
                         >
                           {a.type === "ixl"
-                            ? "IXL"
+                            ? "Edpuzzle"
                             : a.type === "deltamath"
                               ? "DeltaMath"
                               : a.type === "quiz"
@@ -865,7 +865,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                     >
                       <option value="">Select Type</option>
                       <option value="quiz">Quiz</option>
-                      <option value="ixl">IXL</option>
+                      <option value="ixl">Edpuzzle</option>
                       <option value="deltamath">DeltaMath</option>
 
                       <option value="document">Document</option>
@@ -926,7 +926,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                 {(form.type === "ixl" || form.type === "deltamath") && (
                   <div>
                     <label className="admin-label">
-                      {form.type === "ixl" ? "IXL" : "DeltaMath"} Activity URL *
+                      {form.type === "ixl" ? "Edpuzzle" : "DeltaMath"} Activity URL *
                     </label>
                     <input
                       type="url"
@@ -936,7 +936,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                         setForm({ ...form, platformUrl: e.target.value })
                       }
                       className="admin-input"
-                      placeholder="https://www.ixl.com/…"
+                      placeholder="https://www.edpuzzle.com/…"
                     />
                   </div>
                 )}

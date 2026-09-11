@@ -199,7 +199,7 @@ async function main() {
   await seedIfEmpty("sitePartners", [
     { name:"DeltaMath",    logo:"/assets/dm.png",   url:"https://www.deltamath.com",  published:true, order:0 },
     { name:"Education",    logo:"/assets/edu.png",  url:"",                           published:true, order:1 },
-    { name:"IXL",          logo:"/assets/ixl.webp", url:"https://www.ixl.com",        published:true, order:2 },
+    { name:"Edpuzzle",     logo:"/assets/edpuzzle.svg", url:"https://www.edpuzzle.com", published:true, order:2 },
     { name:"Khan Academy", logo:"/assets/kah.png",  url:"https://www.khanacademy.org",published:true, order:3 },
     { name:"Khan",         logo:"/assets/kh.png",   url:"",                           published:true, order:4 },
     { name:"Quizlet",      logo:"/assets/qz.png",   url:"https://quizlet.com",        published:true, order:5 },

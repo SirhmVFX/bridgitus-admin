@@ -1,0 +1,14 @@
+---
+description: Never attribute commits or PRs to Cursor agent
+alwaysApply: true
+---
+
+# No Cursor commit attribution
+
+Never add Cursor, cursoragent, or any AI tool as a commit author, committer, or co-author.
+
+- Do **not** pass `git commit --trailer` with `Co-authored-by: Cursor` / `cursoragent@cursor.com`
+- Do **not** put `Co-authored-by: Cursor <cursoragent@cursor.com>` in commit messages
+- Do **not** put `Made with Cursor` in commit or PR bodies
+- Author/committer must remain the user's git identity only (Fullstack Mechanic / SirhmVFX)
+- If a commit message somehow includes a Cursor co-author line, remove it before committing
