@@ -57,6 +57,10 @@ export interface Student {
   planId?: string;
   planTitle?: string;
   planExpiresAt?: Timestamp;
+  /** 1-week free trial after registration (before first payment). */
+  trialStartedAt?: Timestamp;
+  trialEndsAt?: Timestamp;
+  trialUsed?: boolean;
   planQuota?: {
     classesAllowed: number;
     assessmentsAllowed: number;
@@ -1683,7 +1687,39 @@ export async function checkAndCreatePaymentAlerts(): Promise<number> {
   let created = 0;
 
   for (const s of students) {
+    // Free-trial expiry: nudge to pay — never suspend (portal payment page must stay reachable)
+    if (s.trialEndsAt && s.paymentStatus !== "paid" && s.paymentStatus !== "waived") {
+      const trialEndsMs = (s.trialEndsAt as Timestamp).toMillis();
+      if (trialEndsMs <= now) {
+        const hoursPast = (now - trialEndsMs) / (1000 * 60 * 60);
+        if (hoursPast <= 36) {
+          const name = `${s.firstName} ${s.lastName}`;
+          await createPaymentAlert(
+            "payment_expired",
+            s.id!,
+            name,
+            `${name}'s free trial ended. Account stays active for login but portal is locked until payment.`
+          );
+          created++;
+        }
+        continue;
+      }
+      if (trialEndsMs > now && trialEndsMs <= soon) {
+        const daysLeft = Math.ceil((trialEndsMs - now) / (24 * 60 * 60 * 1000));
+        const name = `${s.firstName} ${s.lastName}`;
+        await createPaymentAlert(
+          "payment_expiring",
+          s.id!,
+          name,
+          `${name}'s free trial ends in ${daysLeft} day${daysLeft !== 1 ? "s" : ""}.`
+        );
+        created++;
+      }
+    }
+
     if (!s.planExpiresAt) continue;
+    // Only suspend calendar expiry for paid (or previously paid) plans — not trial-only accounts
+    if (s.paymentStatus !== "paid" && s.paymentStatus !== "expired") continue;
     const name = `${s.firstName} ${s.lastName}`;
     const expiresMs = (s.planExpiresAt as Timestamp).toMillis();
 
