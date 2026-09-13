@@ -98,6 +98,9 @@ export async function reactivateStudentAccess(
     paidAt: serverTimestamp(),
     updatedAt: serverTimestamp(),
     paymentReference: note,
+    trialStartedAt: deleteField(),
+    trialEndsAt: deleteField(),
+    trialUsed: true,
   };
 
   let expiresAt: Date | null = null;
