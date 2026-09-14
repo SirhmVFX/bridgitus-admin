@@ -1,6 +1,6 @@
 import { Timestamp } from "firebase/firestore";
 
-/** Free trial length for new registrations (calendar days). */
+/** Free trial length for new registrations (calendar days). Keep in sync with bridgitus-learning. */
 export const TRIAL_DAYS = 7;
 
 export type TrialStudentFields = {
