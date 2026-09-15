@@ -27,6 +27,7 @@ import { adminFetch } from "@/lib/adminFetch";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
 import ReactivateAccessModal from "@/components/ReactivateAccessModal";
 import { formatPlanExpiresAt } from "@/lib/planEntitlements";
+import { formatTrialEndsLabel, hasTrialEnded, isOnActiveTrial } from "@/lib/trial";
 import { Timestamp } from "firebase/firestore";
 
 type Tab = "overview" | "materials" | "tests" | "assignments" | "progress" | "analytics";
@@ -452,13 +453,16 @@ export default function StudentDetailPage() {
         : student.paymentStatus === "failed" || student.paymentStatus === "expired"
           ? "badge-red"
           : "badge-yellow";
+  const trialActive = isOnActiveTrial(student);
+  const trialEnded = hasTrialEnded(student);
   const isFamily = /family/i.test(student.planTitle || "");
   const needsReactivation =
     student.status === "suspended" ||
     student.status === "inactive" ||
     student.paymentStatus === "expired" ||
     student.paymentStatus === "failed" ||
-    student.paymentStatus === "pending";
+    student.paymentStatus === "pending" ||
+    trialEnded;
 
   const TABS: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: "overview", label: "Overview", icon: MdPerson },
@@ -505,6 +509,8 @@ export default function StudentDetailPage() {
                             ? "Expired"
                             : "Pending Payment"}
                   </span>
+                  {trialActive && <span className="badge badge-blue">Free trial</span>}
+                  {trialEnded && <span className="badge badge-red">Trial ended</span>}
                 </div>
                 <div className="flex flex-wrap gap-4 mt-2 text-sm text-gray-500">
                   <span className="flex items-center gap-1"><MdEmail size={13}/>{student.parentEmail || student.email}</span>
@@ -512,6 +518,11 @@ export default function StudentDetailPage() {
                   <span className="text-xs text-gray-400">
                     Access until: {formatPlanExpiresAt(student)}
                   </span>
+                  {student.trialEndsAt && (
+                    <span className="text-xs text-gray-400">
+                      Trial ends: {formatTrialEndsLabel(student) ?? "—"}
+                    </span>
+                  )}
                 </div>
               </div>
             </div>
