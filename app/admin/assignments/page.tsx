@@ -1678,8 +1678,14 @@ ${data.description ? `\n\n${data.description}` : ""}`,
         {resultModal && (
           <StudentResultsModal
             studentName={resultModal.studentName}
-            submission={resultModal.submission}
-            assignment={resultModal.assignment}
+            title={resultModal.assignment.title}
+            questions={resultModal.assignment.questions ?? []}
+            answers={resultModal.submission.answers ?? {}}
+            score={resultModal.submission.score}
+            totalPoints={resultModal.submission.totalPoints}
+            percentage={resultModal.submission.percentage}
+            passed={resultModal.submission.passed}
+            passMark={resultModal.assignment.passMark}
             onClose={() => setResultModal(null)}
           />
         )}

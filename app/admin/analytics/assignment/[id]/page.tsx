@@ -233,8 +233,14 @@ export default function AssignmentAnalyticsPage() {
       {resultModal && assignment && (
         <StudentResultsModal
           studentName={resultModal.studentName}
-          submission={resultModal.submission}
-          assignment={assignment}
+          title={assignment.title}
+          questions={assignment.questions ?? []}
+          answers={resultModal.submission.answers ?? {}}
+          score={resultModal.submission.score}
+          totalPoints={resultModal.submission.totalPoints}
+          percentage={resultModal.submission.percentage}
+          passed={resultModal.submission.passed}
+          passMark={assignment.passMark}
           onClose={() => setResultModal(null)}
         />
       )}
