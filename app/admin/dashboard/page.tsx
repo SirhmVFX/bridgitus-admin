@@ -36,6 +36,7 @@ import {
   MdDoneAll,
   MdOndemandVideo,
 } from "react-icons/md";
+import { formatGradeLabel } from "@/lib/grades";
 
 const YOUTUBE_URL = "https://youtube.com/@BridgitusLearning";
 
@@ -328,7 +329,7 @@ export default function DashboardPage() {
                         <p className="text-xs text-slate-400 mt-0.5">
                           {a.targetGrades.length === 0
                             ? "All Grades"
-                            : `Grade${a.targetGrades.length > 1 ? "s" : ""} ${a.targetGrades.join(", ")}`}
+                            : a.targetGrades.map(formatGradeLabel).join(", ")}
                         </p>
                       </div>
                     </div>
@@ -434,7 +435,7 @@ export default function DashboardPage() {
                           {s.firstName} {s.lastName}
                         </p>
                         <p className="text-xs text-slate-400">
-                          Grade {s.grade}
+                          {formatGradeLabel(s.grade)}
                         </p>
                       </div>
                       <span

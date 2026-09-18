@@ -55,23 +55,9 @@ import {
   MdAutoAwesome,
   MdReplay,
 } from "react-icons/md";
+import { STUDENT_GRADES, formatGradeLabel } from "@/lib/grades";
 
-const GRADES = [
-  "Pre-K",
-  "K",
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10",
-  "11",
-  "12",
-];
+const GRADES = [...STUDENT_GRADES];
 
 function newQuestion(type: QuestionType = "multiple_choice"): Question {
   const base = {
@@ -246,7 +232,7 @@ export default function TestsPage() {
   function importFromSet(set: QuestionSet) {
     if (form.grade && set.year && !yearsMatch(set.year, form.grade)) {
       alert(
-        `This question set is for ${set.year}, but this test is Grade ${form.grade}. ` +
+        `This question set is for ${set.year}, but this test is ${formatGradeLabel(form.grade)}. ` +
           `Import only matching year sets so diagrams stay with the right grade.`
       );
       return;
@@ -307,7 +293,7 @@ export default function TestsPage() {
           title: editing
             ? `Updated ${data.type}: ${data.title}`
             : `New ${data.type}: ${data.title}`,
-          body: `A new ${assessmentTypeLabel(data.type).toLowerCase()} is now published for Grade ${data.grade}. Check your portal to start it now.`,
+          body: `A new ${assessmentTypeLabel(data.type).toLowerCase()} is now published for ${formatGradeLabel(data.grade)}. Check your portal to start it now.`,
           targetGrades: [data.grade],
           pinned: false,
           published: true,
@@ -443,7 +429,7 @@ export default function TestsPage() {
                 <option value="all">All Grades</option>
                 {testGrades.map((g) => (
                   <option key={g} value={g}>
-                    Grade {g}
+                    {formatGradeLabel(g)}
                   </option>
                 ))}
               </select>
@@ -510,7 +496,7 @@ export default function TestsPage() {
                         </td>
                         <td>
                           <span className="badge badge-blue">
-                            Grade {t.grade}
+                            {formatGradeLabel(t.grade)}
                           </span>
                         </td>
                         <td className="text-gray-600">{t.subject}</td>
@@ -612,7 +598,7 @@ export default function TestsPage() {
             >
               <option value="all">All grades</option>
               {GRADES.map((g) => (
-                <option key={g} value={g}>Grade {g}</option>
+                <option key={g} value={g}>{formatGradeLabel(g)}</option>
               ))}
             </select>
           </div>
@@ -991,7 +977,7 @@ export default function TestsPage() {
                   >
                     {GRADES.map((g) => (
                       <option key={g} value={g}>
-                        Grade {g}
+                        {formatGradeLabel(g)}
                       </option>
                     ))}
                   </select>

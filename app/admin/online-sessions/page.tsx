@@ -17,8 +17,9 @@ import { adminFetch } from "@/lib/adminFetch";
 import {
   MdVideocam, MdAdd, MdDelete, MdEdit, MdOpenInNew, MdCheckCircle, MdSchedule,
 } from "react-icons/md";
+import { ONLINE_SESSION_GRADES, formatGradeLabel } from "@/lib/grades";
 
-const GRADES = ["Foundation", "1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"];
+const GRADES = [...ONLINE_SESSION_GRADES];
 
 function toLocalInput(iso: string) {
   const d = new Date(iso);
@@ -200,7 +201,7 @@ export default function OnlineSessionsPage() {
           >
             <option value="all">All grades</option>
             {GRADES.map((g) => (
-              <option key={g} value={g}>Grade {g}</option>
+              <option key={g} value={g}>{formatGradeLabel(g)}</option>
             ))}
           </select>
         </div>
@@ -247,7 +248,7 @@ export default function OnlineSessionsPage() {
                             hour: "2-digit", minute: "2-digit",
                           })}
                           {" · "}{s.durationMinutes} min
-                          {" · "}{s.targetGrades?.length ? `Grades ${s.targetGrades.join(", ")}` : "All grades"}
+                          {" · "}{s.targetGrades?.length ? s.targetGrades.map(formatGradeLabel).join(", ") : "All grades"}
                         </p>
                         <a href={s.teamsUrl} target="_blank" rel="noopener noreferrer"
                           className="text-xs text-[#5B5FC7] hover:underline inline-flex items-center gap-1 mt-1 break-all">
@@ -318,7 +319,7 @@ export default function OnlineSessionsPage() {
                     {GRADES.map((g) => (
                       <button key={g} type="button" onClick={() => toggleGrade(g)}
                         className={`filter-pill${targetGrades.includes(g) ? " active" : ""}`}>
-                        {g}
+                        {formatGradeLabel(g)}
                       </button>
                     ))}
                   </div>

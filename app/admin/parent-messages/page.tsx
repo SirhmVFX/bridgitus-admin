@@ -21,8 +21,9 @@ import {
   MdSend, MdEmail, MdSms, MdClose, MdDelete, MdVisibility, MdAttachFile,
   MdPhone, MdEdit,
 } from "react-icons/md";
+import { STUDENT_GRADES, formatGradeLabel } from "@/lib/grades";
 
-const GRADES = ["Pre-K","K","1","2","3","4","5","6","7","8","9","10","11","12"];
+const GRADES = [...STUDENT_GRADES];
 const ATTACH_ACCEPT = ".pdf,.doc,.docx,.png,.jpg,.jpeg,.gif,.webp,application/pdf,image/*";
 
 type RecipientMode = "all" | "single" | "specific";
@@ -441,7 +442,7 @@ function ParentMessagesInner() {
               <option value="all">All Grades</option>
               {GRADES.map((g) => (
                 <option key={g} value={g}>
-                  Grade {g}
+                  {formatGradeLabel(g)}
                 </option>
               ))}
             </select>
@@ -847,7 +848,7 @@ function ParentMessagesInner() {
                                       {studentLabel(s)} — {parentLabel(s)}
                                     </p>
                                     <p className="text-xs text-slate-500 mt-0.5">
-                                      Student · Grade {s.grade}
+                                      Student · {formatGradeLabel(s.grade)}
                                       <span className="mx-1.5 text-slate-300">|</span>
                                       Parent / Guardian
                                     </p>
@@ -901,7 +902,7 @@ function ParentMessagesInner() {
                       <div>
                         <p className="text-xs font-semibold text-slate-500 mb-2">
                           {selectedGrades.length > 0
-                            ? `Students in Grade ${selectedGrades.join(", ")} (or pick individuals)`
+                            ? `Students in ${selectedGrades.map(formatGradeLabel).join(", ")} (or pick individuals)`
                             : "Or pick students"}
                         </p>
                         <input
@@ -933,7 +934,7 @@ function ParentMessagesInner() {
                                     {studentLabel(s)} — {parentLabel(s)}
                                   </span>
                                   <span className="text-xs text-slate-400 ml-1">
-                                    · Grade {s.grade} · {s.parentEmail || "no email"}
+                                    · {formatGradeLabel(s.grade)} · {s.parentEmail || "no email"}
                                   </span>
                                 </span>
                               </label>

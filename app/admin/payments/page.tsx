@@ -23,6 +23,7 @@ import {
 } from "react-icons/md";
 import ReactivateAccessModal from "@/components/ReactivateAccessModal";
 import Link from "next/link";
+import { formatGradeLabel } from "@/lib/grades";
 
 const CURRENCY = (
   process.env.NEXT_PUBLIC_PAYMENT_CURRENCY || "AUD"
@@ -320,7 +321,7 @@ export default function PaymentsPage() {
             <option value="all">All Grades</option>
             {grades.map((g) => (
               <option key={g} value={g}>
-                Grade {g}
+                {formatGradeLabel(g)}
               </option>
             ))}
           </select>
@@ -394,7 +395,7 @@ export default function PaymentsPage() {
                         </td>
                         <td>
                           <span className="badge badge-blue">
-                            Grade {s.grade || "—"}
+                            {formatGradeLabel(s.grade) || "—"}
                           </span>
                         </td>
                         <td className="text-sm text-gray-600">

@@ -33,23 +33,9 @@ import {
   MdEmail,
   MdOutgoingMail,
 } from "react-icons/md";
+import { STUDENT_GRADES, formatGradeLabel } from "@/lib/grades";
 
-const GRADES = [
-  "Pre-K",
-  "K",
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10",
-  "11",
-  "12",
-];
+const GRADES = [...STUDENT_GRADES];
 
 export default function StudentsPage() {
   const [students, setStudents] = useState<Student[]>([]);
@@ -347,7 +333,7 @@ export default function StudentsPage() {
             <option value="all">All Grades</option>
             {GRADES.map((g) => (
               <option key={g} value={g}>
-                Grade {g}
+                {formatGradeLabel(g)}
               </option>
             ))}
           </select>
@@ -471,7 +457,7 @@ export default function StudentsPage() {
                         </span>
                       </td>
                       <td>
-                        <span className="badge badge-blue">Grade {s.grade}</span>
+                        <span className="badge badge-blue">{formatGradeLabel(s.grade)}</span>
                       </td>
                       <td className="text-gray-600 text-sm">{s.school}</td>
                       <td className="text-gray-600 text-sm">{s.parentEmail}</td>
@@ -591,7 +577,7 @@ export default function StudentsPage() {
                       {viewStudent.status}
                     </span>
                     <span className="badge badge-blue">
-                      Grade {viewStudent.grade}
+                      {formatGradeLabel(viewStudent.grade)}
                     </span>
                   </div>
                 </div>
@@ -822,7 +808,7 @@ export default function StudentsPage() {
                 >
                   {GRADES.map((g) => (
                     <option key={g} value={g}>
-                      Grade {g}
+                      {formatGradeLabel(g)}
                     </option>
                   ))}
                 </select>

@@ -7,6 +7,7 @@ import { getAssignmentById, getSubmissionsByAssignment, getAllStudents, type Ass
 import { MdArrowBack, MdAssignment, MdCheckCircle } from "react-icons/md";
 import SubmittedFileButton from "@/components/SubmittedFileButton";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
+import { formatGradeLabel } from "@/lib/grades";
 
 export default function AssignmentAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,7 +50,7 @@ export default function AssignmentAnalyticsPage() {
                 <MdAssignment size={24} className="text-amber-500" />
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">{assignment.title}</h1>
-                  <p className="text-gray-500 text-sm">{assignment.subject} · {assignment.type} · Grades: {assignment.targetGrades.join(", ")}</p>
+                  <p className="text-gray-500 text-sm">{assignment.subject} · {assignment.type} · {assignment.targetGrades.map(formatGradeLabel).join(", ")}</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -81,7 +82,7 @@ export default function AssignmentAnalyticsPage() {
                           <td>
                             <p className="font-medium text-gray-800">{s.firstName} {s.lastName}</p>
                           </td>
-                          <td><span className="badge badge-blue">Grade {s.grade}</span></td>
+                          <td><span className="badge badge-blue">{formatGradeLabel(s.grade)}</span></td>
                           <td><span className={`badge ${STATUS_COLOR[status]}`}>{status.replace("_", " ")}</span></td>
                           <td className="font-medium text-gray-800">{sub?.score !== undefined ? `${sub.score}/${assignment.maxScore}` : "—"}</td>
                           <td>

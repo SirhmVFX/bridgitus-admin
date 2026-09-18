@@ -52,23 +52,9 @@ import {
   MdCancel,
   MdReplay,
 } from "react-icons/md";
+import { STUDENT_GRADES, formatGradeLabel } from "@/lib/grades";
 
-const GRADES = [
-  "Pre-K",
-  "K",
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10",
-  "11",
-  "12",
-];
+const GRADES = [...STUDENT_GRADES];
 
 const EMPTY: Omit<Assignment, "id"> = {
   title: "",
@@ -270,7 +256,7 @@ export default function AssignmentsPage() {
           title: editing
             ? `Updated assignment: ${data.title}`
             : `New assignment: ${data.title}`,
-          body: `A new ${data.type === "quiz" ? "quiz assignment" : "assignment"} has been published for Grade ${data.targetGrades.join(", ")}. Check your portal to start it now.
+          body: `A new ${data.type === "quiz" ? "quiz assignment" : "assignment"} has been published for ${data.targetGrades.map(formatGradeLabel).join(", ")}. Check your portal to start it now.
 ${data.description ? `\n\n${data.description}` : ""}`,
           targetGrades: data.targetGrades,
           pinned: false,
@@ -527,7 +513,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
             <option value="all">All Grades</option>
             {GRADES.map((g) => (
               <option key={g} value={g}>
-                Grade {g}
+                {formatGradeLabel(g)}
               </option>
             ))}
           </select>
@@ -581,7 +567,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                       </td>
                       <td className="text-gray-600">{a.subject}</td>
                       <td className="text-gray-500 text-xs">
-                        {a.targetGrades.map((g) => `G${g}`).join(", ")}
+                        {a.targetGrades.map(formatGradeLabel).join(", ")}
                       </td>
                       <td className="text-gray-500 text-xs">
                         {a.startAt ? formatSchedule(a.startAt) : "—"}
@@ -1302,7 +1288,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                       .filter((m) => form.targetGrades.includes(m.grade))
                       .map((m) => (
                         <option key={m.id} value={m.id}>
-                          {m.title} · Grade {m.grade} · {m.subject}
+                          {m.title} · {formatGradeLabel(m.grade)} · {m.subject}
                         </option>
                       ))}
                   </select>
@@ -1327,7 +1313,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                             : "bg-white text-gray-600 border-gray-300 hover:border-[#00369b]"
                         }`}
                       >
-                        Grade {g}
+                        {formatGradeLabel(g)}
                       </button>
                     ))}
                   </div>
@@ -1368,7 +1354,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                             {s.firstName} {s.lastName}
                           </span>
                           <span className="text-gray-400">
-                            — Grade {s.grade}
+                            — {formatGradeLabel(s.grade)}
                           </span>
                         </label>
                       ))}

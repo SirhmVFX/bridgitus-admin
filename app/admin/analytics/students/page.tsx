@@ -18,6 +18,7 @@ import {
 } from "react-icons/md";
 import { PracticePieChart, SkillMountainChart } from "@/components/AnalyticsCharts";
 import { adminFetch } from "@/lib/adminFetch";
+import { formatGradeLabel } from "@/lib/grades";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -424,7 +425,7 @@ export default function StudentAnalyticsPage() {
     w.document.write(`<!DOCTYPE html><html><head><title>${student.firstName} Analytics</title>
       <style>body{font-family:system-ui,sans-serif;padding:32px}table{width:100%;border-collapse:collapse;font-size:13px}th,td{border:1px solid #ddd;padding:6px 8px;text-align:left}th{background:#f4f6fb}.stat{display:inline-block;margin:12px 24px 0 0}.stat b{display:block;font-size:22px}</style></head><body>
       <h1>Bridgitus Learning — Progress Report</h1>
-      <p>${student.firstName} ${student.lastName} · ${student.studentId} · Grade ${student.grade}</p>
+      <p>${student.firstName} ${student.lastName} · ${student.studentId} · ${formatGradeLabel(student.grade)}</p>
       <div class="stat"><b>${answeredThisYear.length}</b>Questions (${currentYear})</div>
       <div class="stat"><b>${formatStudyTime(timeSpentSeconds)}</b>Learning time</div>
       <h2>Quizzes by category (portal tests + AI practice)</h2>
@@ -468,7 +469,7 @@ export default function StudentAnalyticsPage() {
               {students.length === 0 && <option value="">No students</option>}
               {students.map(s => (
                 <option key={s.id} value={s.id}>
-                  {s.firstName} {s.lastName} · Grade {s.grade}
+                  {s.firstName} {s.lastName} · {formatGradeLabel(s.grade)}
                 </option>
               ))}
             </select>

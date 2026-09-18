@@ -9,6 +9,7 @@ import { MdArrowBack, MdCheckCircle, MdCancel, MdPending, MdQuiz } from "react-i
 import { assessmentTypeLabel } from "@/lib/assessmentTypes";
 import SubmittedFileButton from "@/components/SubmittedFileButton";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
+import { formatGradeLabel } from "@/lib/grades";
 
 export default function TestAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
@@ -49,7 +50,7 @@ export default function TestAnalyticsPage() {
                 <MdQuiz size={24} className={test.type === "exam" ? "text-red-500" : "text-[#00369b]"}/>
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">{test.title}</h1>
-                  <p className="text-gray-500 text-sm">{test.subject} · Grade {test.grade} · {assessmentTypeLabel(test.type)} · Pass mark: {test.passMark}%</p>
+                  <p className="text-gray-500 text-sm">{test.subject} · {formatGradeLabel(test.grade)} · {assessmentTypeLabel(test.type)} · Pass mark: {test.passMark}%</p>
                 </div>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-4">
@@ -95,7 +96,7 @@ export default function TestAnalyticsPage() {
                               })}
                             </p>
                             {s?.grade && (
-                              <p className="text-xs text-gray-400">Grade {s.grade}</p>
+                              <p className="text-xs text-gray-400">{formatGradeLabel(s.grade)}</p>
                             )}
                           </td>
                           <td className="text-gray-600">{atts.length}</td>

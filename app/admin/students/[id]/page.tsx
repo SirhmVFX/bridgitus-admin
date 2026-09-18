@@ -29,6 +29,7 @@ import ReactivateAccessModal from "@/components/ReactivateAccessModal";
 import { formatPlanExpiresAt } from "@/lib/planEntitlements";
 import { formatTrialEndsLabel, hasTrialEnded, isOnActiveTrial } from "@/lib/trial";
 import { Timestamp } from "firebase/firestore";
+import { formatGradeLabel } from "@/lib/grades";
 
 type Tab = "overview" | "materials" | "tests" | "assignments" | "progress" | "analytics";
 
@@ -396,7 +397,7 @@ export default function StudentDetailPage() {
         .stat b{display:block;font-size:22px}
       </style></head><body>
       <h1>Bridgitus Learning — Progress Report</h1>
-      <p class="meta">${student.firstName} ${student.lastName} · ${student.studentId} · Grade ${student.grade}</p>
+      <p class="meta">${student.firstName} ${student.lastName} · ${student.studentId} · ${formatGradeLabel(student.grade)}</p>
       <p class="meta">Parent: ${student.parentFirstName || ""} ${student.parentLastName || ""} · ${student.parentEmail || student.email}</p>
       <p class="meta">Plan: ${student.planTitle || "—"} · Generated ${new Date().toLocaleString()}</p>
       <div>
@@ -496,7 +497,7 @@ export default function StudentDetailPage() {
                 <div className="flex flex-wrap gap-2 mt-2">
                   <span className="badge badge-blue font-mono">{student.studentId}</span>
                   <span className={`badge ${student.status === "active" ? "badge-green" : student.status === "suspended" ? "badge-red" : "badge-gray"}`}>{student.status}</span>
-                  <span className="badge badge-blue">Grade {student.grade}</span>
+                  <span className="badge badge-blue">{formatGradeLabel(student.grade)}</span>
                   {student.planTitle && <span className="badge badge-blue">{student.planTitle}</span>}
                   <span className={`badge ${paymentColor}`}>
                     {student.paymentStatus === "paid"
@@ -686,7 +687,7 @@ export default function StudentDetailPage() {
                     <ul className="space-y-2 text-sm">
                       {siblings.map((sib) => (
                         <li key={sib.id} className="flex items-center justify-between border border-gray-200 px-3 py-2">
-                          <span>{sib.firstName} {sib.lastName} · <span className="font-mono text-[#00369b]">{sib.studentId}</span> · Grade {sib.grade}</span>
+                          <span>{sib.firstName} {sib.lastName} · <span className="font-mono text-[#00369b]">{sib.studentId}</span> · {formatGradeLabel(sib.grade)}</span>
                           <Link href={`/admin/students/${sib.id}`} className="text-[#00369b] text-xs font-semibold hover:underline">Open</Link>
                         </li>
                       ))}
@@ -737,13 +738,13 @@ export default function StudentDetailPage() {
           {tab === "materials" && (
             <div>
               <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">
-                Materials — Grade {student.grade} · {doneMats}/{gradeMaterials.length} completed
+                Materials — {formatGradeLabel(student.grade)} · {doneMats}/{gradeMaterials.length} completed
               </p>
               <div className="h-2.5 bg-gray-100 mb-5">
                 <div className="h-full bg-[#00369b]" style={{ width: `${gradeMaterials.length > 0 ? Math.round((doneMats / gradeMaterials.length) * 100) : 0}%` }} />
               </div>
               {gradeMaterials.length === 0 ? (
-                <p className="text-sm text-gray-400 text-center py-8">No materials published for Grade {student.grade}.</p>
+                <p className="text-sm text-gray-400 text-center py-8">No materials published for {formatGradeLabel(student.grade)}.</p>
               ) : (
                 <div className="space-y-2">
                   {gradeMaterials.map((m) => {
@@ -765,7 +766,7 @@ export default function StudentDetailPage() {
 
           {tab === "tests" && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Tests & Exams — Grade {student.grade}</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Tests & Exams — {formatGradeLabel(student.grade)}</p>
               {attempts.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No test submissions yet.</p>
               ) : (
@@ -801,7 +802,7 @@ export default function StudentDetailPage() {
 
           {tab === "assignments" && (
             <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Assignments — Grade {student.grade}</p>
+              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-3">Assignments — {formatGradeLabel(student.grade)}</p>
               {myAssignments.length === 0 ? (
                 <p className="text-sm text-gray-400 text-center py-8">No assignments for this grade yet.</p>
               ) : (
@@ -833,7 +834,7 @@ export default function StudentDetailPage() {
                 progress.map((p) => (
                   <div key={p.id}>
                     <div className="flex justify-between mb-1 text-sm">
-                      <span className="font-medium text-gray-700">{p.subject} · Grade {p.grade}</span>
+                      <span className="font-medium text-gray-700">{p.subject} · {formatGradeLabel(p.grade)}</span>
                       <span className="font-bold text-gray-900">{p.overallScore}%</span>
                     </div>
                     <div className="h-2.5 bg-gray-100">

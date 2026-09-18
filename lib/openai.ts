@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import type { AIQuestion, Question } from "./firestore";
+import { formatGradeLabel } from "./grades";
 import type {
   CreateSimilarParams,
   GenerateQuestionsParams,
@@ -309,7 +310,7 @@ export async function analyzeStudentPerformance(
 ): Promise<StudentAnalysis> {
   const prompt = `You are an expert educational data analyst and tutor. Analyse this student's learning data and identify where they are lacking, where they need help, and what is required to support them — per subject and per answered question.
 
-STUDENT: ${payload.studentName} (Grade ${payload.grade})
+STUDENT: ${payload.studentName} (${formatGradeLabel(payload.grade)})
 TOTALS: ${payload.totals.questionsAnswered} questions answered, ${payload.totals.correct} correct, ${payload.totals.timeSpentMinutes} minutes of learning time tracked.
 
 TOPIC PERFORMANCE (subject | topic | accuracy % | questions answered):

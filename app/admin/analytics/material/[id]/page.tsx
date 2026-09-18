@@ -6,6 +6,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { getMaterialById, getCompletionsByMaterial, getAllStudents, type LearningMaterial, type MaterialCompletion, type Student } from "@/lib/firestore";
 import { MdArrowBack, MdCheckCircle, MdRadioButtonUnchecked, MdMenuBook } from "react-icons/md";
 import { useBreadcrumbLabel } from "@/lib/breadcrumb";
+import { formatGradeLabel } from "@/lib/grades";
 
 export default function MaterialAnalyticsPage() {
   const { id } = useParams<{ id: string }>();
@@ -43,7 +44,7 @@ export default function MaterialAnalyticsPage() {
                 <MdMenuBook size={24} className="text-primary" />
                 <div>
                   <h1 className="text-xl font-bold text-gray-900">{material.title}</h1>
-                  <p className="text-gray-500 text-sm">{material.subject} · Grade {material.grade} · {material.type}</p>
+                  <p className="text-gray-500 text-sm">{material.subject} · {formatGradeLabel(material.grade)} · {material.type}</p>
                 </div>
               </div>
               <div className="grid grid-cols-3 gap-4 mb-5">
@@ -63,7 +64,7 @@ export default function MaterialAnalyticsPage() {
               <div className="h-3 bg-gray-100 mb-1">
                 <div className="h-full bg-emerald-500 transition-all" style={{ width: `${completionRate}%` }} />
               </div>
-              <p className="text-xs text-gray-400">{completedStudents.length} of {gradeStudents.length} students in Grade {material.grade}</p>
+              <p className="text-xs text-gray-400">{completedStudents.length} of {gradeStudents.length} students in {formatGradeLabel(material.grade)}</p>
             </div>
 
             {/* Completed */}

@@ -29,23 +29,9 @@ import {
   MdSearch,
   MdFilterList,
 } from "react-icons/md";
+import { STUDENT_GRADES, formatGradeLabel } from "@/lib/grades";
 
-const GRADES = [
-  "Pre-K",
-  "K",
-  "1",
-  "2",
-  "3",
-  "4",
-  "5",
-  "6",
-  "7",
-  "8",
-  "9",
-  "10",
-  "11",
-  "12",
-];
+const GRADES = [...STUDENT_GRADES];
 const TYPES: LearningMaterial["type"][] = [
   "text",
   "document",
@@ -242,7 +228,7 @@ export default function MaterialsPage() {
               <option value="all">All Grades</option>
               {GRADES.map((g) => (
                 <option key={g} value={g}>
-                  Grade {g}
+                  {formatGradeLabel(g)}
                 </option>
               ))}
             </select>
@@ -306,7 +292,7 @@ export default function MaterialsPage() {
                         <p className="font-medium text-gray-800">{m.title}</p>
                       </td>
                       <td>
-                        <span className="badge badge-blue">Grade {m.grade}</span>
+                        <span className="badge badge-blue">{formatGradeLabel(m.grade)}</span>
                       </td>
                       <td className="text-gray-600">{m.subject}</td>
                       <td>
@@ -428,7 +414,7 @@ export default function MaterialsPage() {
                   >
                     {GRADES.map((g) => (
                       <option key={g} value={g}>
-                        Grade {g}
+                        {formatGradeLabel(g)}
                       </option>
                     ))}
                   </select>

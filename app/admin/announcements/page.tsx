@@ -14,8 +14,9 @@ import {
   MdAdd, MdEdit, MdDelete, MdClose, MdPushPin,
   MdCampaign, MdVisibility, MdVisibilityOff,
 } from "react-icons/md";
+import { STUDENT_GRADES, formatGradeLabel } from "@/lib/grades";
 
-const GRADES = ["Pre-K","K","1","2","3","4","5","6","7","8","9","10","11","12"];
+const GRADES = [...STUDENT_GRADES];
 
 const EMPTY: Omit<Announcement,"id"> = {
   title: "", body: "", targetGrades: [],
@@ -109,7 +110,7 @@ export default function AnnouncementsPage() {
         <div className="flex flex-wrap gap-2">
           <button type="button" onClick={() => setGradeFilter("all")} className={`filter-pill${gradeFilter === "all" ? " active" : ""}`}>All grades</button>
           {GRADES.map((g) => (
-            <button key={g} type="button" onClick={() => setGradeFilter(g)} className={`filter-pill${gradeFilter === g ? " active" : ""}`}>{g}</button>
+            <button key={g} type="button" onClick={() => setGradeFilter(g)} className={`filter-pill${gradeFilter === g ? " active" : ""}`}>{formatGradeLabel(g)}</button>
           ))}
         </div>
 
@@ -139,7 +140,7 @@ export default function AnnouncementsPage() {
                       <td>
                         {a.targetGrades.length === 0
                           ? <span className="badge badge-blue">All Grades</span>
-                          : <span className="text-xs text-gray-600">{a.targetGrades.map((g) => `G${g}`).join(", ")}</span>}
+                          : <span className="text-xs text-gray-600">{a.targetGrades.map(formatGradeLabel).join(", ")}</span>}
                       </td>
                       <td>
                         <button onClick={() => togglePin(a)} title={a.pinned ? "Unpin" : "Pin"} className={`p-1.5 transition-colors ${a.pinned ? "text-amber-500" : "text-gray-300 hover:text-amber-400"}`}>
@@ -200,12 +201,12 @@ export default function AnnouncementsPage() {
                   {GRADES.map((g) => (
                     <button key={g} type="button" onClick={() => toggleGrade(g)}
                       className={`filter-pill${form.targetGrades.includes(g) ? " active" : ""}`}>
-                      Grade {g}
+                      {formatGradeLabel(g)}
                     </button>
                   ))}
                 </div>
                 <p className="text-xs text-gray-400 mt-1">
-                  {form.targetGrades.length === 0 ? "Showing to all grades." : `Grades: ${form.targetGrades.join(", ")}`}
+                  {form.targetGrades.length === 0 ? "Showing to all grades." : form.targetGrades.map(formatGradeLabel).join(", ")}
                 </p>
               </div>
               <div className="flex gap-6">

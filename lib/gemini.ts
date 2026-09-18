@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { AIQuestion, Question } from "./firestore";
+import { formatGradeLabel } from "./grades";
 
 const geminiModel = process.env.GEMINI_MODEL ?? "gemini-3.1-flash-lite";
 const geminiApiVersion = process.env.GEMINI_API_VERSION ?? "v1";
@@ -290,7 +291,7 @@ export async function analyzeStudentPerformance(payload: StudentAnalysisPayload)
 
   const prompt = `You are an expert educational data analyst and tutor. Analyse this student's learning data and identify where they are lacking, where they need help, and what is required to support them — per subject and per answered question.
 
-STUDENT: ${payload.studentName} (Grade ${payload.grade})
+STUDENT: ${payload.studentName} (${formatGradeLabel(payload.grade)})
 TOTALS: ${payload.totals.questionsAnswered} questions answered, ${payload.totals.correct} correct, ${payload.totals.timeSpentMinutes} minutes of learning time tracked.
 
 TOPIC PERFORMANCE (subject | topic | accuracy % | questions answered):
