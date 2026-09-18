@@ -41,10 +41,12 @@ import {
   MdQuiz,
   MdAttachFile,
   MdReplay,
+  MdBarChart,
 } from "react-icons/md";
 import PdfMcqImport from "@/components/PdfMcqImport";
 import QuestionMediaControls from "@/components/QuestionMediaControls";
 import SubmittedFileButton from "@/components/SubmittedFileButton";
+import StudentResultsModal from "@/components/StudentResultsModal";
 
 const QUIZ_TYPES = new Set(["quiz", "exam", "test"]);
 
@@ -117,6 +119,11 @@ export default function PracticePapersAdmin({
   const [gradeFeedback, setGradeFeedback] = useState("");
   const [students, setStudents] = useState<Student[]>([]);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [resultModal, setResultModal] = useState<{
+    studentName: string;
+    attempt: PracticeAttempt;
+    paper: PracticePaper;
+  } | null>(null);
 
   async function load() {
     try {
@@ -466,606 +473,647 @@ export default function PracticePapersAdmin({
         {/* Attempts / grading modal */}
         {attemptsModal && (
           <ModalPortal>
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-[#001233]/50">
-            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <div>
-                  <h2 className="font-bold text-[#001233]">Attempts</h2>
-                  <p className="text-sm text-slate-500">{attemptsModal.paper.title}</p>
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-[#001233]/50">
+              <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col border border-slate-200">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                  <div>
+                    <h2 className="font-bold text-[#001233]">Attempts</h2>
+                    <p className="text-sm text-slate-500">{attemptsModal.paper.title}</p>
+                  </div>
+                  <button
+                    onClick={() => setAttemptsModal(null)}
+                    className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-50"
+                  >
+                    <MdClose size={20} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setAttemptsModal(null)}
-                  className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-50"
-                >
-                  <MdClose size={20} />
-                </button>
-              </div>
-              <div className="p-6 overflow-y-auto" style={{ maxHeight: "65vh" }}>
-                {attemptsModal.attempts.length === 0 ? (
-                  <p className="text-gray-400 text-sm text-center py-8">
-                    No attempts yet.
-                  </p>
-                ) : (
-                  <div className="space-y-3">
-                    {attemptsModal.attempts.map((att) => (
-                      <div
-                        key={att.id}
-                        className="border border-gray-200 rounded-xl p-4"
-                      >
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="font-medium text-gray-800">
-                              {personDisplayName({
-                                studentName: att.studentName,
-                                student: resolveStudent(buildStudentLookup(students), att.studentId, att.studentUid),
-                              })}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-0.5">
-                              Attempt #{att.attemptNumber}
-                            </p>
-                            <span
-                              className={`badge text-xs mt-1 ${
-                                att.status === "graded"
+                <div className="p-6 overflow-y-auto" style={{ maxHeight: "65vh" }}>
+                  {attemptsModal.attempts.length === 0 ? (
+                    <p className="text-gray-400 text-sm text-center py-8">
+                      No attempts yet.
+                    </p>
+                  ) : (
+                    <div className="space-y-3">
+                      {attemptsModal.attempts.map((att) => (
+                        <div
+                          key={att.id}
+                          className="border border-gray-200 rounded-xl p-4"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                {personDisplayName({
+                                  studentName: att.studentName,
+                                  student: resolveStudent(buildStudentLookup(students), att.studentId, att.studentUid),
+                                })}
+                              </p>
+                              <p className="text-xs text-gray-400 mt-0.5">
+                                Attempt #{att.attemptNumber}
+                              </p>
+                              <span
+                                className={`badge text-xs mt-1 ${att.status === "graded"
                                   ? "badge-green"
                                   : att.status === "submitted"
                                     ? "badge-blue"
                                     : "badge-yellow"
-                              }`}
-                            >
-                              {att.status}
-                            </span>
-                          </div>
-                          <div className="text-right">
-                            {att.score !== undefined && (
-                              <p className="font-bold text-[#00369b]">
-                                {att.score}
-                                {att.totalPoints != null
-                                  ? `/${att.totalPoints}`
-                                  : ""}
-                                {att.percentage != null
-                                  ? ` (${att.percentage}%)`
-                                  : ""}
-                              </p>
-                            )}
-                            {(att.status === "submitted" ||
-                              att.status === "pending_review" ||
-                              att.status === "graded") &&
-                              gradingId !== att.id && (
-                                <button
-                                  onClick={() => {
-                                    setGradingId(att.id!);
-                                    setGradeScore(
-                                      att.score != null ? String(att.score) : ""
-                                    );
-                                    setGradeFeedback(att.feedback ?? "");
-                                  }}
-                                  className="btn-primary text-xs py-1 px-2 mt-1 inline-flex items-center gap-1"
-                                >
-                                  <MdGrade size={12} />{" "}
-                                  {att.status === "graded" ? "Update" : "Grade"}
-                                </button>
+                                  }`}
+                              >
+                                {att.status}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              {att.score !== undefined && (
+                                <p className="font-bold text-[#00369b]">
+                                  {att.score}
+                                  {att.totalPoints != null
+                                    ? `/${att.totalPoints}`
+                                    : ""}
+                                  {att.percentage != null
+                                    ? ` (${att.percentage}%)`
+                                    : ""}
+                                </p>
                               )}
-                          </div>
-                        </div>
-                        {att.feedback && (
-                          <p className="text-xs text-gray-500 mt-2 italic">
-                            {att.feedback}
-                          </p>
-                        )}
-                        <div className="mt-2">
-                          <SubmittedFileButton
-                            url={att.attachmentUrl}
-                            name={att.attachmentName}
-                            emptyLabel=""
-                          />
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handlePracticeRetake(att)}
-                          className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium inline-flex items-center gap-1"
-                          title="Allow retake"
-                        >
-                          <MdReplay size={12} /> Allow retake
-                        </button>
-                        {gradingId === att.id && (
-                          <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
-                            <div className="flex gap-2">
-                              <div className="flex-1">
-                                <label className="admin-label">Score</label>
-                                <input
-                                  type="number"
-                                  min={0}
-                                  value={gradeScore}
-                                  onChange={(e) => setGradeScore(e.target.value)}
-                                  className="admin-input"
-                                  placeholder={`0–${attemptsModal.paper.totalPoints ?? 100}`}
-                                />
-                              </div>
-                              <div className="flex-[2]">
-                                <label className="admin-label">Feedback</label>
-                                <input
-                                  value={gradeFeedback}
-                                  onChange={(e) =>
-                                    setGradeFeedback(e.target.value)
-                                  }
-                                  className="admin-input"
-                                  placeholder="Optional comment…"
-                                />
-                              </div>
+                              {(att.status === "submitted" ||
+                                att.status === "pending_review" ||
+                                att.status === "graded") &&
+                                gradingId !== att.id && (
+                                  <button
+                                    onClick={() => {
+                                      setGradingId(att.id!);
+                                      setGradeScore(
+                                        att.score != null ? String(att.score) : ""
+                                      );
+                                      setGradeFeedback(att.feedback ?? "");
+                                    }}
+                                    className="btn-primary text-xs py-1 px-2 mt-1 inline-flex items-center gap-1"
+                                  >
+                                    <MdGrade size={12} />{" "}
+                                    {att.status === "graded" ? "Update" : "Grade"}
+                                  </button>
+                                )}
                             </div>
-                            <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                              Student will see this grade and feedback in their portal
+                          </div>
+                          {att.feedback && (
+                            <p className="text-xs text-gray-500 mt-2 italic">
+                              {att.feedback}
                             </p>
-                            <div className="flex gap-2">
-                              <button
-                                onClick={() => handleGrade(att.id!)}
-                                className="btn-primary text-xs py-1.5 px-3"
-                              >
-                                Save Grade
-                              </button>
-                              <button
-                                onClick={() => setGradingId(null)}
-                                className="btn-secondary text-xs py-1.5 px-3"
-                              >
-                                Cancel
-                              </button>
-                            </div>
+                          )}
+                          <div className="mt-2">
+                            <SubmittedFileButton
+                              url={att.attachmentUrl}
+                              name={att.attachmentName}
+                              emptyLabel=""
+                            />
                           </div>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
+                          <button
+                            type="button"
+                            onClick={() => handlePracticeRetake(att)}
+                            className="mt-2 text-xs text-amber-700 hover:text-amber-900 font-medium inline-flex items-center gap-1"
+                            title="Allow retake"
+                          >
+                            <MdReplay size={12} /> Allow retake
+                          </button>
+                          {/* View Results — quiz-type papers with stored answers */}
+                          {QUIZ_TYPES.has(attemptsModal.paper.type) &&
+                            (attemptsModal.paper.questions?.length ?? 0) > 0 &&
+                            att.answers &&
+                            Object.keys(att.answers).length > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const s = resolveStudent(
+                                    buildStudentLookup(students),
+                                    att.studentId,
+                                    att.studentUid,
+                                  );
+                                  setResultModal({
+                                    studentName: personDisplayName({
+                                      studentName: att.studentName,
+                                      student: s,
+                                    }),
+                                    attempt: att,
+                                    paper: attemptsModal.paper,
+                                  });
+                                }}
+                                className="mt-2 ml-2 inline-flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition-colors"
+                              >
+                                <MdBarChart size={13} /> View Results
+                              </button>
+                            )}
+                          {gradingId === att.id && (
+                            <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+                              <div className="flex gap-2">
+                                <div className="flex-1">
+                                  <label className="admin-label">Score</label>
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={gradeScore}
+                                    onChange={(e) => setGradeScore(e.target.value)}
+                                    className="admin-input"
+                                    placeholder={`0–${attemptsModal.paper.totalPoints ?? 100}`}
+                                  />
+                                </div>
+                                <div className="flex-[2]">
+                                  <label className="admin-label">Feedback</label>
+                                  <input
+                                    value={gradeFeedback}
+                                    onChange={(e) =>
+                                      setGradeFeedback(e.target.value)
+                                    }
+                                    className="admin-input"
+                                    placeholder="Optional comment…"
+                                  />
+                                </div>
+                              </div>
+                              <p className="text-xs text-slate-500 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                                Student will see this grade and feedback in their portal
+                              </p>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => handleGrade(att.id!)}
+                                  className="btn-primary text-xs py-1.5 px-3"
+                                >
+                                  Save Grade
+                                </button>
+                                <button
+                                  onClick={() => setGradingId(null)}
+                                  className="btn-secondary text-xs py-1.5 px-3"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
           </ModalPortal>
         )}
 
         {/* Create / edit modal */}
         {modalOpen && (
           <ModalPortal>
-          <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-[#001233]/50">
-            <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-slate-200">
-              <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-                <h2 className="font-bold text-[#001233]">
-                  {editing ? "Edit Paper" : "Create Paper"}
-                </h2>
-                <button
-                  onClick={() => setModalOpen(false)}
-                  className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-50"
+            <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-[#001233]/50">
+              <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[92vh] flex flex-col border border-slate-200">
+                <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
+                  <h2 className="font-bold text-[#001233]">
+                    {editing ? "Edit Paper" : "Create Paper"}
+                  </h2>
+                  <button
+                    onClick={() => setModalOpen(false)}
+                    className="p-2 text-slate-400 hover:text-slate-700 rounded-lg hover:bg-slate-50"
+                  >
+                    <MdClose size={20} />
+                  </button>
+                </div>
+                <form
+                  onSubmit={handleSave}
+                  className="p-6 overflow-y-auto space-y-4"
+                  style={{ maxHeight: "75vh" }}
                 >
-                  <MdClose size={20} />
-                </button>
-              </div>
-              <form
-                onSubmit={handleSave}
-                className="p-6 overflow-y-auto space-y-4"
-                style={{ maxHeight: "75vh" }}
-              >
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div className="sm:col-span-2">
-                    <label className="admin-label">Title</label>
-                    <input
-                      required
-                      value={form.title}
-                      onChange={(e) =>
-                        setForm({ ...form, title: e.target.value })
-                      }
-                      className="admin-input"
-                    />
-                  </div>
-                  <div className="sm:col-span-2">
-                    <label className="admin-label">Description</label>
-                    <textarea
-                      value={form.description}
-                      onChange={(e) =>
-                        setForm({ ...form, description: e.target.value })
-                      }
-                      rows={2}
-                      className="admin-input resize-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="admin-label">Subject</label>
-                    <select
-                      value={form.subject}
-                      onChange={(e) =>
-                        setForm({ ...form, subject: e.target.value })
-                      }
-                      className="admin-input"
-                      required
-                    >
-                      <option value="">Select…</option>
-                      {subjects.map((s) => (
-                        <option key={s} value={s}>
-                          {s}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="admin-label">Type</label>
-                    <select
-                      value={form.type}
-                      onChange={(e) =>
-                        setForm({
-                          ...form,
-                          type: e.target.value as PracticePaper["type"],
-                        })
-                      }
-                      className="admin-input"
-                    >
-                      <option value="quiz">Quiz</option>
-                      <option value="exam">Exam</option>
-                      <option value="test">Test</option>
-                      <option value="document">Document</option>
-                      <option value="custom">Custom</option>
-                    </select>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="admin-label">Year levels</label>
-                  <div className="flex flex-wrap gap-2 mt-1">
-                    {yearOptions.map((y) => (
-                      <button
-                        key={y}
-                        type="button"
-                        onClick={() => toggleYear(y)}
-                        className={`filter-pill${
-                          form.yearLevels.includes(y) ? " active" : ""
-                        }`}
-                      >
-                        Year {y}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                <div className="grid sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="admin-label">Opens at</label>
-                    <input
-                      type="datetime-local"
-                      value={form.startAt ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, startAt: e.target.value })
-                      }
-                      className="admin-input"
-                    />
-                  </div>
-                  <div>
-                    <label className="admin-label">Due at</label>
-                    <input
-                      type="datetime-local"
-                      value={form.dueAt ?? ""}
-                      onChange={(e) =>
-                        setForm({ ...form, dueAt: e.target.value })
-                      }
-                      className="admin-input"
-                    />
-                  </div>
-                </div>
-
-                {QUIZ_TYPES.has(form.type) && (
-                  <>
-                    <div className="grid sm:grid-cols-3 gap-4">
-                      <div>
-                        <label className="admin-label">Pass mark %</label>
-                        <input
-                          type="number"
-                          min={0}
-                          max={100}
-                          value={form.passMark ?? 60}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              passMark: Number(e.target.value),
-                            })
-                          }
-                          className="admin-input"
-                        />
-                      </div>
-                      <div>
-                        <label className="admin-label">Time limit (min)</label>
-                        <input
-                          type="number"
-                          min={0}
-                          value={form.timeLimit ?? 0}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              timeLimit: Number(e.target.value),
-                            })
-                          }
-                          className="admin-input"
-                        />
-                      </div>
-                      <div>
-                        <label className="admin-label">Max attempts</label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={form.maxAttempts ?? 3}
-                          onChange={(e) =>
-                            setForm({
-                              ...form,
-                              maxAttempts: Number(e.target.value),
-                            })
-                          }
-                          className="admin-input"
-                        />
-                      </div>
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div className="sm:col-span-2">
+                      <label className="admin-label">Title</label>
+                      <input
+                        required
+                        value={form.title}
+                        onChange={(e) =>
+                          setForm({ ...form, title: e.target.value })
+                        }
+                        className="admin-input"
+                      />
                     </div>
-
+                    <div className="sm:col-span-2">
+                      <label className="admin-label">Description</label>
+                      <textarea
+                        value={form.description}
+                        onChange={(e) =>
+                          setForm({ ...form, description: e.target.value })
+                        }
+                        rows={2}
+                        className="admin-input resize-none"
+                      />
+                    </div>
                     <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="admin-label !mb-0">
-                          Questions ({form.questions?.length ?? 0} ·{" "}
-                          {form.totalPoints ?? 0} pts)
-                        </label>
-                        <div className="flex flex-wrap gap-1 items-center">
-                          <PdfMcqImport onImported={importMcqFromPdf} />
-                          {(
-                            [
-                              "multiple_choice",
-                              "true_false",
-                              "short_answer",
-                            ] as QuestionType[]
-                          ).map((t) => (
-                            <button
-                              key={t}
-                              type="button"
-                              onClick={() => addQuestion(t)}
-                              className="btn-secondary text-xs py-1 px-2"
-                            >
-                              + {t.replace("_", " ")}
-                            </button>
-                          ))}
+                      <label className="admin-label">Subject</label>
+                      <select
+                        value={form.subject}
+                        onChange={(e) =>
+                          setForm({ ...form, subject: e.target.value })
+                        }
+                        className="admin-input"
+                        required
+                      >
+                        <option value="">Select…</option>
+                        {subjects.map((s) => (
+                          <option key={s} value={s}>
+                            {s}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="admin-label">Type</label>
+                      <select
+                        value={form.type}
+                        onChange={(e) =>
+                          setForm({
+                            ...form,
+                            type: e.target.value as PracticePaper["type"],
+                          })
+                        }
+                        className="admin-input"
+                      >
+                        <option value="quiz">Quiz</option>
+                        <option value="exam">Exam</option>
+                        <option value="test">Test</option>
+                        <option value="document">Document</option>
+                        <option value="custom">Custom</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="admin-label">Year levels</label>
+                    <div className="flex flex-wrap gap-2 mt-1">
+                      {yearOptions.map((y) => (
+                        <button
+                          key={y}
+                          type="button"
+                          onClick={() => toggleYear(y)}
+                          className={`filter-pill${form.yearLevels.includes(y) ? " active" : ""
+                            }`}
+                        >
+                          Year {y}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="grid sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="admin-label">Opens at</label>
+                      <input
+                        type="datetime-local"
+                        value={form.startAt ?? ""}
+                        onChange={(e) =>
+                          setForm({ ...form, startAt: e.target.value })
+                        }
+                        className="admin-input"
+                      />
+                    </div>
+                    <div>
+                      <label className="admin-label">Due at</label>
+                      <input
+                        type="datetime-local"
+                        value={form.dueAt ?? ""}
+                        onChange={(e) =>
+                          setForm({ ...form, dueAt: e.target.value })
+                        }
+                        className="admin-input"
+                      />
+                    </div>
+                  </div>
+
+                  {QUIZ_TYPES.has(form.type) && (
+                    <>
+                      <div className="grid sm:grid-cols-3 gap-4">
+                        <div>
+                          <label className="admin-label">Pass mark %</label>
+                          <input
+                            type="number"
+                            min={0}
+                            max={100}
+                            value={form.passMark ?? 60}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                passMark: Number(e.target.value),
+                              })
+                            }
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="admin-label">Time limit (min)</label>
+                          <input
+                            type="number"
+                            min={0}
+                            value={form.timeLimit ?? 0}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                timeLimit: Number(e.target.value),
+                              })
+                            }
+                            className="admin-input"
+                          />
+                        </div>
+                        <div>
+                          <label className="admin-label">Max attempts</label>
+                          <input
+                            type="number"
+                            min={1}
+                            value={form.maxAttempts ?? 3}
+                            onChange={(e) =>
+                              setForm({
+                                ...form,
+                                maxAttempts: Number(e.target.value),
+                              })
+                            }
+                            className="admin-input"
+                          />
                         </div>
                       </div>
-                      <div className="space-y-3">
-                        {(form.questions ?? []).map((q, qi) => (
-                          <div
-                            key={q.id}
-                            className="border border-slate-200 rounded-xl p-4"
-                          >
-                            <div className="flex items-start justify-between gap-2 mb-2">
-                              <span className="text-xs font-bold text-slate-400">
-                                Q{qi + 1} · {q.type.replace("_", " ")}
-                              </span>
+
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="admin-label !mb-0">
+                            Questions ({form.questions?.length ?? 0} ·{" "}
+                            {form.totalPoints ?? 0} pts)
+                          </label>
+                          <div className="flex flex-wrap gap-1 items-center">
+                            <PdfMcqImport onImported={importMcqFromPdf} />
+                            {(
+                              [
+                                "multiple_choice",
+                                "true_false",
+                                "short_answer",
+                              ] as QuestionType[]
+                            ).map((t) => (
                               <button
+                                key={t}
                                 type="button"
-                                onClick={() => removeQuestion(qi)}
-                                className="text-xs text-red-500 hover:underline"
+                                onClick={() => addQuestion(t)}
+                                className="btn-secondary text-xs py-1 px-2"
                               >
-                                Remove
+                                + {t.replace("_", " ")}
                               </button>
-                            </div>
-                            <textarea
-                              required
-                              value={q.text}
-                              onChange={(e) =>
-                                updateQ(qi, { text: e.target.value })
-                              }
-                              rows={2}
-                              className="admin-input resize-none mb-2"
-                              placeholder="Question text"
-                            />
-                            <QuestionMediaControls
-                              imageUrl={q.imageUrl}
-                              videoUrl={q.videoUrl}
-                              videoName={q.videoName}
-                              onChange={(patch) =>
-                                updateQ(qi, {
-                                  ...(patch.imageUrl === null
-                                    ? { imageUrl: undefined }
-                                    : patch.imageUrl !== undefined
-                                      ? { imageUrl: patch.imageUrl }
-                                      : {}),
-                                  ...(patch.videoUrl === null
-                                    ? { videoUrl: undefined, videoName: undefined }
-                                    : patch.videoUrl !== undefined
-                                      ? {
+                            ))}
+                          </div>
+                        </div>
+                        <div className="space-y-3">
+                          {(form.questions ?? []).map((q, qi) => (
+                            <div
+                              key={q.id}
+                              className="border border-slate-200 rounded-xl p-4"
+                            >
+                              <div className="flex items-start justify-between gap-2 mb-2">
+                                <span className="text-xs font-bold text-slate-400">
+                                  Q{qi + 1} · {q.type.replace("_", " ")}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => removeQuestion(qi)}
+                                  className="text-xs text-red-500 hover:underline"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                              <textarea
+                                required
+                                value={q.text}
+                                onChange={(e) =>
+                                  updateQ(qi, { text: e.target.value })
+                                }
+                                rows={2}
+                                className="admin-input resize-none mb-2"
+                                placeholder="Question text"
+                              />
+                              <QuestionMediaControls
+                                imageUrl={q.imageUrl}
+                                videoUrl={q.videoUrl}
+                                videoName={q.videoName}
+                                onChange={(patch) =>
+                                  updateQ(qi, {
+                                    ...(patch.imageUrl === null
+                                      ? { imageUrl: undefined }
+                                      : patch.imageUrl !== undefined
+                                        ? { imageUrl: patch.imageUrl }
+                                        : {}),
+                                    ...(patch.videoUrl === null
+                                      ? { videoUrl: undefined, videoName: undefined }
+                                      : patch.videoUrl !== undefined
+                                        ? {
                                           videoUrl: patch.videoUrl,
                                           videoName:
                                             patch.videoName === null
                                               ? undefined
                                               : patch.videoName ?? q.videoName,
                                         }
-                                      : {}),
-                                })
-                              }
-                            />
-                            <div className="grid sm:grid-cols-2 gap-2">
-                              <div>
-                                <label className="admin-label">Points</label>
-                                <input
-                                  type="number"
-                                  min={1}
-                                  value={q.points}
+                                        : {}),
+                                  })
+                                }
+                              />
+                              <div className="grid sm:grid-cols-2 gap-2">
+                                <div>
+                                  <label className="admin-label">Points</label>
+                                  <input
+                                    type="number"
+                                    min={1}
+                                    value={q.points}
+                                    onChange={(e) =>
+                                      updateQ(qi, {
+                                        points: Number(e.target.value),
+                                      })
+                                    }
+                                    className="admin-input"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="admin-label">
+                                    Correct answer
+                                  </label>
+                                  {q.type === "true_false" ? (
+                                    <select
+                                      value={q.correctAnswer}
+                                      onChange={(e) =>
+                                        updateQ(qi, {
+                                          correctAnswer: e.target.value,
+                                        })
+                                      }
+                                      className="admin-input"
+                                    >
+                                      <option value="">Select…</option>
+                                      <option value="true">True</option>
+                                      <option value="false">False</option>
+                                    </select>
+                                  ) : (
+                                    <input
+                                      required
+                                      value={q.correctAnswer}
+                                      onChange={(e) =>
+                                        updateQ(qi, {
+                                          correctAnswer: e.target.value,
+                                        })
+                                      }
+                                      className="admin-input"
+                                      placeholder={
+                                        q.type === "multiple_choice"
+                                          ? "Must match an option"
+                                          : "Expected answer"
+                                      }
+                                    />
+                                  )}
+                                </div>
+                              </div>
+                              {q.type === "multiple_choice" && (
+                                <div className="mt-2 grid sm:grid-cols-2 gap-2">
+                                  {(q.options ?? ["", "", "", ""]).map(
+                                    (opt, oi) => (
+                                      <input
+                                        key={oi}
+                                        required
+                                        value={opt}
+                                        onChange={(e) => {
+                                          const options = [
+                                            ...(q.options ?? ["", "", "", ""]),
+                                          ];
+                                          options[oi] = e.target.value;
+                                          updateQ(qi, { options });
+                                        }}
+                                        className="admin-input"
+                                        placeholder={`Option ${oi + 1}`}
+                                      />
+                                    )
+                                  )}
+                                </div>
+                              )}
+                              <div className="mt-2">
+                                <label className="admin-label">
+                                  Answer explanation (shown after)
+                                </label>
+                                <textarea
+                                  value={q.explanation ?? ""}
                                   onChange={(e) =>
-                                    updateQ(qi, {
-                                      points: Number(e.target.value),
-                                    })
+                                    updateQ(qi, { explanation: e.target.value })
                                   }
-                                  className="admin-input"
+                                  rows={2}
+                                  className="admin-input resize-none"
+                                  placeholder="Optional explanation students see after answering…"
                                 />
                               </div>
-                              <div>
-                                <label className="admin-label">
-                                  Correct answer
-                                </label>
-                                {q.type === "true_false" ? (
-                                  <select
-                                    value={q.correctAnswer}
-                                    onChange={(e) =>
-                                      updateQ(qi, {
-                                        correctAnswer: e.target.value,
-                                      })
-                                    }
-                                    className="admin-input"
-                                  >
-                                    <option value="">Select…</option>
-                                    <option value="true">True</option>
-                                    <option value="false">False</option>
-                                  </select>
-                                ) : (
-                                  <input
-                                    required
-                                    value={q.correctAnswer}
-                                    onChange={(e) =>
-                                      updateQ(qi, {
-                                        correctAnswer: e.target.value,
-                                      })
-                                    }
-                                    className="admin-input"
-                                    placeholder={
-                                      q.type === "multiple_choice"
-                                        ? "Must match an option"
-                                        : "Expected answer"
-                                    }
-                                  />
-                                )}
-                              </div>
                             </div>
-                            {q.type === "multiple_choice" && (
-                              <div className="mt-2 grid sm:grid-cols-2 gap-2">
-                                {(q.options ?? ["", "", "", ""]).map(
-                                  (opt, oi) => (
-                                    <input
-                                      key={oi}
-                                      required
-                                      value={opt}
-                                      onChange={(e) => {
-                                        const options = [
-                                          ...(q.options ?? ["", "", "", ""]),
-                                        ];
-                                        options[oi] = e.target.value;
-                                        updateQ(qi, { options });
-                                      }}
-                                      className="admin-input"
-                                      placeholder={`Option ${oi + 1}`}
-                                    />
-                                  )
-                                )}
-                              </div>
-                            )}
-                            <div className="mt-2">
-                              <label className="admin-label">
-                                Answer explanation (shown after)
-                              </label>
-                              <textarea
-                                value={q.explanation ?? ""}
-                                onChange={(e) =>
-                                  updateQ(qi, { explanation: e.target.value })
-                                }
-                                rows={2}
-                                className="admin-input resize-none"
-                                placeholder="Optional explanation students see after answering…"
-                              />
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
 
-                {(form.type === "document" || form.type === "custom") && (
-                  <>
-                    <div>
-                      <label className="admin-label">Max score</label>
-                      <input
-                        type="number"
-                        min={1}
-                        value={form.totalPoints ?? 100}
-                        onChange={(e) =>
-                          setForm({
-                            ...form,
-                            totalPoints: Number(e.target.value),
-                          })
-                        }
-                        className="admin-input max-w-[160px]"
-                      />
-                    </div>
-                    <div>
-                      <label className="admin-label">Attach document / PDF</label>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <button
-                          type="button"
-                          onClick={() => fileRef.current?.click()}
-                          disabled={fileUploading}
-                          className="btn-secondary flex items-center gap-2"
-                        >
-                          <MdUpload size={16} />
-                          {fileUploading ? "Uploading…" : "Upload File"}
-                        </button>
-                        {form.fileUrl && (
-                          <a
-                            href={form.fileUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-xs text-[#00369b] hover:underline"
+                  {(form.type === "document" || form.type === "custom") && (
+                    <>
+                      <div>
+                        <label className="admin-label">Max score</label>
+                        <input
+                          type="number"
+                          min={1}
+                          value={form.totalPoints ?? 100}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              totalPoints: Number(e.target.value),
+                            })
+                          }
+                          className="admin-input max-w-[160px]"
+                        />
+                      </div>
+                      <div>
+                        <label className="admin-label">Attach document / PDF</label>
+                        <div className="flex items-center gap-3 flex-wrap">
+                          <button
+                            type="button"
+                            onClick={() => fileRef.current?.click()}
+                            disabled={fileUploading}
+                            className="btn-secondary flex items-center gap-2"
                           >
-                            {form.fileName || "Uploaded file"}
-                          </a>
-                        )}
+                            <MdUpload size={16} />
+                            {fileUploading ? "Uploading…" : "Upload File"}
+                          </button>
+                          {form.fileUrl && (
+                            <a
+                              href={form.fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-[#00369b] hover:underline"
+                            >
+                              {form.fileName || "Uploaded file"}
+                            </a>
+                          )}
+                        </div>
+                        <input
+                          ref={fileRef}
+                          type="file"
+                          className="hidden"
+                          onChange={handleFileUpload}
+                        />
                       </div>
-                      <input
-                        ref={fileRef}
-                        type="file"
-                        className="hidden"
-                        onChange={handleFileUpload}
-                      />
-                    </div>
-                  </>
-                )}
+                    </>
+                  )}
 
-                <div>
-                  <label className="admin-label">
-                    Instructions (optional)
+                  <div>
+                    <label className="admin-label">
+                      Instructions (optional)
+                    </label>
+                    <WysiwygEditor
+                      content={form.content ?? ""}
+                      onChange={(html) => setForm({ ...form, content: html })}
+                      placeholder="Instructions for students…"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={form.published}
+                      onChange={(e) =>
+                        setForm({ ...form, published: e.target.checked })
+                      }
+                      className="rounded border-slate-300"
+                    />
+                    Published (visible to students)
                   </label>
-                  <WysiwygEditor
-                    content={form.content ?? ""}
-                    onChange={(html) => setForm({ ...form, content: html })}
-                    placeholder="Instructions for students…"
-                  />
-                </div>
 
-                <label className="flex items-center gap-2 text-sm text-slate-700 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={form.published}
-                    onChange={(e) =>
-                      setForm({ ...form, published: e.target.checked })
-                    }
-                    className="rounded border-slate-300"
-                  />
-                  Published (visible to students)
-                </label>
-
-                <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => setModalOpen(false)}
-                    className="btn-secondary"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="btn-primary"
-                  >
-                    {saving ? "Saving…" : editing ? "Update" : "Create"}
-                  </button>
-                </div>
-              </form>
+                  <div className="flex justify-end gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setModalOpen(false)}
+                      className="btn-secondary"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="btn-primary"
+                    >
+                      {saving ? "Saving…" : editing ? "Update" : "Create"}
+                    </button>
+                  </div>
+                </form>
+              </div>
             </div>
-          </div>
           </ModalPortal>
+        )}
+
+        {/* View Results modal */}
+        {resultModal && (
+          <StudentResultsModal
+            studentName={resultModal.studentName}
+            title={resultModal.paper.title}
+            questions={resultModal.paper.questions ?? []}
+            answers={resultModal.attempt.answers ?? {}}
+            score={resultModal.attempt.score}
+            totalPoints={resultModal.attempt.totalPoints ?? resultModal.paper.totalPoints}
+            percentage={resultModal.attempt.percentage}
+            passed={resultModal.attempt.passed}
+            passMark={resultModal.paper.passMark}
+            onClose={() => setResultModal(null)}
+          />
         )}
       </div>
     </AdminLayout>
