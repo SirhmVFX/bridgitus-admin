@@ -568,7 +568,7 @@ ${data.description ? `\n\n${data.description}` : ""}`,
                       </td>
                       <td>
                         <span
-                          className={`badge text-white ${a.type === "ixl" ? "bg-[#5B2EFF]" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}
+                          className={`badge text-white ${a.type === "ixl" ? "bg-orange-500" : a.type === "deltamath" ? "bg-blue-600" : a.type === "quiz" ? "bg-purple-600" : "badge-gray"}`}
                         >
                           {a.type === "ixl"
                             ? "Edpuzzle"

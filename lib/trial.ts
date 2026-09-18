@@ -53,7 +53,15 @@ export function getTrialDaysRemaining(student: TrialStudentFields): number | nul
   if (!isOnActiveTrial(student)) return null;
   const end = getTrialEndDate(student);
   if (!end) return null;
-  return Math.max(0, Math.ceil((end.getTime() - Date.now()) / (1000 * 60 * 60 * 24)));
+
+  // Calendar days left (local midnight → end-date midnight) so the count drops each day.
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfEndDay = new Date(end.getFullYear(), end.getMonth(), end.getDate());
+  const days = Math.round(
+    (startOfEndDay.getTime() - startOfToday.getTime()) / (1000 * 60 * 60 * 24)
+  );
+  return Math.max(0, days);
 }
 
 export function formatTrialEndsLabel(student: TrialStudentFields): string | null {
