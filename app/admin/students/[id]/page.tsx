@@ -111,10 +111,17 @@ export default function StudentDetailPage() {
   const [siblingBusy, setSiblingBusy] = useState(false);
   const [siblingMsg, setSiblingMsg] = useState("");
   const [reactivateOpen, setReactivateOpen] = useState(false);
+  // Generic results modal — works for tests AND assignments
   const [resultModal, setResultModal] = useState<{
     studentName: string;
-    submission: AssignmentSubmission;
-    assignment: Assignment;
+    title: string;
+    questions: import("@/lib/firestore").Question[];
+    answers: Record<string, string>;
+    score?: number;
+    totalPoints?: number;
+    percentage?: number;
+    passed?: boolean;
+    passMark?: number;
   } | null>(null);
 
   useEffect(() => {
@@ -795,9 +802,31 @@ export default function StudentDetailPage() {
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {testAttempts.map((a) => (
-                            <div key={a.id} className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 ${a.status === "approved" ? (a.passed ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600") : a.status === "pending_review" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
-                              {a.status === "approved" ? (a.passed ? <MdCheckCircle size={11} /> : <MdCancel size={11} />) : <MdPending size={11} />}
-                              Attempt {a.attemptNumber}{a.status === "approved" ? ` · ${a.percentage}%` : a.status === "pending_review" ? " · Pending" : ""}
+                            <div key={a.id} className="flex items-center gap-2 flex-wrap">
+                              <div className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1 ${a.status === "approved" ? (a.passed ? "bg-emerald-100 text-emerald-700" : "bg-red-100 text-red-600") : a.status === "pending_review" ? "bg-amber-100 text-amber-700" : "bg-gray-100 text-gray-500"}`}>
+                                {a.status === "approved" ? (a.passed ? <MdCheckCircle size={11} /> : <MdCancel size={11} />) : <MdPending size={11} />}
+                                Attempt {a.attemptNumber}{a.status === "approved" ? ` · ${a.percentage}%` : a.status === "pending_review" ? " · Pending" : ""}
+                              </div>
+                              {(test.questions?.length ?? 0) > 0 &&
+                                a.answers && Object.keys(a.answers).length > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setResultModal({
+                                      studentName: `${student.firstName} ${student.lastName}`,
+                                      title: `${test.title} — Attempt ${a.attemptNumber}`,
+                                      questions: test.questions ?? [],
+                                      answers: a.answers ?? {},
+                                      score: a.score,
+                                      totalPoints: a.totalPoints,
+                                      percentage: a.percentage,
+                                      passed: a.passed,
+                                      passMark: test.passMark,
+                                    })}
+                                    className="flex items-center gap-1 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2 py-1 rounded-lg transition-colors"
+                                  >
+                                    <MdBarChart size={12} /> Results
+                                  </button>
+                                )}
                             </div>
                           ))}
                         </div>
@@ -846,8 +875,14 @@ export default function StudentDetailPage() {
                               onClick={() =>
                                 setResultModal({
                                   studentName: `${student.firstName} ${student.lastName}`,
-                                  submission: sub!,
-                                  assignment: a,
+                                  title: a.title,
+                                  questions: a.questions ?? [],
+                                  answers: sub!.answers ?? {},
+                                  score: sub!.score,
+                                  totalPoints: sub!.totalPoints,
+                                  percentage: sub!.percentage,
+                                  passed: sub!.passed,
+                                  passMark: a.passMark,
                                 })
                               }
                               className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1.5 rounded-lg transition-colors whitespace-nowrap"
@@ -973,8 +1008,14 @@ export default function StudentDetailPage() {
       {resultModal && (
         <StudentResultsModal
           studentName={resultModal.studentName}
-          submission={resultModal.submission}
-          assignment={resultModal.assignment}
+          title={resultModal.title}
+          questions={resultModal.questions}
+          answers={resultModal.answers}
+          score={resultModal.score}
+          totalPoints={resultModal.totalPoints}
+          percentage={resultModal.percentage}
+          passed={resultModal.passed}
+          passMark={resultModal.passMark}
           onClose={() => setResultModal(null)}
         />
       )}
