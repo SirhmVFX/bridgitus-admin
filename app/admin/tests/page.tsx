@@ -117,6 +117,11 @@ export default function TestsPage() {
   const [testsGradeFilter, setTestsGradeFilter] = useState<string>("all");
   const [testsTypeFilter, setTestsTypeFilter] = useState<string>("all");
   const [testsSearch, setTestsSearch] = useState("");
+  const [resultModal, setResultModal] = useState<{
+    studentName: string;
+    attempt: TestAttempt;
+    test: Test;
+  } | null>(null);
 
   async function load() {
     try {
@@ -650,12 +655,12 @@ export default function TestsPage() {
                           <td>
                             <span
                               className={`badge ${a.status === "approved"
-                                  ? a.passed
-                                    ? "badge-green"
-                                    : "badge-red"
-                                  : a.status === "rejected"
-                                    ? "badge-red"
-                                    : "badge-yellow"
+                                ? a.passed
+                                  ? "badge-green"
+                                  : "badge-red"
+                                : a.status === "rejected"
+                                  ? "badge-red"
+                                  : "badge-yellow"
                                 }`}
                             >
                               {a.status.replace("_", " ")}
