@@ -1385,6 +1385,22 @@ export default function TestsPage() {
           </div>
         </ModalPortal>
       )}
+
+      {/* Per-question results modal */}
+      {resultModal && (
+        <StudentResultsModal
+          studentName={resultModal.studentName}
+          title={resultModal.test.title}
+          questions={resultModal.test.questions}
+          answers={resultModal.attempt.answers}
+          score={resultModal.attempt.score}
+          totalPoints={resultModal.attempt.totalPoints}
+          percentage={resultModal.attempt.percentage}
+          passed={resultModal.attempt.passed}
+          passMark={resultModal.test.passMark}
+          onClose={() => setResultModal(null)}
+        />
+      )}
     </AdminLayout>
   );
 }
