@@ -695,6 +695,23 @@ export default function TestsPage() {
                                   Review
                                 </button>
                               )}
+                              {testById[a.testId] &&
+                                (testById[a.testId].questions?.length ?? 0) > 0 &&
+                                a.answers &&
+                                Object.keys(a.answers).length > 0 && (
+                                  <button
+                                    onClick={() =>
+                                      setResultModal({
+                                        studentName: attemptStudentLabel(a),
+                                        attempt: a,
+                                        test: testById[a.testId],
+                                      })
+                                    }
+                                    className="flex items-center gap-1.5 text-xs font-semibold text-purple-700 hover:text-purple-900 bg-purple-50 hover:bg-purple-100 border border-purple-200 px-2.5 py-1 rounded-lg transition-colors"
+                                  >
+                                    <MdBarChart size={13} /> View Results
+                                  </button>
+                                )}
                               <button
                                 onClick={() => handleRetake(a)}
                                 className="btn-secondary text-xs py-1 px-2 inline-flex items-center gap-1"
